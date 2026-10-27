@@ -31,7 +31,7 @@ function renderLogin(error) {
   app.innerHTML =
     '<h1>' + esc(window.APP_CONFIG.APP_NAME) + '</h1>' +
     '<div class="card"><h2>ログイン</h2>' +
-    '<label for="lid">選手ID</label><input id="lid" inputmode="text" autocomplete="username" placeholder="例：26001">' +
+    '<label for="lid">ID（選手ID・スタッフID）</label><input id="lid" inputmode="text" autocomplete="username" placeholder="例：26001">' +
     '<label for="lpin">PIN（4桁）</label><input id="lpin" type="password" inputmode="numeric" maxlength="4" autocomplete="current-password">' +
     msgHtml('error', error) +
     '<button class="btn block big" data-act="login">ログイン</button>' +
@@ -43,9 +43,9 @@ function doLogin() {
   var pin = document.getElementById('lpin').value.trim();
   app.querySelector('[data-act="login"]').disabled = true;
   Api.call('login', { id: id, pin: pin }).then(function (res) {
-    if (res.role !== 'athlete') { renderLogin('スタッフ用の画面は準備中です。選手IDでログインしてください。'); return; }
     S.token = res.token;
     Store.set('token', res.token);
+    if (res.role === 'staff') { Staff.start(res.name); return; }   // スタッフはスタッフ画面へ（staff.js）
     loadHome();
   }).catch(function (err) { renderLogin(err.message); });
 }
@@ -62,6 +62,7 @@ function logout() {
 function loadHome(notice) {
   app.innerHTML = '<div class="loading">読み込み中…</div>';
   Api.call('home', { token: S.token }).then(function (res) {
+    if (res.role === 'staff') { Staff.start(res.name); return; }
     S.home = res;
     Store.set('home', res);
     renderHome(notice);
@@ -117,6 +118,7 @@ function renderHome(notice, warning) {
     html += '</details>';
   }
   html += '<button class="btn sub block" data-act="startFree">自分のメニューで記録する</button></div>';
+  html += '<button class="btn sub block" data-act="body">📊 体組成レポート</button>';
 
   if (h.last) {
     html += '<p class="muted small">前回: ' + esc(h.last.date) + '（' + esc(h.last.type) +
@@ -458,6 +460,7 @@ app.addEventListener('click', function (e) {
     case 'speakSuggest': Speech.speak(suggestText()); break;
     case 'startDay': startDay(t.dataset.day); break;
     case 'startFree': startFree(); break;
+    case 'body': Body.showMine(); break;
     case 'home': Timer.stop(); Speech.stop(); renderHome(); break;
     case 'speakItem': Speech.speak(Speech.exerciseText(dr.items[i], latestOf(dr.items[i].name))); break;
     case 'speakCurrent': var c = currentIndex();

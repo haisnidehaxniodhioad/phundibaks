@@ -101,3 +101,27 @@ body:has(.timer) .voice-box { bottom: calc(170px + env(safe-area-inset-bottom));
 .move-btn { padding: 6px 9px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.85rem; color: var(--primary); }
 /* 画面下に固定したボタン（話しかける・タイマー）に、スクロールした先の要素が隠れないようにする */
 html { scroll-padding-bottom: 180px; }
+/* Phase 3: スタッフ画面・体組成レポート */
+.tabs { display: flex; gap: 6px; margin: 8px 0 14px; }
+.tab { flex: 1; padding: 10px 6px; border: 1px solid var(--border); border-radius: 10px; background: #fff; font-weight: 700; color: var(--muted); }
+.tab.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.sel { padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px; background: #fff; font-size: 0.92rem; }
+.table-scroll { overflow-x: auto; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.tbl th, .tbl td { padding: 7px 5px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; white-space: nowrap; }
+.tbl th { color: var(--muted); font-size: 0.78rem; }
+.row-ng td { background: #fdeceb; }
+.ng-text { color: var(--danger); }
+.link { background: none; border: none; padding: 0; color: var(--primary); font-weight: 700; font-size: inherit; text-decoration: underline; cursor: pointer; text-align: left; }
+.chip { display: inline-block; margin: 3px 2px; }
+.metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.metric { border: 1px solid var(--border); border-radius: 10px; padding: 10px; background: var(--bg); }
+.metric-label { font-size: 0.8rem; font-weight: 700; color: var(--muted); }
+.metric-value { font-size: 1.6rem; font-weight: 800; }
+.metric-value .unit { font-size: 0.85rem; margin-left: 2px; color: var(--muted); }
+.chart { width: 100%; height: auto; display: block; margin-top: 4px; }
+.chart .grid { stroke: var(--border); stroke-width: 1; }
+.chart .axis { fill: var(--muted); font-size: 10px; }
+.legends { display: flex; gap: 12px; font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+@media (min-width: 560px) { .metrics { grid-template-columns: repeat(4, 1fr); } }
