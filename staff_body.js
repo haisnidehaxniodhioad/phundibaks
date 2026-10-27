@@ -99,7 +99,7 @@ var StaffBody = {
       var r = list[list.length - 1];
       return r ? { id: a.id, name: a.name, grade: a.grade, value: r[metric], date: r.date } : null;
     }).filter(Boolean).sort(function (x, y) { return y.value - x.value; });
-    var labels = { ffmi: 'FFMI', lbm: '除脂肪体重', weight: '体重（InBody）', fat: '体脂肪率' };
+    var labels = { weight: '体重（InBody）', fat: '体脂肪率', lbm: '除脂肪体重', ffmi: 'FFMI' };   // 体重→体脂肪率→除脂肪体重→FFMIの順
     StaffBody.rankRows = rows.map(function (r, i) { return { rank: i > 0 && rows[i - 1].value === r.value ? '' : i + 1, id: r.id, name: r.name, grade: r.grade, value: r.value, date: r.date }; });
     StaffBody.rankTitle = labels[metric];
     StaffBody.rankSub = (f.grade || '全学年') + '・' + (date ? date + '以前の最新の記録' : '最新の記録') + '・' + rows.length + '人';

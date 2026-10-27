@@ -110,7 +110,7 @@ var Body = {
       var fChart = Body.lineChart([{ points: ib.filter(function (r) { return r.ffmi !== ''; }).map(function (r) { return { x: r.date, y: r.ffmi }; }), color: '#d9822b', label: 'FFMI' }], { height: h });
       var fatChart = Body.lineChart([{ points: ib.filter(function (r) { return r.fat !== ''; }).map(function (r) { return { x: r.date, y: r.fat }; }), color: '#8a5cc7', label: '体脂肪率(%)' }], { height: h });
       var wChart = Body.lineChart([{ points: ib.map(function (r) { return { x: r.date, y: r.weight }; }), color: 'var(--primary)', label: '体重(kg)' }], { height: h });
-      html += '<div class="card"><h2>InBodyの推移</h2><div class="' + (opt.print ? 'print-charts4' : '') + '"><div>' + lChart + '</div><div>' + fChart + '</div><div>' + fatChart + '</div><div>' + wChart + '</div></div></div>';
+      html += '<div class="card"><h2>InBodyの推移</h2><div class="' + (opt.print ? 'print-charts4' : '') + '"><div>' + wChart + '</div><div>' + fatChart + '</div><div>' + lChart + '</div><div>' + fChart + '</div></div></div>';   // 体重→体脂肪率→除脂肪体重→FFMIの順
     }
     var hist = ib.slice().reverse();
     if (opt.print) hist = hist.slice(0, 12);
