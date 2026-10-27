@@ -8,6 +8,7 @@
  *                   「レストあと何秒」「スキップ」「取り消し」「デッドリフト追加」「終わり」
  *   ホーム       : 「今日は何をする？」「デイ2を始める」
  *   終了画面     : 「きつさ7」「保存」
+ * わからない言い方は「どの操作ですか？」と候補を出し、選ばれた答えを覚える（Chooser, Phase 2b）。
  */
 var VoiceUI = {
   btn: document.getElementById('micBtn'),
@@ -41,7 +42,8 @@ var VoiceUI = {
       help.innerHTML = '<summary>🎤 話し方の例</summary>' + (S.view === 'session'
         ? '記録：「スクワット60キロ8回」「60キロ8回」（今の種目）「懸垂10回」<br>案内：「次は？」「今の種目」「前回は？」<br>' +
           'レスト：「あと何秒」「スキップ」<br>そのほか：「取り消し」「デッドリフト追加」「終わり」'
-        : '「今日は何をする？」「デイ2を始める」');
+        : '「今日は何をする？」「デイ2を始める」') +
+        '<br>わからない言い方をされたときは、画面に操作の候補が出ます。選ぶと、次からはその言い方で動きます（チームで共有）。';
       document.getElementById('app').appendChild(help);
     }
   },
@@ -88,6 +90,100 @@ var VoiceUI = {
   }
 };
 
+// ---------------- 「どの操作ですか？」（Phase 2b: 使いながら覚える） ----------------
+var Chooser = {
+  text: '', cmd: null,
+
+  /** わからない言い方をされたとき、操作の候補をボタンで出す */
+  openAction: function (text) {
+    this.text = text; this.cmd = null;
+    var opts = [];
+    if (S.view === 'session') {
+      var nums = VoiceParser.extractNumbers(VoiceParser.normalizeNumbers(text));
+      if (nums.weight !== null || nums.reps !== null) opts.push(['record', '', '今の種目に記録する']);
+      opts.push(['next', '', '次の種目を聞く'], ['current', '', '今の種目を聞く'], ['previous', '', '前回の記録を聞く'],
+                ['restLeft', '', 'レストの残り時間'], ['skipRest', '', 'レストを終える'], ['undo', '', '直前の記録を取り消す'],
+                ['finish', '', '終了して保存へ']);
+    } else {
+      var first = S.home.suggestion.order[0];
+      if (first) opts.push(['startSuggested', '', 'おすすめのDay（今日はDay' + first + '）を始める']);
+      opts.push(['suggest', '', '今日のおすすめを聞く']);
+      S.home.days.forEach(function (d) { opts.push(['startDay', String(d.day), 'Day' + d.day + (d.dayName ? '（' + d.dayName + '）' : '') + 'を始める']); });
+    }
+    this.render('どの操作ですか？ 選ぶと、次からはこの言い方で動きます。', opts);
+    Speech.speak('わかりませんでした。画面から操作を選んでください。次からは、その言い方で動きます。');
+  },
+
+  /** 知らない種目名が出たとき、どの種目のことかを選んでもらう */
+  openExercise: function (text, cmd) {
+    this.text = text; this.cmd = cmd;
+    var names = S.draft.items.map(function (it) { return it.name; });
+    S.home.exercises.forEach(function (e) { if (names.indexOf(e.name) < 0) names.push(e.name); });
+    var opts = S.draft.items.map(function (it) { return ['exercise', it.name, it.name]; });
+    var html = '<select id="chooseEx" class="choose-select"><option value="">種目マスタから選ぶ…</option>' +
+      names.filter(function (n) { return !S.draft.items.some(function (it) { return it.name === n; }); })
+        .map(function (n) { return '<option>' + esc(n) + '</option>'; }).join('') + '</select>';
+    opts.push(['newExercise', cmd.name, '新しい種目「' + cmd.name + '」として追加']);
+    this.render('「' + cmd.name + '」はどの種目ですか？ 選ぶと呼び方として覚えます。', opts, html);
+    Speech.speak(cmd.name + 'は、どの種目ですか。画面から選んでください。');
+  },
+
+  render: function (title, opts, extraHtml) {
+    var box = VoiceUI.box;
+    clearTimeout(VoiceUI.hideHandle);
+    box.hidden = false;
+    box.innerHTML = '<div class="heard">🎤 ' + esc(this.text) + '</div><div class="reply">' + esc(title) + '</div>' +
+      '<div class="choose-list">' + opts.map(function (o) {
+        return '<button class="btn sub choose-btn" data-choose="' + o[0] + '" data-value="' + esc(o[1]) + '">' + esc(o[2]) + '</button>';
+      }).join('') + (extraHtml || '') +
+      '<button class="btn ghost choose-btn" data-choose="none">どれでもない（覚えない）</button></div>';
+  },
+
+  close: function () { VoiceUI.box.hidden = true; },
+
+  /** 選ばれた操作を実行し、言い回しを覚える */
+  pick: function (action, value) {
+    var text = this.text, view = S.view;
+    if (action === 'none') { this.close(); return; }
+    this.close();
+    if (action === 'exercise' || action === 'newExercise') return this.pickExercise(value, action === 'newExercise');
+
+    var phrase = VoiceParser.phraseKey(text);
+    // 「Day3を始める」を数字の入っていない言い方で覚えると、全員がいつもDay3になってしまうので覚えない
+    var learnable = !(action === 'startDay' && phrase.indexOf('#') < 0);
+    if (phrase.length >= 2 && learnable) {
+      S.home.phrases = (S.home.phrases || []).filter(function (p) { return !(p.phrase === phrase && p.view === view); });
+      S.home.phrases.push({ phrase: phrase, action: action, value: value, view: view });
+      Api.call('learnPhrase', { token: S.token, phrase: phrase, op: action, value: value, view: view })
+        .catch(function () { /* 覚えられなくても操作自体は続ける */ });
+    }
+    var cmd = learnedToCmd({ action: action, value: value }, text);
+    if (view === 'session') voiceInSession(text, cmd); else voiceInHome(text, cmd);
+  },
+
+  /** 知らない種目名を、既存の種目の呼び方として覚える（または新しい種目として追加する） */
+  pickExercise: function (name, isNew) {
+    var alias = this.cmd.name, cmd = this.cmd, text = this.text;
+    var known = findExercise(name);
+    if (known) {
+      if (known.aliases.indexOf(alias) < 0) known.aliases = known.aliases ? known.aliases + '、' + alias : alias;
+    } else {
+      S.home.exercises.push({ id: '', name: name, aliases: isNew ? '' : alias, category: '', part: '' });
+    }
+    Api.call('learnAlias', { token: S.token, alias: alias, exercise: name, create: isNew || !known })
+      .catch(function () { /* 覚えられなくても記録は続ける */ });
+    voiceRecord(text, { type: 'record', exercise: name, weight: cmd.weight, reps: cmd.reps });
+  }
+};
+
+VoiceUI.box.addEventListener('click', function (e) {
+  var b = e.target.closest('[data-choose]');
+  if (b) Chooser.pick(b.dataset.choose, b.dataset.value || '');
+});
+VoiceUI.box.addEventListener('change', function (e) {
+  if (e.target.id === 'chooseEx' && e.target.value) Chooser.pick('exercise', e.target.value);
+});
+
 /** 返事を画面に出して、読み上げる */
 function reply(heard, text, ng) { VoiceUI.show(heard, text, ng); Speech.speak(text); }
 
@@ -105,15 +201,37 @@ function voiceCandidates() {
 /** 聞き取った文を処理する */
 function handleVoice(text) {
   var cmd = VoiceParser.parse(text, { candidates: voiceCandidates() });
-  if (S.view === 'session') return voiceInSession(text, cmd);
   if (S.view === 'finish') return voiceInFinish(text, cmd);
-  if (S.view === 'home') return voiceInHome(text, cmd);
+  if (S.view !== 'session' && S.view !== 'home') return;
+
+  // わからない言い方 → 覚えた言い回しを探す → それでも無ければ「どの操作ですか？」と聞く（Phase 2b）
+  if (cmd.type === 'unknown') {
+    var learned = VoiceParser.matchLearned(text, S.home.phrases, S.view);
+    if (learned) cmd = learnedToCmd(learned, text);
+    else return Chooser.openAction(text);
+  }
+  if (cmd.type === 'unknownExercise' && S.view === 'session') return Chooser.openExercise(text, cmd);
+
+  if (S.view === 'session') return voiceInSession(text, cmd);
+  return voiceInHome(text, cmd);
+}
+
+/** 覚えた言い回しを、操作の指示に変換する */
+function learnedToCmd(p, text) {
+  var norm = VoiceParser.normalizeNumbers(text);
+  var nums = VoiceParser.extractNumbers(norm);
+  var dayInText = norm.match(/\d/);   // 「#を始めたい」のように数字入りで覚えた場合は、話した数字のDayにする
+  return { type: p.action, day: p.action === 'startDay' && dayInText ? Number(dayInText[0]) : (Number(p.value) || null), exercise: p.action === 'record' ? (p.value || null) : null,
+           weight: nums.weight, reps: nums.reps, learned: true };
 }
 
 // ---------------- ホーム ----------------
 function voiceInHome(text, cmd) {
   var h = S.home;
-  if (cmd.type === 'startDay') {
+  if (cmd.type === 'startSuggested') {
+    if (h.suggestion.order.length) { VoiceUI.show(text, 'Day' + h.suggestion.order[0] + 'を始めます'); startDay(h.suggestion.order[0]); }
+    else reply(text, h.suggestion.reason, true);
+  } else if (cmd.type === 'startDay') {
     if (findDay(cmd.day)) { VoiceUI.show(text, 'Day' + cmd.day + 'を始めます'); startDay(cmd.day); }
     else reply(text, 'Day' + cmd.day + 'はメニューにありません。', true);
   } else if (cmd.type === 'suggest' || cmd.type === 'current' || cmd.type === 'next') {

@@ -115,6 +115,56 @@ var VoiceParser = {
   },
 
   /**
+   * 文から重量と回数を取り出す（normalizeNumbers 済みの文を渡す）。
+   * 「60キロ8回」「60kg 8回」のほか、単位なしの「60の8」「60で8」「60かける8」「60×8」にも対応。
+   */
+  extractNumbers: function (text) {
+    var weight = null, reps = null;
+    var wm = text.match(/(\d+(?:\.\d+)?)\s*(?:キロ|きろ|kg|ｋｇ|㎏|キログラム)/i);
+    var rm = text.match(/(\d+)\s*(?:回|かい|レップ|reps?)/i);
+    if (wm) weight = Number(wm[1]);
+    if (rm) reps = Number(rm[1]);
+    if (weight === null && reps === null) {
+      var pair = text.match(/(\d+(?:\.\d+)?)\s*(?:の|で|かける|×|x|X|を)\s*(\d+)/);
+      if (pair) { weight = Number(pair[1]); reps = Number(pair[2]); }
+    }
+    return { weight: weight, reps: reps };
+  },
+
+  // ---------------- 覚えた言い回し（Phase 2b） ----------------
+  /** 言い回しを覚えるときの形（数字は#に、空白・記号・長音は除く）。学習.gs と同じ形 */
+  phraseKey: function (text) {
+    return this.norm(this.normalizeNumbers(text)).replace(/\d+(?:\.\d+)?/g, '#');
+  },
+
+  /** 2つの言い回しの似ている度合い（0〜1）。2文字ずつの組の重なりで比べる */
+  similarity: function (a, b) {
+    if (a === b) return 1;
+    if (a.length < 2 || b.length < 2) return 0;
+    var pairs = function (s) { var m = {}; for (var i = 0; i < s.length - 1; i++) { var p = s.substr(i, 2); m[p] = (m[p] || 0) + 1; } return m; };
+    var pa = pairs(a), pb = pairs(b), hit = 0;
+    Object.keys(pa).forEach(function (k) { if (pb[k]) hit += Math.min(pa[k], pb[k]); });
+    return (2 * hit) / (a.length - 1 + b.length - 1);
+  },
+
+  /**
+   * 覚えた言い回しの中から、いちばん近いものを探す（同じ画面のものだけ）。
+   * 完全に同じか、十分に似ていれば、その言い回しを返す。無ければnull。
+   */
+  matchLearned: function (text, phrases, view) {
+    var key = this.phraseKey(text), best = null, bestScore = 0;
+    (phrases || []).forEach(function (p) {
+      if (p.view && p.view !== view) return;
+      var score = VoiceParser.similarity(key, p.phrase);
+      if (score > bestScore) { best = p; bestScore = score; }
+    });
+    // 短い言い回しは誤判定しやすいので完全一致だけ、5文字以上は0.7以上で「同じ言い回し」とみなす
+    if (!best) return null;
+    if (key.length < 5 || best.phrase.length < 5) return bestScore === 1 ? best : null;
+    return bestScore >= 0.7 ? best : null;
+  },
+
+  /**
    * 聞き取った文を、操作の指示に変換する。
    * context.candidates: [{name, aliases:[...]}]  （種目の候補）
    * 返す形の例:
@@ -143,16 +193,7 @@ var VoiceParser = {
     if (startDay) return { type: 'startDay', day: startDay };
 
     // ---- 記録（重量・回数） ----
-    var weight = null, reps = null;
-    var wm = text.match(/(\d+(?:\.\d+)?)\s*(?:キロ|きろ|kg|ｋｇ|㎏|キログラム)/i);
-    var rm = text.match(/(\d+)\s*(?:回|かい|レップ|reps?)/i);
-    if (wm) weight = Number(wm[1]);
-    if (rm) reps = Number(rm[1]);
-    if (weight === null && reps === null) {
-      // 単位なしの「60の8」「60で8」「60かける8」「60×8」
-      var pair = text.match(/(\d+(?:\.\d+)?)\s*(?:の|で|かける|×|x|X|を)\s*(\d+)/);
-      if (pair) { weight = Number(pair[1]); reps = Number(pair[2]); }
-    }
+    var nums = this.extractNumbers(text), weight = nums.weight, reps = nums.reps;
     if (weight !== null || reps !== null) {
       var exName = this.findExercise(text, candidates);
       if (!exName) {

@@ -90,3 +90,7 @@ body.has-mic .timer { bottom: calc(80px + env(safe-area-inset-bottom)); left: 16
 .voice-help { font-size: 0.82rem; color: var(--muted); line-height: 1.7; }
 /* レストタイマーが出ているときは、聞き取った文の表示をタイマーの上に出す */
 body:has(.timer) .voice-box { bottom: calc(170px + env(safe-area-inset-bottom)); }
+/* 「どの操作ですか？」の候補（Phase 2b） */
+.choose-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; max-height: 50vh; overflow-y: auto; }
+.choose-btn { width: 100%; padding: 10px; font-size: 0.95rem; text-align: left; }
+.choose-select { padding: 10px; font-size: 0.95rem; border: 1px solid var(--primary); border-radius: 10px; color: var(--primary); background: #fff; }
