@@ -12,11 +12,16 @@
   <!-- 画面の中身は app.js が組み立てる -->
   <div id="app" class="wrap"><div class="loading">読み込み中…</div></div>
   <div id="timer"></div>
+  <!-- 音声操作（Phase 2）: マイクボタンと、聞き取った文の表示 -->
+  <div id="voiceBox" class="voice-box" hidden></div>
+  <button id="micBtn" class="mic-fab" hidden>🎤 話しかける</button>
 
-  <!-- 読み込む順番に意味がある（設定 → 通信 → 音声 → 画面） -->
+  <!-- 読み込む順番に意味がある（設定 → 通信 → 読み上げ → 聞き取り → 画面 → 音声操作） -->
   <script src="config.js"></script>
   <script src="api.js"></script>
   <script src="speech.js"></script>
+  <script src="voice.js"></script>
   <script src="app.js"></script>
+  <script src="commands.js"></script>
 </body>
 </html>

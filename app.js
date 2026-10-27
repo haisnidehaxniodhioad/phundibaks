@@ -237,18 +237,27 @@ function toggleSet(i, j) {
   s.done = !s.done;
   saveDraft();
   renderSession();
-  if (!s.done) return;
+  if (s.done) afterSetDone(i, '');
+}
+
+/**
+ * セットが終わったあとの案内（レストタイマーと読み上げ）。
+ * prefix: 先に読み上げる言葉（音声で記録したときの「〇〇を記録しました」など）
+ */
+function afterSetDone(i, prefix) {
+  var it = S.draft.items[i];
   if (it.sets.every(function (x) { return x.done; })) {
     var next = currentIndex();
     if (next >= 0) {
       Timer.start(it.rest, '次は' + S.draft.items[next].name + 'です。');
-      Speech.speak(it.name + '、おつかれさまでした。次は' + S.draft.items[next].name + 'です。');
+      Speech.speak(prefix + it.name + '、おつかれさまでした。次は' + S.draft.items[next].name + 'です。');
     } else {
       Timer.stop();
-      Speech.speak('すべての種目が終わりました。終了して保存を押してください。');
+      Speech.speak(prefix + 'すべての種目が終わりました。終了して保存を押してください。');
     }
-  } else if (it.rest) {
-    Timer.start(it.rest, '次のセットです。');
+  } else {
+    if (it.rest) Timer.start(it.rest, '次のセットです。');
+    if (prefix) Speech.speak(prefix + (it.rest ? 'レスト' + it.rest + '秒です。' : ''));
   }
 }
 
