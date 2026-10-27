@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#3a5bb5">
+  <title>トレーニング管理</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 画面の中身は app.js が組み立てる -->
+  <div id="app" class="wrap"><div class="loading">読み込み中…</div></div>
+  <div id="timer"></div>
+
+  <!-- 読み込む順番に意味がある（設定 → 通信 → 音声 → 画面） -->
+  <script src="config.js"></script>
+  <script src="api.js"></script>
+  <script src="speech.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

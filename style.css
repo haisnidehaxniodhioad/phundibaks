@@ -1,0 +1,74 @@
+/* style.css ― 画面の見た目。色は :root の変数でまとめて変えられる */
+:root {
+  --bg: #f5f6f8; --surface: #fff; --text: #1f2430; --muted: #6b7280;
+  --primary: #3a5bb5; --primary-dark: #2c4690; --border: #e3e6ec;
+  --ok: #1e7a34; --ok-bg: #e6f4ea; --danger: #e0554f; --warn-bg: #fff3e0; --radius: 12px;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 640px; margin: 0 auto; padding: 16px 16px 120px; }
+h1 { font-size: 1.25rem; margin: 4px 0 12px; }
+h2 { font-size: 1.05rem; margin: 0 0 10px; }
+.muted { color: var(--muted); font-size: 0.88rem; }
+.small { font-size: 0.8rem; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px; margin-bottom: 14px; }
+.topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+label { display: block; font-size: 0.85rem; font-weight: 600; margin: 12px 0 6px; }
+input { width: 100%; padding: 12px; font-size: 1.05rem; border: 1px solid var(--border);
+  border-radius: 8px; background: #fff; color: var(--text); }
+.btn { display: inline-block; padding: 12px 18px; border: none; border-radius: 10px; font-size: 1rem;
+  font-weight: 700; background: var(--primary); color: #fff; cursor: pointer; text-align: center; }
+.btn:disabled { opacity: 0.5; }
+.btn.sub { background: #fff; color: var(--primary); border: 1px solid var(--primary); }
+.btn.ghost { background: none; color: var(--muted); padding: 6px 8px; font-weight: 600; }
+.btn.danger { background: var(--danger); }
+.btn.block { display: block; width: 100%; margin-top: 10px; }
+.btn.big { padding: 16px; font-size: 1.1rem; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.msg { padding: 10px 12px; border-radius: 8px; font-size: 0.9rem; margin: 10px 0; }
+.msg.error { background: #fdeceb; color: var(--danger); }
+.msg.ok { background: var(--ok-bg); color: var(--ok); }
+.msg.warn { background: var(--warn-bg); color: #8a5a00; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { padding: 8px 12px; border-radius: 999px; border: 1px solid var(--border); background: #fff;
+  font-size: 0.9rem; font-weight: 600; }
+.chip.done { background: var(--ok-bg); border-color: #b9dfc4; color: var(--ok); }
+.day-btn { display: block; width: 100%; text-align: left; margin-top: 8px; }
+.day-btn .sub-text { display: block; font-size: 0.8rem; font-weight: 500; opacity: 0.85; margin-top: 2px; }
+/* トレーニング中の種目カード */
+.ex { border: 2px solid var(--border); }
+.ex.current { border-color: var(--primary); }
+.ex.finished { opacity: 0.7; }
+.ex-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.ex-name { font-size: 1.1rem; font-weight: 700; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 700;
+  background: #eef1f8; color: var(--primary); margin-left: 6px; vertical-align: middle; }
+.badge.off { background: var(--warn-bg); color: #8a5a00; }
+.plan { font-size: 0.9rem; margin: 6px 0 2px; }
+.sets { width: 100%; border-collapse: collapse; margin-top: 10px; }
+.sets td { padding: 4px 2px; vertical-align: middle; }
+.sets .no { width: 2.2em; font-weight: 700; color: var(--muted); }
+.sets input { padding: 10px 6px; text-align: center; font-size: 1.05rem; }
+.sets .unit { font-size: 0.75rem; color: var(--muted); }
+.step { width: 2.4em; padding: 10px 0; border: 1px solid var(--border); background: #fff; border-radius: 8px;
+  font-size: 1rem; font-weight: 700; color: var(--primary); }
+.check { width: 3em; padding: 10px 0; border-radius: 8px; border: 2px solid var(--border); background: #fff;
+  font-size: 1.1rem; font-weight: 700; color: var(--muted); }
+.check.on { background: var(--ok); border-color: var(--ok); color: #fff; }
+tr.done-set input { background: var(--ok-bg); }
+/* 画面下に固定するレストタイマー */
+.timer { position: fixed; left: 0; right: 0; bottom: 0; background: var(--primary-dark); color: #fff;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); display: flex; align-items: center;
+  justify-content: space-between; gap: 10px; z-index: 50; box-shadow: 0 -4px 14px rgba(0,0,0,0.15); }
+.timer .time { font-size: 1.8rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.timer .btn { background: #fff; color: var(--primary-dark); padding: 10px 14px; }
+.speak-bar { position: sticky; top: 0; z-index: 40; background: var(--bg); padding: 8px 0; display: flex; gap: 8px; }
+.speak-bar .btn { flex: 1; padding: 12px 8px; }
+.rpe { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.rpe button { padding: 12px 0; border-radius: 8px; border: 1px solid var(--border); background: #fff;
+  font-size: 1.05rem; font-weight: 700; }
+.rpe button.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.loading { text-align: center; color: var(--muted); padding: 40px 0; }
