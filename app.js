@@ -4,6 +4,8 @@
  * 状態はすべて S にまとめ、変わるたびに該当する画面を描き直す。
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
+// アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
+var APP_VERSION = 'v3c 2026-10-28';
 var S = { token: null, home: null, draft: null, view: 'loading' };
 var app = document.getElementById('app');
 
@@ -35,7 +37,8 @@ function renderLogin(error) {
     '<label for="lpin">PIN（4桁）</label><input id="lpin" type="password" inputmode="numeric" maxlength="4" autocomplete="current-password">' +
     msgHtml('error', error) +
     '<button class="btn block big" data-act="login">ログイン</button>' +
-    '<p class="muted small">IDとPINはスタッフから受け取ってください。一度ログインすると、しばらくはこの端末で入力不要です。</p></div>';
+    '<p class="muted small">IDとPINはスタッフから受け取ってください。一度ログインすると、しばらくはこの端末で入力不要です。</p>' +
+    '<p class="ver">' + esc(APP_VERSION) + '</p></div>';
 }
 
 function doLogin() {

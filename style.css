@@ -140,6 +140,7 @@ html { scroll-padding-bottom: 180px; }
   .print-page .card { border: 1px solid #ccc; box-shadow: none; padding: 10px; margin-bottom: 8px; break-inside: avoid; }
   .print-page .metrics { grid-template-columns: repeat(4, 1fr); }
   .print-page .metric-value { font-size: 1.3rem; }
+  .print-page .print-charts4 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .print-page .print-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .print-page .print-charts > div:first-child { grid-column: 1 / span 2; }
   .print-page .tbl { font-size: 0.72rem; }
@@ -148,3 +149,4 @@ html { scroll-padding-bottom: 180px; }
   .print-page .metric { padding: 6px; }
   .print-tbl tr { break-inside: avoid; }
 }
+.ver { font-size: 0.7rem; color: var(--muted); text-align: right; }

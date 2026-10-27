@@ -1,9 +1,9 @@
 /**
- * staff.js ― スタッフ画面（Phase 3）
+ * staff.js ― スタッフ画面（Phase 3、3cでInBodyと体重を別タブに）
  * スタッフIDでログインすると、この画面になる。タブは3つ:
- *   実施状況 … 週ごとの選手一覧（未実施の選手が上）。名前を押すとその選手の記録と体組成レポート
- *   体組成   … 除脂肪体重・FFMIのランキング（学年・測定日で絞り込み）
- *   取り込み … 体重管理表・体組成Excelの取り込み
+ *   実施状況 … 週ごとの選手一覧（未実施の選手が上）。名前を押すとその選手の記録と、InBody・体重のレポート
+ *   InBody   … 体組成Excel（InBody結果）の取り込み、FFMI・除脂肪体重などのランキング、レポートのPDF（staff_body.js）
+ *   体重     … 体重管理表の取り込み、測定日ごとの体重一覧（未測定・前回比・4週前比）、体重レポートのPDF（staff_body.js）
  */
 var Staff = {
   tab: 'overview', week: null, overview: null, body: null, filter: { team: '', grade: '' }, parsed: null, fileName: '',
@@ -15,9 +15,9 @@ var Staff = {
   },
 
   frame: function (inner) {
-    var tabs = [['overview', '実施状況'], ['body', '体組成'], ['import', '取り込み']];
+    var tabs = [['overview', '実施状況'], ['inbody', 'InBody'], ['weight', '体重']];
     return '<div class="topbar"><h1>スタッフ画面</h1><button class="btn ghost" data-act="logout">ログアウト</button></div>' +
-      '<p class="muted small">' + esc(Staff.name) + 'さん</p><div class="tabs">' +
+      '<p class="muted small">' + esc(Staff.name) + 'さん　<span class="ver">' + esc(APP_VERSION) + '</span></p><div class="tabs">' +
       tabs.map(function (t) { return '<button class="tab' + (Staff.tab === t[0] ? ' on' : '') + '" data-staff="tab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') +
       '</div>' + inner;
   },
@@ -25,8 +25,7 @@ var Staff = {
   render: function () {
     S.view = 'staff';
     if (Staff.tab === 'overview') return Staff.renderOverview();
-    if (Staff.tab === 'body') return Staff.renderBody();
-    return Staff.renderImport();
+    return StaffBody.render(Staff.tab === 'weight' ? 'weight' : 'inbody');
   },
 
   // ---------------- 実施状況 ----------------
@@ -92,103 +91,17 @@ var Staff = {
           }).join('') + '</table></details>';
       });
       Staff.current = b.name ? b : { id: d.athlete.id, name: d.athlete.name, grade: d.athlete.grade, team: d.athlete.team, weight: [], inbody: [] };
-      html += '<h2>体組成レポート</h2><div class="row"><button class="btn sub" data-staff="xReportPdf">PDFで保存</button>' +
-        '<button class="btn sub" data-staff="xReportXlsx">Excelで保存</button></div>' + Body.reportHtml(b);
+      html += '<h2>InBodyレポート</h2><div class="row"><button class="btn sub" data-staff="xInbodyPdf">InBodyレポートをPDFで保存</button>' +
+        '<button class="btn sub" data-staff="xReportXlsx">InBody・体重の履歴をExcelで保存</button></div>' + Body.inbodyHtml(b.inbody || []);
+      html += '<h2>体重レポート</h2><div class="row"><button class="btn sub" data-staff="xWeightPdf">体重レポートをPDFで保存</button></div>' + Body.weightHtml(b.weight || []);
       app.innerHTML = Staff.frame(html);
     }).catch(Staff.fail);
   },
 
-  // ---------------- 体組成（ランキング） ----------------
+  // ---------------- 体組成データの読み込み（InBody・体重タブで共通） ----------------
   loadBody: function (force) {
     if (Staff.body && !force) return Promise.resolve(Staff.body);
     return Api.call('staffBody', { token: S.token }).then(function (res) { Staff.body = res; return res; });
-  },
-
-  renderBody: function () {
-    if (!Staff.body) {
-      app.innerHTML = Staff.frame('<div class="loading">読み込み中…</div>');
-      Staff.loadBody().then(Staff.renderBody).catch(Staff.fail);
-      return;
-    }
-    var f = Staff.filter, metric = Staff.metric || 'ffmi', date = Staff.rankDate || '';
-    var people = Staff.body.athletes.filter(function (a) { return a.active && (!f.grade || a.grade === f.grade) && (!f.team || a.team === f.team); });
-    var dates = uniq([].concat.apply([], Staff.body.athletes.map(function (a) { return a.inbody.map(function (r) { return r.date; }); }))).sort().reverse();
-    // 指定日以前のいちばん新しいInBody（日付を空にすると最新）
-    var rows = people.map(function (a) {
-      var list = a.inbody.filter(function (r) { return r[metric] !== '' && (!date || r.date <= date); });
-      var r = list[list.length - 1];
-      return r ? { id: a.id, name: a.name, grade: a.grade, value: r[metric], date: r.date } : null;
-    }).filter(Boolean).sort(function (x, y) { return y.value - x.value; });
-    var html = '<div class="card"><div class="row">' +
-      '<select class="sel" data-staff="metric"><option value="ffmi"' + (metric === 'ffmi' ? ' selected' : '') + '>FFMI</option><option value="lbm"' + (metric === 'lbm' ? ' selected' : '') + '>除脂肪体重</option>' +
-      '<option value="weight"' + (metric === 'weight' ? ' selected' : '') + '>体重（InBody）</option><option value="fat"' + (metric === 'fat' ? ' selected' : '') + '>体脂肪率</option></select>' +
-      '<select class="sel" data-staff="rankDate"><option value="">最新の記録</option>' + dates.map(function (d) { return '<option' + (d === date ? ' selected' : '') + '>' + d + '</option>'; }).join('') + '</select>' +
-      Staff.select('grade', '学年', uniq(Staff.body.athletes.map(function (a) { return a.grade; }))) + '</div>' +
-      '<p class="muted small">測定日を選ぶと、その日以前のいちばん新しい記録で並べます。選手名を押すと個別のレポートを表示します。</p>' +
-      '<div class="row"><button class="btn sub" data-staff="xRankXlsx">ランキングをExcel</button><button class="btn sub" data-staff="xRankPdf">ランキングをPDF</button></div>' +
-      '<div class="row"><button class="btn sub" data-staff="xReportsPdf">表示中の選手のレポートをまとめてPDF（1人1ページ）</button>' +
-      '<button class="btn sub" data-staff="xLatestXlsx">表示中の選手の最新値をExcel</button></div></div>';
-    var labels = { ffmi: 'FFMI', lbm: '除脂肪体重', weight: '体重', fat: '体脂肪率' };
-    Staff.rankTitle = labels[metric] + (f.grade ? '_' + f.grade : '') + (date ? '_' + date + '以前' : '');
-    Staff.rankSub = (f.grade ? f.grade + '・' : '全学年・') + (date ? date + '以前の最新の記録' : '最新の記録') + '・' + rows.length + '人';
-    Staff.rankRows = rows.map(function (r, i) { return { rank: i > 0 && rows[i - 1].value === r.value ? '' : i + 1, id: r.id, name: r.name, grade: r.grade, value: r.value, date: r.date }; });
-    Staff.rankPeople = people;
-    html += '<div class="card"><table class="tbl"><tr><th>順位</th><th>選手</th><th>学年</th><th>値</th><th>測定日</th></tr>' +
-      rows.map(function (r, i) {
-        var rank = i > 0 && rows[i - 1].value === r.value ? '' : (i + 1);
-        return '<tr><td>' + rank + '</td><td><button class="link" data-staff="athlete" data-v="' + esc(r.id) + '">' + esc(r.name) + '</button></td><td>' + esc(r.grade) + '</td><td><b>' + esc(r.value) + '</b></td><td class="small">' + esc(r.date) + '</td></tr>';
-      }).join('') + '</table>' + (rows.length ? '' : '<p class="muted">InBodyの記録がありません。「取り込み」タブから取り込んでください。</p>') + '</div>';
-    app.innerHTML = Staff.frame(html);
-  },
-
-  // ---------------- 取り込み ----------------
-  renderImport: function (result) {
-    var p = Staff.parsed;
-    var html = '<div class="card"><h2>Excelの取り込み</h2><p class="muted small">「体重管理表」か「体組成Excel」を選ぶと、自動で種類を判定して読み取ります。ファイルはこの端末の中で読むだけで、保存はしません。</p>' +
-      '<input type="file" id="xlsFile" accept=".xlsx,.xls" data-staff="file"></div>';
-    if (result) html += '<div class="msg ok">' + esc(result) + '</div>';
-    if (p) {
-      var roster = Staff.body ? Staff.body.athletes.map(function (a) { return String(a.name).normalize('NFKC').replace(/\s/g, ''); }) : null;
-      var date = Staff.importDate || '';
-      var target = p.records.filter(function (r) { return !date || r.date === date; });
-      var names = uniq(target.map(function (r) { return r.name; }));
-      var unknown = roster ? names.filter(function (n) { return roster.indexOf(String(n).normalize('NFKC').replace(/\s/g, '')) < 0; }) : [];
-      html += '<div class="card"><h2>' + esc(Staff.fileName) + '</h2><p>種類：<b>' + (p.kind === 'inbody' ? '体組成（InBody）' : '体重') + '</b>　測定日：' + p.dates.length + '日分</p>' +
-        '<label>取り込む測定日（ふつうは「すべての日付」のままでよい）</label><select class="sel" data-staff="importDate"><option value="">すべての日付（' + p.dates.length + '日分）</option>' +
-        p.dates.slice().reverse().map(function (d) { return '<option' + (d === date ? ' selected' : '') + '>' + d + '</option>'; }).join('') + '</select>' +
-        '<p>取り込み対象：<b>' + target.length + '件</b>（' + names.length + '人）</p>' +
-        (unknown.length ? '<div class="msg warn">選手マスタに無い名前（取り込まれません）：' + esc(unknown.join('、')) + '</div>' : '') +
-        (p.warnings.length ? '<details class="msg warn"><summary>注意 ' + p.warnings.length + '件（範囲外の値・表記ゆれなど）</summary><div class="small">' +
-          p.warnings.slice(0, 200).map(esc).join('<br>') + '</div></details>' : '') +
-        '<button class="btn block big" data-staff="doImport"' + (target.length ? '' : ' disabled') + '>この内容で取り込む</button></div>';
-    }
-    app.innerHTML = Staff.frame(html);
-  },
-
-  onFile: function (input) {
-    var file = input.files && input.files[0];
-    if (!file) return;
-    Staff.fileName = file.name; Staff.importDate = '';
-    app.innerHTML = Staff.frame('<div class="loading">読み取り中…</div>');
-    Promise.all([Importer.readFile(file), Staff.loadBody()]).then(function (r) {
-      Staff.parsed = Importer.parse(r[0]);
-      Staff.importDate = '';   // 既定は「すべての日付」（Excelに入っている日付をまとめて記録する。同じ選手・同じ日は上書き）
-      Staff.renderImport();
-    }).catch(Staff.fail);
-  },
-
-  doImport: function () {
-    var p = Staff.parsed, date = Staff.importDate || '';
-    var rows = p.records.filter(function (r) { return !date || r.date === date; });
-    if (!confirm((date || 'すべての日付') + ' の ' + rows.length + '件を取り込みます。同じ選手・同じ日の記録は上書きされます。よろしいですか？')) return;
-    app.innerHTML = Staff.frame('<div class="loading">取り込み中…（件数が多いと数十秒かかります）</div>');
-    Api.call('importBody', { token: S.token, kind: p.kind, fileName: Staff.fileName, rows: rows }).then(function (res) {
-      Staff.body = null; Staff.parsed = null;
-      Staff.renderImport('取り込みました：追加 ' + res.added + '件、上書き ' + res.updated + '件' +
-        (res.skipped ? '、範囲外でスキップ ' + res.skipped + '件' : '') +
-        (res.unknown.length ? '。選手マスタに無い名前：' + res.unknown.join('、') : '') +
-        (res.duplicated.length ? '。同姓同名のため取り込めなかった名前：' + res.duplicated.join('、') : ''));
-    }).catch(Staff.fail);
   },
 
   fail: function (err) {
@@ -213,17 +126,12 @@ app.addEventListener('click', function (e) {
       Staff.overview = null; Staff.renderOverview(); break;
     case 'athlete': Staff.showAthlete(v); break;
     case 'back': Staff.render(); break;
-    case 'doImport': Staff.doImport(); break;
-    // ---- PDF・Excelでの保存（export.js） ----
+    // ---- PDF・Excelでの保存（export.js）。InBody・体重タブのボタンは staff_body.js ----
     case 'xOverviewXlsx': Export.overviewExcel(Staff.overview, Staff.overviewList); break;
     case 'xOverviewPdf': Export.overviewPdf(Staff.overview, Staff.overviewList); break;
-    case 'xReportPdf': Export.reportPdf(Staff.current); break;
+    case 'xInbodyPdf': Export.reportPdf(Staff.current, 'inbody'); break;
+    case 'xWeightPdf': Export.reportPdf(Staff.current, 'weight'); break;
     case 'xReportXlsx': Export.reportExcel(Staff.current); break;
-    case 'xRankXlsx': Export.rankingExcel(Staff.rankTitle, Staff.rankRows); break;
-    case 'xRankPdf': Export.rankingPdf(Staff.rankTitle.replace(/_/g, ' '), Staff.rankSub, Staff.rankRows); break;
-    case 'xReportsPdf': Export.reportsPdf(Staff.rankPeople, Staff.filter.grade || '全学年'); break;
-    case 'xLatestXlsx': Export.excel('body_latest_' + Export.today() + '.xlsx',
-                          [{ name: '最新値', rows: Export.latestRows(Staff.rankPeople) }]); break;
     case 'reload': Staff.overview = null; Staff.body = null; Staff.render(); break;
   }
 });
@@ -231,8 +139,4 @@ app.addEventListener('change', function (e) {
   var t = e.target;
   if (S.view !== 'staff' || !t.dataset.staff) return;
   if (t.dataset.staff === 'filter') { Staff.filter[t.dataset.k] = t.value; Staff.render(); }
-  if (t.dataset.staff === 'metric') { Staff.metric = t.value; Staff.renderBody(); }
-  if (t.dataset.staff === 'rankDate') { Staff.rankDate = t.value; Staff.renderBody(); }
-  if (t.dataset.staff === 'importDate') { Staff.importDate = t.value; Staff.renderImport(); }
-  if (t.dataset.staff === 'file') Staff.onFile(t);
 });
