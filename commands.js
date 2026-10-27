@@ -234,6 +234,8 @@ function voiceCandidates() {
 function handleVoice(text) {
   if (S.view === 'finish') return voiceInFinish(text, VoiceParser.parse(text, { candidates: voiceCandidates() }));
   if (S.view !== 'session' && S.view !== 'home') return;
+  // 0. 直前に「Day2を始めますか？」と提案していれば、その返事として受け取る
+  if (answerOffer(text)) return;
 
   // 1. 覚えた言い方と完全に同じなら、それを最優先で実行する（決まった言い方の誤判定も、教え直せば直る）
   var learned = VoiceParser.matchLearned(text, S.home.phrases, S.view);
@@ -275,13 +277,62 @@ function voiceInHome(text, cmd) {
     if (findDay(cmd.day)) { VoiceUI.show(text, 'Day' + cmd.day + 'を始めます'); startDay(cmd.day); }
     else reply(text, 'Day' + cmd.day + 'はメニューにありません。', true);
   } else if (cmd.type === 'suggest' || cmd.type === 'current' || cmd.type === 'next') {
-    reply(text, h.suggestion.order.length ? suggestText() : h.suggestion.reason);
+    if (!h.suggestion.order.length) return reply(text, h.suggestion.reason);
+    offerDay(text, h.suggestion.order[0], suggestText());
   } else if (cmd.type === 'record') {
     reply(text, '先にDayを始めるか、「自分のメニューで記録する」を押してください。', true);
   } else {
     reply(text, '聞き取れませんでした。「今日は何をする？」「デイ2を始める」のように話してください。', true);
   }
 }
+
+// ---------------- 会話の流れ（提案 → 「それにしよう」で開始） ----------------
+/**
+ * Dayを提案して、「はい」「それにしよう」などの返事を待つ。
+ * 90秒以内に肯定の返事があれば提案したDayを始め、「他は？」なら次のおすすめを提案する。
+ */
+var Offer = { day: null, until: 0 };
+
+function offerDay(text, day, intro) {
+  var d = findDay(day);
+  Offer.day = day; Offer.until = Date.now() + 90000;
+  var say = (intro ? intro : 'Day' + day + (d && d.dayName ? '（' + d.dayName + '）' : '') + 'はどうですか。') +
+            'デイ' + day + 'を始めますか？「はい」で始めます。';
+  VoiceUI.show(text, say);
+  Speech.speak(say.replace(/Day(\d)/g, 'デイ$1'));   // 「Day」は読み上げで「デイ」と読ませる
+  // タップでも選べるようにボタンを出す
+  VoiceUI.box.insertAdjacentHTML('beforeend', '<div class="choose-list">' +
+    '<button class="btn choose-btn" data-offer="yes">Day' + day + 'を始める</button>' +
+    '<button class="btn sub choose-btn" data-offer="other">ほかのDayにする</button></div>');
+  clearTimeout(VoiceUI.hideHandle);
+}
+
+/** 提案への返事として扱えるか。扱えたらtrue */
+function answerOffer(text) {
+  if (S.view !== 'home' || !Offer.day || Date.now() > Offer.until) return false;
+  var t = VoiceParser.norm(VoiceParser.normalizeNumbers(text));
+  var no = /いいえ|いや|違う|ちがう|他|ほか|別|べつ|やめ|やだ|嫌|変え|かえ/.test(t);
+  var yes = /^(はい|うん|ええ|お願い|おねがい|オケ|オッケ|ok|いいよ|いいね|いい|それ|そうする|そうしよ|そうしま|やる|やろ|やります|始め|はじめ|スタト|行こ|いこ|頼む|たのむ|よろしく|了解|りょうかい)/.test(t) ||
+            /それ(を|で|に)?(しよ|する|やる|やろ|始め|はじめ|お願い|おねがい|いこ|行こ)/.test(t);
+  if (no) { offerNext(text); return true; }
+  if (yes) { var day = Offer.day; Offer.day = null; VoiceUI.show(text, 'Day' + day + 'を始めます'); startDay(day); return true; }
+  return false;
+}
+
+/** 今提案しているDayの次のおすすめを提案する */
+function offerNext(text) {
+  var order = S.home.suggestion.order, i = order.indexOf(Offer.day);
+  var next = order[(i + 1) % order.length];
+  if (!next || next === Offer.day) { Offer.day = null; return reply(text, '今週ほかに残っているDayはありません。'); }
+  offerDay(text, next, null);
+}
+
+VoiceUI.box.addEventListener('click', function (e) {
+  var b = e.target.closest('[data-offer]');
+  if (!b) return;
+  if (b.dataset.offer === 'yes' && Offer.day) { var day = Offer.day; Offer.day = null; VoiceUI.box.hidden = true; startDay(day); }
+  else if (b.dataset.offer === 'other') offerNext('');
+});
 
 // ---------------- トレーニング中 ----------------
 function voiceInSession(text, cmd) {
