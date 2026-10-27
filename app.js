@@ -46,6 +46,7 @@ function doLogin() {
     S.token = res.token;
     Store.set('token', res.token);
     if (res.role === 'staff') { Staff.start(res.name); return; }   // スタッフはスタッフ画面へ（staff.js）
+    if (res.home) { S.home = res.home; Store.set('home', res.home); renderHome(); return; }   // ホームのデータも一緒に届く
     loadHome();
   }).catch(function (err) { renderLogin(err.message); });
 }
@@ -60,18 +61,31 @@ function logout() {
 
 // ---------------- ホーム ----------------
 function loadHome(notice) {
-  app.innerHTML = '<div class="loading">読み込み中…</div>';
+  // 前回のデータが端末にあれば、まずそれですぐ表示し、裏で最新のデータを取りに行く（待ち時間を感じにくくする）
+  var cached = Store.get('home', null);
+  if (cached && !S.home) S.home = cached;
+  if (S.home && S.home.role === 'athlete') { renderHome(notice); showSyncing(true); }
+  else app.innerHTML = '<div class="loading">読み込み中…</div>';
   Api.call('home', { token: S.token }).then(function (res) {
     if (res.role === 'staff') { Staff.start(res.name); return; }
     S.home = res;
     Store.set('home', res);
-    renderHome(notice);
+    if (S.view === 'home' || S.view === 'loading' || S.view === 'login') renderHome(notice);   // トレーニングを始めていたら描き直さない
+    showSyncing(false);
   }).catch(function (err) {
+    showSyncing(false);
     if (err.needLogin) { Store.remove('token'); S.token = null; renderLogin(err.message); return; }
     S.home = Store.get('home', null);   // 通信できないときは前回のデータで表示する
     if (S.home) renderHome(null, '最新のデータを取得できませんでした（' + err.message + '）。前回のデータを表示しています。');
     else app.innerHTML = msgHtml('error', err.message) + '<button class="btn block" data-act="reload">もう一度読み込む</button>';
   });
+}
+
+/** 「最新のデータを確認中…」の小さな表示 */
+function showSyncing(on) {
+  var el = document.getElementById('syncing');
+  if (on && !el && S.view === 'home') app.insertAdjacentHTML('afterbegin', '<div id="syncing" class="muted small">最新のデータを確認中…</div>');
+  if (!on && el) el.remove();
 }
 
 function renderHome(notice, warning) {

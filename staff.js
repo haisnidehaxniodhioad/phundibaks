@@ -142,7 +142,7 @@ var Staff = {
       var names = uniq(target.map(function (r) { return r.name; }));
       var unknown = roster ? names.filter(function (n) { return roster.indexOf(String(n).normalize('NFKC').replace(/\s/g, '')) < 0; }) : [];
       html += '<div class="card"><h2>' + esc(Staff.fileName) + '</h2><p>種類：<b>' + (p.kind === 'inbody' ? '体組成（InBody）' : '体重') + '</b>　測定日：' + p.dates.length + '日分</p>' +
-        '<label>取り込む測定日</label><select class="sel" data-staff="importDate"><option value="">すべての日付（初回の移行など）</option>' +
+        '<label>取り込む測定日（ふつうは「すべての日付」のままでよい）</label><select class="sel" data-staff="importDate"><option value="">すべての日付（' + p.dates.length + '日分）</option>' +
         p.dates.slice().reverse().map(function (d) { return '<option' + (d === date ? ' selected' : '') + '>' + d + '</option>'; }).join('') + '</select>' +
         '<p>取り込み対象：<b>' + target.length + '件</b>（' + names.length + '人）</p>' +
         (unknown.length ? '<div class="msg warn">選手マスタに無い名前（取り込まれません）：' + esc(unknown.join('、')) + '</div>' : '') +
@@ -160,7 +160,7 @@ var Staff = {
     app.innerHTML = Staff.frame('<div class="loading">読み取り中…</div>');
     Promise.all([Importer.readFile(file), Staff.loadBody()]).then(function (r) {
       Staff.parsed = Importer.parse(r[0]);
-      if (Staff.parsed.dates.length) Staff.importDate = Staff.parsed.dates[Staff.parsed.dates.length - 1];   // 既定は最新の日付
+      Staff.importDate = '';   // 既定は「すべての日付」（Excelに入っている日付をまとめて記録する。同じ選手・同じ日は上書き）
       Staff.renderImport();
     }).catch(Staff.fail);
   },
