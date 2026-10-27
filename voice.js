@@ -7,14 +7,14 @@
  * 解析だけを分けているのは、パソコン上で自動テストできるようにするため。
  * 新しい話し方に対応したいときは、VoiceParser の PATTERNS を増やす。
  */
- 
+
 // ---------------- 音声認識 ----------------
 var VoiceInput = {
   Recognition: (typeof window !== 'undefined') && (window.SpeechRecognition || window.webkitSpeechRecognition),
   active: null,
- 
+
   supported: function () { return !!this.Recognition; },
- 
+
   /**
    * 1回分の発話を聞き取る。
    * handlers.onInterim(text) … 話している途中の文字
@@ -38,14 +38,18 @@ var VoiceInput = {
     };
     rec.onerror = function (e) { errored = true; handlers.onError(e.error); };
     // iPhoneのSafariは「確定」を返さずに終わることがあるので、途中経過の文も結果として使う
-    rec.onend = function () { VoiceInput.active = null; if (!errored) handlers.onResult(finalText || last); };
+    rec.onend = function () {
+      VoiceInput.active = null;
+      if (typeof Speech !== 'undefined') Speech.micEndedAt = Date.now();   // 直後の読み上げを少し待たせる（iPhone対策）
+      if (!errored) handlers.onResult(finalText || last);
+    };
     this.active = rec;
     try { rec.start(); } catch (err) { this.active = null; handlers.onError(String(err)); }
   },
- 
+
   stop: function () { if (this.active) { try { this.active.stop(); } catch (e) { /* 無視 */ } } }
 };
- 
+
 // ---------------- 話した内容の解析 ----------------
 var VoiceParser = {
   /** 漢数字・全角数字を半角数字にする（例: 六十二点五キロ八回 → 62.5キロ8回） */
@@ -71,10 +75,10 @@ var VoiceParser = {
     s = s.replace(/(\d)\s*点\s*(\d)/g, '$1.$2').replace(/(\d)\s+(?=\d)/g, '$1');
     return s;
   },
- 
+
   /** 比べやすい形（空白・記号・長音「ー」を除く。キーワードの正規表現もこの形に合わせて書く） */
   norm: function (s) { return String(s || '').normalize('NFKC').replace(/[\s・\-ー_、。,.!?！？]/g, '').toLowerCase(); },
- 
+
   /**
    * 文の中から種目名を探す。候補は「トレーニング中の種目」と「種目マスタ（呼び方の候補を含む）」。
    * いちばん長く一致した名前を返す（「ベンチ」より「ベンチプレス」を優先）。
@@ -89,7 +93,7 @@ var VoiceParser = {
     });
     return best;
   },
- 
+
   /**
    * 「デイ1を始める」のような、Dayを始める指示を読み取る。Dayの番号を返す（無ければnull）。
    * 音声認識は「デイ1」を「D1」「デイワン」「でいいち」「デー1」「1日目」などと聞き取ることがあるので、幅広く受け付ける。
@@ -109,7 +113,7 @@ var VoiceParser = {
     if (m) return Number(m[1]);
     return null;
   },
- 
+
   /**
    * 聞き取った文を、操作の指示に変換する。
    * context.candidates: [{name, aliases:[...]}]  （種目の候補）
@@ -124,20 +128,20 @@ var VoiceParser = {
     var text = this.normalizeNumbers(rawText).trim();
     var t = this.norm(text);
     if (!t) return { type: 'empty' };
- 
+
     if (/取り消|とりけし|キャンセル|やり直|間違え|まちがえ/.test(t)) return { type: 'undo' };
     if (/スキップ|レスト(終了|終わり|おわり)|休憩(終了|終わり|おわり)/.test(t)) return { type: 'skipRest' };
     if (/(あと|残り|のこり)(何|なん)?秒|レスト(は|あと)/.test(t)) return { type: 'restLeft' };
- 
+
     var addMatch = text.match(/^(.+?)\s*を?\s*(追加|ついか)/);
     if (addMatch) {
       var addName = this.findExercise(addMatch[1], candidates);
       return { type: 'add', exercise: addName || addMatch[1].trim(), known: !!addName };
     }
- 
+
     var startDay = this.parseStartDay(t);
     if (startDay) return { type: 'startDay', day: startDay };
- 
+
     // ---- 記録（重量・回数） ----
     var weight = null, reps = null;
     var wm = text.match(/(\d+(?:\.\d+)?)\s*(?:キロ|きろ|kg|ｋｇ|㎏|キログラム)/i);
@@ -160,7 +164,7 @@ var VoiceParser = {
       }
       return { type: 'record', exercise: exName, weight: weight, reps: reps };
     }
- 
+
     if (/前回/.test(t)) return { type: 'previous', exercise: this.findExercise(text, candidates) };
     if (/次|つぎ/.test(t)) return { type: 'next' };
     if (/今日は?(何|なに)|何(を)?(する|やる)|なにする|なにやる|おすすめ/.test(t)) return { type: 'suggest' };
@@ -169,6 +173,5 @@ var VoiceParser = {
     return { type: 'unknown', text: text };
   }
 };
- 
+
 if (typeof module !== 'undefined') module.exports = { VoiceParser: VoiceParser };
- 

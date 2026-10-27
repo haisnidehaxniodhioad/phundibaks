@@ -335,21 +335,31 @@ function sendPending() {
 
 // ---------------- レストタイマー ----------------
 var Timer = {
-  el: document.getElementById('timer'), left: 0, handle: null, after: '',
+  el: document.getElementById('timer'), left: 0, handle: null, after: '', endAt: 0,
   start: function (sec, after) {
     this.stop();
     if (!sec) return;
-    this.left = sec; this.after = after || ''; this.render();
+    this.endAt = Date.now() + sec * 1000;   // 終わる時刻で数える（画面を消していてもずれにくい）
+    this.after = after || ''; this.update();
     var self = this;
-    this.handle = setInterval(function () {
-      self.left--;
-      if (self.left <= 0) {
-        self.stop();
-        Speech.speak('レスト終了。' + self.after);
-        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-      } else self.render();
-    }, 1000);
+    this.handle = setInterval(function () { self.update(); }, 250);
   },
+  /** 残り時間を計算して表示し、残り3秒からは短い音、0になったらアラーム */
+  update: function () {
+    var left = Math.max(0, Math.ceil((this.endAt - Date.now()) / 1000));
+    if (left !== this.left && left > 0 && left <= 3) Sound.tick();
+    this.left = left;
+    if (left <= 0) { this.finish(); return; }
+    this.render();
+  },
+  finish: function () {
+    this.stop();
+    Sound.alarm();
+    if (navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 300]);
+    var after = this.after;
+    setTimeout(function () { Speech.speak('レスト終了。' + after); }, 1500);   // アラームのあとに読み上げ
+  },
+  addSeconds: function (sec) { this.endAt += sec * 1000; this.update(); },
   stop: function () { clearInterval(this.handle); this.handle = null; this.el.innerHTML = ''; },
   render: function () {
     var m = Math.floor(this.left / 60), s = ('0' + (this.left % 60)).slice(-2);
@@ -357,11 +367,13 @@ var Timer = {
       '<div class="row"><button class="btn" data-act="plus30">+30秒</button><button class="btn" data-act="skip">スキップ</button></div></div>';
   }
 };
+// 別のアプリから戻ってきたときに、残り時間をすぐ更新する（過ぎていればアラーム）
+document.addEventListener('visibilitychange', function () { if (!document.hidden && Timer.handle) Timer.update(); });
 Timer.el.addEventListener('click', function (e) {
   var t = e.target.closest('[data-act]');
   if (!t) return;
   if (t.dataset.act === 'skip') Timer.stop();
-  if (t.dataset.act === 'plus30') { Timer.left += 30; Timer.render(); }
+  if (t.dataset.act === 'plus30') Timer.addSeconds(30);
 });
 
 // ---------------- 操作の振り分け ----------------
