@@ -96,3 +96,8 @@ body:has(.timer) .voice-box { bottom: calc(170px + env(safe-area-inset-bottom));
 .choose-select { padding: 10px; font-size: 0.95rem; border: 1px solid var(--primary); border-radius: 10px; color: var(--primary); background: #fff; }
 .voice-box .basis { margin-top: 6px; font-size: 0.78rem; color: var(--muted); display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .voice-box .basis-btn { padding: 4px 10px; font-size: 0.8rem; border: 1px solid var(--border); border-radius: 8px; }
+/* 種目の並べ替え */
+.ex-tools { display: flex; gap: 2px; align-items: center; flex: none; }
+.move-btn { padding: 6px 9px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.85rem; color: var(--primary); }
+/* 画面下に固定したボタン（話しかける・タイマー）に、スクロールした先の要素が隠れないようにする */
+html { scroll-padding-bottom: 180px; }

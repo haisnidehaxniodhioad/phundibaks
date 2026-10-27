@@ -106,7 +106,7 @@ function renderHome(notice, warning) {
     var d = findDay(dayNo);
     html += '<button class="btn day-btn' + (i === 0 ? '' : ' sub') + '" data-act="startDay" data-day="' + d.day + '">' +
       'Day' + d.day + (d.dayName ? '（' + esc(d.dayName) + '）' : '') + 'を始める' +
-      '<span class="sub-text">' + d.items.map(function (it) { return esc(it.name); }).join('・') + '</span></button>';
+      '<span class="sub-text">' + applySavedOrder(d.items, d.day).map(function (it) { return esc(it.name); }).join('・') + '</span></button>';
   });
   var doneList = h.days.filter(function (d) { return h.doneDays[d.day]; });
   if (doneList.length) {
@@ -145,12 +145,57 @@ function makeItem(src, planned) {
 function startDay(dayNo) {
   if (S.draft && !confirm('途中のトレーニングの記録を破棄して、新しく始めますか？')) return;
   var d = findDay(dayNo);
+  var items = applySavedOrder(d.items, d.day);   // 自分で決めた並び順があれば、その順番で始める
   S.draft = { id: newId(), startedAt: new Date().toISOString(), type: 'チーム', menuId: S.home.menuId,
               day: d.day, dayName: d.dayName, title: 'Day' + d.day + (d.dayName ? '（' + d.dayName + '）' : ''),
-              items: d.items.map(function (it) { return makeItem(it, true); }) };
+              items: items.map(function (it) { return makeItem(it, true); }) };
   saveDraft();
   renderSession();
-  Speech.speak(Speech.dayText(d.day) + 'を始めます。最初は' + Speech.exerciseText(d.items[0], latestOf(d.items[0].name)));
+  Speech.speak(Speech.dayText(d.day) + 'を始めます。最初は' + Speech.exerciseText(items[0], latestOf(items[0].name)));
+}
+
+// ---------------- 自分で決めた種目の並び順 ----------------
+// ▲▼で並べ替えると、その順番を「メニュー＋Day」ごとにこの端末に保存し、次回も同じ順番で始める。
+function orderKey(day) { return 'order_' + (S.home && S.home.menuId) + '_' + day; }
+
+/** 保存した並び順に並べ替える（保存に無い種目は、元の順番のまま後ろに付ける） */
+function applySavedOrder(items, day) {
+  var saved = Store.get(orderKey(day), null);
+  if (!saved || !saved.length) return items.slice();
+  return items.slice().sort(function (a, b) {
+    var ia = saved.indexOf(a.name), ib = saved.indexOf(b.name);
+    if (ia < 0) ia = 999 + items.indexOf(a);
+    if (ib < 0) ib = 999 + items.indexOf(b);
+    return ia - ib;
+  });
+}
+
+/** 今の並び順を保存する（チームメニューのときだけ） */
+function saveOrder() {
+  if (!S.draft || S.draft.type !== 'チーム') return;
+  Store.set(orderKey(S.draft.day), S.draft.items.filter(function (it) { return it.planned; }).map(function (it) { return it.name; }));
+}
+
+/** i番目の種目を上（-1）か下（+1）に動かす */
+function moveItem(i, dir) {
+  var items = S.draft.items, j = i + dir;
+  if (j < 0 || j >= items.length) return;
+  var tmp = items[i]; items[i] = items[j]; items[j] = tmp;
+  if (window.VoiceUI) VoiceUI.undo = [];   // 並びが変わったので、音声の取り消し履歴は使えなくなる
+  saveDraft(); saveOrder(); renderSession();
+}
+
+/** 自分で決めた並び順をやめて、メニューの元の順番に戻す */
+function resetOrder() {
+  var dr = S.draft, d = findDay(dr.day);
+  Store.remove(orderKey(dr.day));
+  var base = d.items.map(function (it) { return it.name; });
+  dr.items.sort(function (a, b) {
+    var ia = base.indexOf(a.name), ib = base.indexOf(b.name);
+    return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+  });
+  if (window.VoiceUI) VoiceUI.undo = [];
+  saveDraft(); renderSession();
 }
 
 function startFree() {
@@ -184,7 +229,10 @@ function renderSession() {
     html += '<div class="ex-head"><div><span class="ex-name">' + esc(it.name) + '</span>' +
       (it.category ? '<span class="badge">' + esc(it.category) + '</span>' : '') +
       (it.planned ? '' : '<span class="badge off">メニュー外</span>') + '</div>' +
-      '<button class="btn ghost" data-act="speakItem" data-i="' + i + '">🔊</button></div>';
+      '<div class="ex-tools">' +
+      (i > 0 ? '<button class="btn ghost move-btn" data-act="moveUp" data-i="' + i + '" aria-label="上へ">▲</button>' : '') +
+      (i < dr.items.length - 1 ? '<button class="btn ghost move-btn" data-act="moveDown" data-i="' + i + '" aria-label="下へ">▼</button>' : '') +
+      '<button class="btn ghost" data-act="speakItem" data-i="' + i + '">🔊</button></div></div>';
     if (it.planned) {
       html += '<div class="plan">' + it.planned.reps + '回 × ' + it.planned.sets + 'セット' +
         (it.rest ? '・レスト' + it.rest + '秒' : '') + (it.rir && it.rir !== '-' ? '・RIR' + esc(it.rir) : '') + '</div>';
@@ -211,6 +259,10 @@ function renderSession() {
     '<input id="addName" list="exList" placeholder="例：デッドリフト" style="flex:1">' +
     '<button class="btn" data-act="addItem">追加</button></div><datalist id="exList">' +
     S.home.exercises.map(function (e) { return '<option value="' + esc(e.name) + '">'; }).join('') + '</datalist></div>';
+  if (dr.type === 'チーム' && dr.items.length > 1) {
+    html += '<p class="muted small">▲▼で種目の順番を変えられます。変えた順番はこの端末に保存され、次回もその順番で始まります。' +
+      (Store.get(orderKey(dr.day), null) ? ' <button class="btn ghost small" data-act="resetOrder">元の順番に戻す</button>' : '') + '</p>';
+  }
   html += '<button class="btn block big" data-act="finish">終了して保存へ</button>';
   app.innerHTML = html;
 }
@@ -250,7 +302,13 @@ function afterSetDone(i, prefix) {
     var next = currentIndex();
     if (next >= 0) {
       Timer.start(it.rest, '次は' + S.draft.items[next].name + 'です。');
-      Speech.speak(prefix + it.name + '、おつかれさまでした。次は' + S.draft.items[next].name + 'です。');
+      // 種目が1つ終わるたびに、残りのメニューを読み上げ、画面に一覧を出して次の種目を選べるようにする
+      var remaining = remainingItems();
+      var names = remaining.map(function (r) { return r.name; });
+      Speech.speak(prefix + it.name + '、おつかれさまでした。' +
+        (names.length > 1 ? '残りは、' + names.join('、') + 'の' + names.length + '種目です。次は' + names[0] + 'です。'
+                          : '残りは' + names[0] + 'だけです。'));
+      if (window.showRemaining) showRemaining(remaining);
     } else {
       Timer.stop();
       Speech.speak(prefix + 'すべての種目が終わりました。終了して保存を押してください。');
@@ -259,6 +317,15 @@ function afterSetDone(i, prefix) {
     if (it.rest) Timer.start(it.rest, '次のセットです。');
     if (prefix) Speech.speak(prefix + (it.rest ? 'レスト' + it.rest + '秒です。' : ''));
   }
+}
+
+/** まだ終わっていない種目の一覧（今の並び順。index は S.draft.items の中の位置） */
+function remainingItems() {
+  var list = [];
+  S.draft.items.forEach(function (it, i) {
+    if (it.sets.some(function (x) { return !x.done; })) list.push({ name: it.name, index: i });
+  });
+  return list;
 }
 
 function addItem() {
@@ -408,6 +475,9 @@ app.addEventListener('click', function (e) {
       arr.push({ w: lastSet.w, r: lastSet.r, done: false }); saveDraft(); renderSession(); break;
     case 'removeSet': dr.items[i].sets.pop(); saveDraft(); renderSession(); break;
     case 'removeItem': dr.items.splice(i, 1); saveDraft(); renderSession(); break;
+    case 'moveUp': moveItem(i, -1); break;
+    case 'moveDown': moveItem(i, 1); break;
+    case 'resetOrder': if (confirm('メニューの元の順番に戻しますか？')) resetOrder(); break;
     case 'addItem': addItem(); break;
     case 'finish': renderFinish(); break;
     case 'rpe': dr.srpe = Number(t.dataset.v); saveDraft(); renderFinish(); break;

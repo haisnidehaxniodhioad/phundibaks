@@ -41,6 +41,7 @@ var VoiceUI = {
       help.className = 'card voice-help';
       help.innerHTML = '<summary>🎤 話し方の例</summary>' + (S.view === 'session'
         ? '記録：「スクワット60キロ8回」「60キロ8回」（今の種目）「懸垂10回」「同じ」「同じで7回」<br>案内：「次は？」→「それ先にやる」「その次は？」／「前回は？」→「それでできた」<br>' +
+          '順番：「RDLから始める」「ベンチを最後にする」（今回だけ。いつもの順番は▲▼で）<br>' +
           'レスト：「あと何秒」「延長」「あと30秒」「スキップ」<br>そのほか：「取り消し」「もう一回言って」「デッドリフト追加」「終わり」'
         : '「今日は何をする？」「デイ2を始める」') +
         '<br>わからない言い方をされたときは、画面に操作の候補が出ます。選ぶと、次からはその言い方で動きます（チームで共有）。';
@@ -79,7 +80,7 @@ var VoiceUI = {
 
   /** 返事の下に「何と判断したか」と「違う」ボタンを付ける */
   addBasis: function (text, basis, type) {
-    if (this.box.hidden) return;
+    if (this.box.hidden || this.box.querySelector('[data-remain]')) return;   // 残りのメニューを表示中は付けない
     this.lastText = text; this.lastType = type;
     var div = document.createElement('div');
     div.className = 'basis';
@@ -372,6 +373,32 @@ function answerSession(text) {
     return true;
   }
 
+  // 「スクワットから始める」「スクワットを先にやる」「ベンチを最後にする」（種目名を言って順番を変える。今回だけ）
+  var named = VoiceParser.findExercise(text, dr.items.map(function (it) { return { name: it.name, aliases: aliasesOf(it.name) }; }));
+  if (named && /(から|を?先に|を?さきに|を?最初に)(やる|やろ|する|しよ|始め|はじめ|いく|いこ|行く|行こ)/.test(t)) {
+    moveToCurrent(dr.items.map(function (it) { return it.name; }).indexOf(named));
+    reply(text, named + 'からやります。' + Speech.exerciseText(dr.items[currentIndex()], latestOf(named)));
+    return true;
+  }
+  if (named && /を?(最後|さいご|後回し|あとまわし)(に|で)/.test(t)) {
+    var from = dr.items.map(function (it) { return it.name; }).indexOf(named);
+    dr.items.push(dr.items.splice(from, 1)[0]);
+    VoiceUI.undo = []; saveDraft(); renderSession();
+    reply(text, named + 'を最後にしました。');
+    return true;
+  }
+
+  // 残りのメニューを出した直後の「RDLにする」「RDLで」「RDL」
+  if (ctxIs('remaining') && named && Ctx.data.names.indexOf(named) >= 0 &&
+      (t.length <= 12 && !/\d/.test(t))) {
+    Ctx.type = null;
+    var ri = dr.items.map(function (it) { return it.name; }).indexOf(named);
+    if (ri > currentIndex()) moveToCurrent(ri);
+    VoiceUI.box.hidden = true;
+    reply(text, '次は' + Speech.exerciseText(dr.items[currentIndex()], latestOf(named)));
+    return true;
+  }
+
   // 「次は？」の流れ
   if (ctxIs('next')) {
     var target = Ctx.data.index;
@@ -413,6 +440,12 @@ function answerSession(text) {
   return false;
 }
 
+/** 種目マスタにある呼び方の候補 */
+function aliasesOf(name) {
+  var ex = (S.home.exercises || []).filter(function (e) { return e.name === name; })[0];
+  return ex && ex.aliases ? ex.aliases.split(/[、,，\/]/) : [];
+}
+
 /** 今の種目（まだ終わっていなければ）か、直前に記録した種目の、最後に終わったセット */
 function lastDoneSet() {
   var dr = S.draft, order = [];
@@ -436,6 +469,40 @@ function moveToCurrent(i) {
   VoiceUI.undo = [];   // 並びが変わったので、取り消し用の履歴は使えなくなる
   saveDraft(); renderSession();
 }
+
+// ---------------- 残りのメニュー（種目が終わるたびに表示） ----------------
+/** 残りの種目をボタンで出す。押した種目を次にやる（今回だけ順番を入れ替える） */
+function showRemaining(remaining) {
+  setCtx('remaining', { names: remaining.map(function (r) { return r.name; }) });
+  clearTimeout(VoiceUI.hideHandle);
+  VoiceUI.box.hidden = false;
+  VoiceUI.box.innerHTML = '<div class="heard">残りのメニュー（' + remaining.length + '種目）</div>' +
+    '<div class="reply">次にやる種目を選べます。そのままでよければ閉じてください。</div><div class="choose-list">' +
+    remaining.map(function (r, k) {
+      return '<button class="btn ' + (k === 0 ? '' : 'sub ') + 'choose-btn" data-remain="' + esc(r.name) + '">' +
+        (k === 0 ? '次：' : '') + esc(r.name) + '</button>';
+    }).join('') + '<button class="btn ghost choose-btn" data-remain="">閉じる</button></div>';
+  // 何も選ばなければ20秒で閉じる（画面の下の方を隠し続けないように）
+  VoiceUI.hideHandle = setTimeout(function () { if (VoiceUI.box.querySelector('[data-remain]')) VoiceUI.box.hidden = true; }, 20000);
+}
+
+// 残りのメニューを表示中に画面のほかの場所を触ったら閉じる（そのままの順番で続ける）
+document.addEventListener('pointerdown', function (e) {
+  if (!VoiceUI.box.hidden && VoiceUI.box.querySelector('[data-remain]') &&
+      !VoiceUI.box.contains(e.target) && e.target !== VoiceUI.btn) VoiceUI.box.hidden = true;
+}, true);
+
+VoiceUI.box.addEventListener('click', function (e) {
+  var b = e.target.closest('[data-remain]');
+  if (!b) return;
+  VoiceUI.box.hidden = true;
+  var name = b.dataset.remain;
+  if (!name) return;
+  var idx = S.draft.items.map(function (it) { return it.name; }).indexOf(name);
+  if (idx > currentIndex()) moveToCurrent(idx);
+  Ctx.type = null;
+  Speech.speak('次は' + Speech.exerciseText(S.draft.items[currentIndex()], latestOf(name)));
+});
 
 // ---------------- トレーニング中 ----------------
 function voiceInSession(text, cmd) {
