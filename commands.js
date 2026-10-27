@@ -40,8 +40,8 @@ var VoiceUI = {
       help.id = 'voiceHelp';
       help.className = 'card voice-help';
       help.innerHTML = '<summary>🎤 話し方の例</summary>' + (S.view === 'session'
-        ? '記録：「スクワット60キロ8回」「60キロ8回」（今の種目）「懸垂10回」<br>案内：「次は？」「今の種目」「前回は？」<br>' +
-          'レスト：「あと何秒」「スキップ」<br>そのほか：「取り消し」「デッドリフト追加」「終わり」'
+        ? '記録：「スクワット60キロ8回」「60キロ8回」（今の種目）「懸垂10回」「同じ」「同じで7回」<br>案内：「次は？」→「それ先にやる」「その次は？」／「前回は？」→「それでできた」<br>' +
+          'レスト：「あと何秒」「延長」「あと30秒」「スキップ」<br>そのほか：「取り消し」「もう一回言って」「デッドリフト追加」「終わり」'
         : '「今日は何をする？」「デイ2を始める」') +
         '<br>わからない言い方をされたときは、画面に操作の候補が出ます。選ぶと、次からはその言い方で動きます（チームで共有）。';
       document.getElementById('app').appendChild(help);
@@ -217,7 +217,7 @@ VoiceUI.box.addEventListener('change', function (e) {
 });
 
 /** 返事を画面に出して、読み上げる */
-function reply(heard, text, ng) { VoiceUI.show(heard, text, ng); Speech.speak(text); }
+function reply(heard, text, ng) { VoiceUI.show(heard, text, ng); Speech.speak(text); VoiceUI.lastReply = text; }
 
 /** 種目名の候補（トレーニング中の種目 ＋ 種目マスタ） */
 function voiceCandidates() {
@@ -236,6 +236,7 @@ function handleVoice(text) {
   if (S.view !== 'session' && S.view !== 'home') return;
   // 0. 直前に「Day2を始めますか？」と提案していれば、その返事として受け取る
   if (answerOffer(text)) return;
+  if (S.view === 'session' && answerSession(text)) return;
 
   // 1. 覚えた言い方と完全に同じなら、それを最優先で実行する（決まった言い方の誤判定も、教え直せば直る）
   var learned = VoiceParser.matchLearned(text, S.home.phrases, S.view);
@@ -334,6 +335,108 @@ VoiceUI.box.addEventListener('click', function (e) {
   else if (b.dataset.offer === 'other') offerNext('');
 });
 
+// ---------------- 会話の流れ（トレーニング中） ----------------
+/**
+ * 直前のやりとりを2分間だけ覚えておき、続けて言われた短い返事をその流れで受け取る。
+ *   「次は？」→「それ先にやる」   … 言われた種目を今の種目にする（順番を入れ替える）
+ *   「次は？」→「その次は？」     … さらに次の種目を読み上げる
+ *   「前回は？」→「それでできた」 … 前回と同じ重量・回数で記録する
+ * 次の3つは、流れに関係なくいつでも使える。
+ *   「同じ」「もう1セット」「同じで7回」 … 直前のセットと同じ重量（回数）で次のセットを記録する
+ *   「延長」「あと30秒」                 … レストを延ばす（数字が無ければ30秒）
+ *   「もう一回言って」                   … 直前の返事をもう一度読み上げる
+ */
+var Ctx = { type: null, data: null, until: 0 };
+function setCtx(type, data) { Ctx.type = type; Ctx.data = data; Ctx.until = Date.now() + 120000; }
+function ctxIs(type) { return Ctx.type === type && Date.now() < Ctx.until; }
+
+var YES_RE = /^(はい|うん|ええ|お願い|おねがい|オケ|オッケ|ok|いいよ|いいね|そうする|そうしよ|やる|やろ|やります|了解|りょうかい)/;
+var GO_RE = /(それ|そっち|そちら|そいつ)(を|から|に)?(先|さき)?(に)?(やる|やろ|する|しよ|いく|いこ|行く|行こ|始め|はじめ)|先に(やる|やろ|する|しよ|いく|行く)/;
+var SAME_RE = /^(同じ|おなじ|同様|さっきと同じ|前と同じ|それと同じ|もう1セット|もういっちょ|もう1回|もういっかい|もう一回)|同じ(で|重さ|重量|回数|く)/;
+
+function answerSession(text) {
+  var norm = VoiceParser.normalizeNumbers(text), t = VoiceParser.norm(norm), dr = S.draft;
+
+  // もう一回言って
+  if (/(もう(1回|いっかい|1度|いちど)|もっかい)(言|いって|読|よんで|教|おしえて)/.test(t)) {
+    if (VoiceUI.lastReply) reply(text, VoiceUI.lastReply); else reply(text, 'まだ何も読み上げていません。', true);
+    return true;
+  }
+
+  // レスト延長
+  if (Timer.handle && (/延長|もう少し休|もうちょっと休|休憩追加|レスト追加/.test(t) || /^あと\d+秒$/.test(t) || /^\d+秒(追加|延長|プラス)/.test(t))) {
+    var sec = (t.match(/(\d+)秒/) || [])[1];
+    sec = sec ? Number(sec) : 30;
+    Timer.addSeconds(sec);
+    reply(text, 'レストを' + sec + '秒延ばしました。あと' + Timer.left + '秒です。');
+    return true;
+  }
+
+  // 「次は？」の流れ
+  if (ctxIs('next')) {
+    var target = Ctx.data.index;
+    if (/その次|次の次|そのあと|その後/.test(t)) {
+      var after = target + 1;
+      if (after >= dr.items.length) { reply(text, dr.items[target].name + 'が最後の種目です。'); return true; }
+      setCtx('next', { index: after });
+      reply(text, 'その次は' + Speech.exerciseText(dr.items[after], latestOf(dr.items[after].name)));
+      return true;
+    }
+    if (GO_RE.test(t) || (YES_RE.test(t) && t.length <= 8)) {
+      Ctx.type = null;
+      var name = dr.items[target] && dr.items[target].name;
+      if (!name) return false;
+      moveToCurrent(target);
+      reply(text, name + 'を先にやります。' + Speech.exerciseText(dr.items[currentIndex()], latestOf(name)));
+      return true;
+    }
+  }
+
+  // 「前回は？」の流れ →「それでできた」「同じで」
+  if (ctxIs('previous') && (SAME_RE.test(t) || /^それ(で|と同じ)/.test(t))) {
+    var p = Ctx.data, nums = VoiceParser.extractNumbers(norm);
+    Ctx.type = null;
+    voiceRecord(text, { type: 'record', exercise: p.name, weight: nums.weight !== null ? nums.weight : (p.w === '' ? null : p.w),
+                        reps: nums.reps !== null ? nums.reps : p.r });
+    return true;
+  }
+
+  // 「同じ」「もう1セット」「同じで7回」
+  if (SAME_RE.test(t)) {
+    var src = lastDoneSet();
+    if (!src) { reply(text, 'まだ記録したセットがありません。「60キロ8回」のように言ってください。', true); return true; }
+    var n2 = VoiceParser.extractNumbers(norm);
+    voiceRecord(text, { type: 'record', exercise: src.name, weight: n2.weight !== null ? n2.weight : (src.w === '' ? null : src.w),
+                        reps: n2.reps !== null ? n2.reps : src.r });
+    return true;
+  }
+  return false;
+}
+
+/** 今の種目（まだ終わっていなければ）か、直前に記録した種目の、最後に終わったセット */
+function lastDoneSet() {
+  var dr = S.draft, order = [];
+  var cur = currentIndex();
+  if (cur >= 0) order.push(cur);
+  var u = VoiceUI.undo[VoiceUI.undo.length - 1];
+  if (u && !u.addedItem && order.indexOf(u.i) < 0) order.push(u.i);
+  for (var k = 0; k < order.length; k++) {
+    var it = dr.items[order[k]], done = it.sets.filter(function (x) { return x.done; });
+    if (done.length) { var last = done[done.length - 1]; return { name: it.name, w: last.w, r: last.r }; }
+  }
+  return null;
+}
+
+/** i番目の種目を「今の種目」の位置に移す（順番を入れ替える） */
+function moveToCurrent(i) {
+  var dr = S.draft, cur = currentIndex();
+  if (cur < 0 || i <= cur) return;
+  var item = dr.items.splice(i, 1)[0];
+  dr.items.splice(cur, 0, item);
+  VoiceUI.undo = [];   // 並びが変わったので、取り消し用の履歴は使えなくなる
+  saveDraft(); renderSession();
+}
+
 // ---------------- トレーニング中 ----------------
 function voiceInSession(text, cmd) {
   var dr = S.draft, cur = currentIndex();
@@ -343,6 +446,7 @@ function voiceInSession(text, cmd) {
       return reply(text, '「' + cmd.name + '」という種目が見つかりません。メニュー外の種目なら「' + cmd.name + '追加」と言ってから記録してください。', true);
     case 'next':
       var nx = cur < 0 ? -1 : cur + 1;
+      if (nx > 0 && nx < dr.items.length) setCtx('next', { index: nx });   // 「それ先にやる」「その次は？」に備える
       return reply(text, nx > 0 && nx < dr.items.length ? '次は' + Speech.exerciseText(dr.items[nx], latestOf(dr.items[nx].name)) :
         (cur >= 0 ? '今の' + dr.items[cur].name + 'が最後の種目です。' : 'すべての種目が終わっています。「終わり」と言うと保存の画面に進みます。'));
     case 'current':
@@ -352,6 +456,10 @@ function voiceInSession(text, cmd) {
     case 'previous':
       var name = cmd.exercise || (cur >= 0 ? dr.items[cur].name : '');
       var last = name ? latestOf(name) : null;
+      if (last) {   // 「それで（同じで）できた」に備えて、前回の1セット目を覚えておく
+        var pm = last.sets.split(',')[0].trim().match(/^(?:([\d.]+)kg)?×(\d+)$/);
+        if (pm) setCtx('previous', { name: name, w: pm[1] ? Number(pm[1]) : '', r: Number(pm[2]) });
+      }
       return reply(text, last ? name + 'の前回は、' + last.date.slice(5).replace('-', '月') + '日、' +
         last.sets.replace(/kg/g, 'キロ').replace(/×/g, 'で') + '回でした。' : (name || 'この種目') + 'の前回の記録はありません。');
     case 'restLeft':
