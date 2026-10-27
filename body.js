@@ -39,7 +39,11 @@ var Body = {
   },
 
   /** レポート全体のHTML */
-  reportHtml: function (data) {
+  /**
+   * レポート全体のHTML。opt.print = true のときはA4縦1枚に収まるよう、グラフを横に並べ、履歴表を直近12回にする
+   */
+  reportHtml: function (data, opt) {
+    opt = opt || {};
     var w = data.weight || [], ib = data.inbody || [];
     if (!w.length && !ib.length) return '<div class="card"><p class="muted">まだ体重・InBodyの記録がありません。スタッフが取り込むと表示されます。</p></div>';
     var html = '<div class="card"><h2>最新の測定結果</h2><div class="metrics">' +
@@ -49,18 +53,22 @@ var Body = {
       Body.card('FFMI', '', ib, 'ffmi', function (r) {
         return r.rank ? '<div class="small">同日順位 <b>' + r.rank + '位</b><span class="muted">（' + r.rankOf + '人中）</span></div>' : '';
       }) + '</div></div>';
-    if (w.length > 1) {
-      html += '<div class="card"><h2>体重の推移</h2>' +
-        Body.lineChart([{ points: w.map(function (r) { return { x: r.date, y: r.weight }; }), color: 'var(--primary)', label: '体重' }], { height: 200 }) + '</div>';
-    }
-    if (ib.length > 1) {
-      html += '<div class="card"><h2>除脂肪体重とFFMIの推移</h2>' +
-        Body.lineChart([{ points: ib.filter(function (r) { return r.lbm !== ''; }).map(function (r) { return { x: r.date, y: r.lbm }; }), color: '#2e9d5b', label: '除脂肪体重(kg)' }], { height: 170 }) +
-        Body.lineChart([{ points: ib.filter(function (r) { return r.ffmi !== ''; }).map(function (r) { return { x: r.date, y: r.ffmi }; }), color: '#d9822b', label: 'FFMI' }], { height: 150 }) + '</div>';
+    var hW = opt.print ? 130 : 200, hL = opt.print ? 105 : 170, hF = opt.print ? 105 : 150;
+    var wChart = w.length > 1 ? Body.lineChart([{ points: w.map(function (r) { return { x: r.date, y: r.weight }; }), color: 'var(--primary)', label: '体重' }],
+                                               { height: hW, width: opt.print ? 660 : 320 }) : '';   // 印刷では横長に
+    var lChart = ib.length > 1 ? Body.lineChart([{ points: ib.filter(function (r) { return r.lbm !== ''; }).map(function (r) { return { x: r.date, y: r.lbm }; }), color: '#2e9d5b', label: '除脂肪体重(kg)' }], { height: hL }) : '';
+    var fChart = ib.length > 1 ? Body.lineChart([{ points: ib.filter(function (r) { return r.ffmi !== ''; }).map(function (r) { return { x: r.date, y: r.ffmi }; }), color: '#d9822b', label: 'FFMI' }], { height: hF }) : '';
+    if (opt.print) {
+      html += '<div class="card"><h2>推移</h2><div class="print-charts"><div>' + wChart + '</div><div>' + lChart + '</div><div>' + fChart + '</div></div></div>';
+    } else {
+      if (wChart) html += '<div class="card"><h2>体重の推移</h2>' + wChart + '</div>';
+      if (lChart) html += '<div class="card"><h2>除脂肪体重とFFMIの推移</h2>' + lChart + fChart + '</div>';
     }
     if (ib.length) {
-      html += '<div class="card"><h2>InBodyの履歴</h2><div class="table-scroll"><table class="tbl"><tr><th>測定日</th><th>体重</th><th>体脂肪率</th><th>除脂肪体重</th><th>FFMI</th></tr>' +
-        ib.slice().reverse().map(function (r) {
+      var hist = ib.slice().reverse();
+      if (opt.print) hist = hist.slice(0, 12);
+      html += '<div class="card"><h2>InBodyの履歴' + (opt.print && ib.length > 12 ? '（直近12回）' : '') + '</h2><div class="table-scroll"><table class="tbl"><tr><th>測定日</th><th>体重</th><th>体脂肪率</th><th>除脂肪体重</th><th>FFMI</th></tr>' +
+        hist.map(function (r) {
           return '<tr><td>' + esc(r.date) + '</td><td>' + esc(r.weight) + '</td><td>' + esc(r.fat) + '</td><td>' + esc(r.lbm) + '</td><td>' + esc(r.ffmi) +
             (r.rank ? '<span class="muted small">（' + r.rank + '/' + r.rankOf + '）</span>' : '') + '</td></tr>';
         }).join('') + '</table></div></div>';
@@ -74,7 +82,7 @@ var Body = {
    */
   lineChart: function (series, opt) {
     opt = opt || {};
-    var W = 320, H = opt.height || 180, padL = opt.mini ? 4 : 34, padR = 8, padT = 8, padB = opt.mini ? 4 : 22;
+    var W = opt.width || 320, H = opt.height || 180, padL = opt.mini ? 4 : 34, padR = 8, padT = 8, padB = opt.mini ? 4 : 22;
     var all = [];
     series.forEach(function (s) { s.points.forEach(function (p) { all.push(p); }); });
     if (all.length < 2) return '';

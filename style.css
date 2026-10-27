@@ -125,3 +125,26 @@ html { scroll-padding-bottom: 180px; }
 .legends { display: flex; gap: 12px; font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
 @media (min-width: 560px) { .metrics { grid-template-columns: repeat(4, 1fr); } }
+/* Phase 3b: PDF保存（印刷）用。画面では印刷用の領域を隠し、印刷中は印刷用の領域だけを出す */
+#printArea { display: none; }
+.print-head { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid var(--primary); padding-bottom: 6px; margin-bottom: 10px; }
+.print-title { font-size: 1.2rem; font-weight: 800; }
+.print-sub, .print-date { font-size: 0.8rem; color: var(--muted); }
+@page { size: A4 portrait; margin: 12mm; }
+@media print {
+  body.printing { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body.printing > *:not(#printArea) { display: none !important; }
+  body.printing #printArea { display: block; }
+  .print-page { break-after: page; page-break-after: always; }
+  .print-page:last-child { break-after: auto; page-break-after: auto; }
+  .print-page .card { border: 1px solid #ccc; box-shadow: none; padding: 10px; margin-bottom: 8px; break-inside: avoid; }
+  .print-page .metrics { grid-template-columns: repeat(4, 1fr); }
+  .print-page .metric-value { font-size: 1.3rem; }
+  .print-page .print-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .print-page .print-charts > div:first-child { grid-column: 1 / span 2; }
+  .print-page .tbl { font-size: 0.72rem; }
+  .print-page .tbl th, .print-page .tbl td { padding: 3px 4px; }
+  .print-page h2 { font-size: 0.9rem; margin-bottom: 4px; }
+  .print-page .metric { padding: 6px; }
+  .print-tbl tr { break-inside: avoid; }
+}

@@ -48,7 +48,9 @@ var Staff = {
       '<b>' + esc(o.weekStart.slice(5).replace('-', '/')) + '〜' + esc(o.weekEnd.slice(5).replace('-', '/')) + '</b>' +
       '<button class="btn ghost" data-staff="week" data-v="7">次の週 ▶</button></div>' +
       '<div class="row">' + Staff.select('team', 'チーム', teams) + Staff.select('grade', '学年', grades) + '</div>' +
-      '<p class="small">表示 ' + list.length + '人 ／ <b class="ng-text">未実施 ' + notDone + '人</b></p></div>';
+      '<p class="small">表示 ' + list.length + '人 ／ <b class="ng-text">未実施 ' + notDone + '人</b></p>' +
+      '<div class="row"><button class="btn sub" data-staff="xOverviewXlsx">Excelで保存</button><button class="btn sub" data-staff="xOverviewPdf">PDFで保存</button></div></div>';
+    Staff.overviewList = list;
     html += '<div class="card"><div class="table-scroll"><table class="tbl"><tr><th>選手</th><th>Day</th><th>回数</th><th>上/下/全</th><th>sRPE</th><th>負荷</th><th>最終</th></tr>' +
       list.map(function (a) {
         var warn = a.sessions && !a.sets['下半身'] ? ' title="下半身のセットがありません"' : '';
@@ -89,7 +91,9 @@ var Staff = {
             return '<tr><td>' + esc(r.name) + (r.kind !== 'メニュー通り' ? '<span class="badge off">' + esc(r.kind) + '</span>' : '') + '</td><td class="small">' + esc(r.sets) + '</td></tr>';
           }).join('') + '</table></details>';
       });
-      html += '<h2>体組成レポート</h2>' + Body.reportHtml(b);
+      Staff.current = b.name ? b : { id: d.athlete.id, name: d.athlete.name, grade: d.athlete.grade, team: d.athlete.team, weight: [], inbody: [] };
+      html += '<h2>体組成レポート</h2><div class="row"><button class="btn sub" data-staff="xReportPdf">PDFで保存</button>' +
+        '<button class="btn sub" data-staff="xReportXlsx">Excelで保存</button></div>' + Body.reportHtml(b);
       app.innerHTML = Staff.frame(html);
     }).catch(Staff.fail);
   },
@@ -120,7 +124,15 @@ var Staff = {
       '<option value="weight"' + (metric === 'weight' ? ' selected' : '') + '>体重（InBody）</option><option value="fat"' + (metric === 'fat' ? ' selected' : '') + '>体脂肪率</option></select>' +
       '<select class="sel" data-staff="rankDate"><option value="">最新の記録</option>' + dates.map(function (d) { return '<option' + (d === date ? ' selected' : '') + '>' + d + '</option>'; }).join('') + '</select>' +
       Staff.select('grade', '学年', uniq(Staff.body.athletes.map(function (a) { return a.grade; }))) + '</div>' +
-      '<p class="muted small">測定日を選ぶと、その日以前のいちばん新しい記録で並べます。選手名を押すと個別のレポートを表示します。</p></div>';
+      '<p class="muted small">測定日を選ぶと、その日以前のいちばん新しい記録で並べます。選手名を押すと個別のレポートを表示します。</p>' +
+      '<div class="row"><button class="btn sub" data-staff="xRankXlsx">ランキングをExcel</button><button class="btn sub" data-staff="xRankPdf">ランキングをPDF</button></div>' +
+      '<div class="row"><button class="btn sub" data-staff="xReportsPdf">表示中の選手のレポートをまとめてPDF（1人1ページ）</button>' +
+      '<button class="btn sub" data-staff="xLatestXlsx">表示中の選手の最新値をExcel</button></div></div>';
+    var labels = { ffmi: 'FFMI', lbm: '除脂肪体重', weight: '体重', fat: '体脂肪率' };
+    Staff.rankTitle = labels[metric] + (f.grade ? '_' + f.grade : '') + (date ? '_' + date + '以前' : '');
+    Staff.rankSub = (f.grade ? f.grade + '・' : '全学年・') + (date ? date + '以前の最新の記録' : '最新の記録') + '・' + rows.length + '人';
+    Staff.rankRows = rows.map(function (r, i) { return { rank: i > 0 && rows[i - 1].value === r.value ? '' : i + 1, id: r.id, name: r.name, grade: r.grade, value: r.value, date: r.date }; });
+    Staff.rankPeople = people;
     html += '<div class="card"><table class="tbl"><tr><th>順位</th><th>選手</th><th>学年</th><th>値</th><th>測定日</th></tr>' +
       rows.map(function (r, i) {
         var rank = i > 0 && rows[i - 1].value === r.value ? '' : (i + 1);
@@ -202,6 +214,16 @@ app.addEventListener('click', function (e) {
     case 'athlete': Staff.showAthlete(v); break;
     case 'back': Staff.render(); break;
     case 'doImport': Staff.doImport(); break;
+    // ---- PDF・Excelでの保存（export.js） ----
+    case 'xOverviewXlsx': Export.overviewExcel(Staff.overview, Staff.overviewList); break;
+    case 'xOverviewPdf': Export.overviewPdf(Staff.overview, Staff.overviewList); break;
+    case 'xReportPdf': Export.reportPdf(Staff.current); break;
+    case 'xReportXlsx': Export.reportExcel(Staff.current); break;
+    case 'xRankXlsx': Export.rankingExcel(Staff.rankTitle, Staff.rankRows); break;
+    case 'xRankPdf': Export.rankingPdf(Staff.rankTitle.replace(/_/g, ' '), Staff.rankSub, Staff.rankRows); break;
+    case 'xReportsPdf': Export.reportsPdf(Staff.rankPeople, Staff.filter.grade || '全学年'); break;
+    case 'xLatestXlsx': Export.excel('body_latest_' + Export.today() + '.xlsx',
+                          [{ name: '最新値', rows: Export.latestRows(Staff.rankPeople) }]); break;
     case 'reload': Staff.overview = null; Staff.body = null; Staff.render(); break;
   }
 });
