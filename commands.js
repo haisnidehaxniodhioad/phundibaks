@@ -48,8 +48,9 @@ var VoiceUI = {
 
   start: function () {
     var self = this;
-    Speech.stop();   // 読み上げの声をマイクが拾わないように止める
-    Speech.unlock(); Sound.prepare();   // 返事の読み上げ・アラームを鳴らせる状態にしておく（iPhone対策）
+    // マイクボタンを押した瞬間（タップ中）に読み上げの準備をしておく。これをしないとiPhoneでは返事が自動で読み上げられない
+    if (window.speechSynthesis && window.speechSynthesis.speaking && Speech.unlocked) Speech.stop();   // 読み上げ中なら止める（声をマイクが拾わないように）
+    Speech.unlock();
     this.btn.classList.add('listening');
     this.btn.textContent = '● 聞き取り中（押すと止まる）';
     this.show('聞き取り中…', '話し終わると自動で止まります');

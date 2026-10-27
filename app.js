@@ -356,8 +356,7 @@ var Timer = {
     this.stop();
     Sound.alarm();
     if (navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 300]);
-    var after = this.after;
-    setTimeout(function () { Speech.speak('レスト終了。' + after); }, 1500);   // アラームのあとに読み上げ
+    // レスト終了は声ではなくチャイムだけで知らせる（読み上げにしたい場合は Speech.speak('レスト終了。' + this.after) を足す）
   },
   addSeconds: function (sec) { this.endAt += sec * 1000; this.update(); },
   stop: function () { clearInterval(this.handle); this.handle = null; this.el.innerHTML = ''; },
