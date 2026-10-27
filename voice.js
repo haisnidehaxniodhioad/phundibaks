@@ -148,8 +148,11 @@ var VoiceParser = {
   },
 
   /**
-   * 覚えた言い回しの中から、いちばん近いものを探す（同じ画面のものだけ）。
-   * 完全に同じか、十分に似ていれば、その言い回しを返す。無ければnull。
+   * 覚えた言い回しを探す（同じ画面のものだけ）。
+   *   { exact: 言い回し }   … 覚えた言い方と完全に同じ（そのまま実行してよい）
+   *   { near: 言い回し }    … よく似ている（勝手に実行せず「もしかして」として候補の先頭に出すだけ）
+   *   null                  … 見つからない
+   * 似ているだけで実行すると、違う言葉を同じと判断して誤操作になるため、実行は完全一致に限る。
    */
   matchLearned: function (text, phrases, view) {
     var key = this.phraseKey(text), best = null, bestScore = 0;
@@ -158,10 +161,10 @@ var VoiceParser = {
       var score = VoiceParser.similarity(key, p.phrase);
       if (score > bestScore) { best = p; bestScore = score; }
     });
-    // 短い言い回しは誤判定しやすいので完全一致だけ、5文字以上は0.7以上で「同じ言い回し」とみなす
     if (!best) return null;
-    if (key.length < 5 || best.phrase.length < 5) return bestScore === 1 ? best : null;
-    return bestScore >= 0.7 ? best : null;
+    if (bestScore === 1) return { exact: best };
+    if (key.length >= 5 && best.phrase.length >= 5 && bestScore >= 0.7) return { near: best };
+    return null;
   },
 
   /**
@@ -206,6 +209,9 @@ var VoiceParser = {
       return { type: 'record', exercise: exName, weight: weight, reps: reps };
     }
 
+    // ここから下は「キーワードを含むか」で判定するため、長い文で誤判定しやすい。
+    // 長い文（13文字以上）は判定せず「わからない」にして、画面で操作を選んでもらう（選ぶと覚える）。
+    if (t.length > 12) return { type: 'unknown', text: text };
     if (/前回/.test(t)) return { type: 'previous', exercise: this.findExercise(text, candidates) };
     if (/次|つぎ/.test(t)) return { type: 'next' };
     if (/今日は?(何|なに)|何(を)?(する|やる)|なにする|なにやる|おすすめ/.test(t)) return { type: 'suggest' };

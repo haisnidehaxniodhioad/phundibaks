@@ -94,3 +94,5 @@ body:has(.timer) .voice-box { bottom: calc(170px + env(safe-area-inset-bottom));
 .choose-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; max-height: 50vh; overflow-y: auto; }
 .choose-btn { width: 100%; padding: 10px; font-size: 0.95rem; text-align: left; }
 .choose-select { padding: 10px; font-size: 0.95rem; border: 1px solid var(--primary); border-radius: 10px; color: var(--primary); background: #fff; }
+.voice-box .basis { margin-top: 6px; font-size: 0.78rem; color: var(--muted); display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.voice-box .basis-btn { padding: 4px 10px; font-size: 0.8rem; border: 1px solid var(--border); border-radius: 8px; }

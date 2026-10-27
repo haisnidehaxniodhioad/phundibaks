@@ -77,6 +77,19 @@ var VoiceUI = {
     });
   },
 
+  /** 返事の下に「何と判断したか」と「違う」ボタンを付ける */
+  addBasis: function (text, basis, type) {
+    if (this.box.hidden) return;
+    this.lastText = text; this.lastType = type;
+    var div = document.createElement('div');
+    div.className = 'basis';
+    div.innerHTML = '判断：' + esc(basis) + ' <button class="btn ghost basis-btn" data-choose="wrong">違う</button>';
+    this.box.appendChild(div);
+    var self = this;
+    clearTimeout(this.hideHandle);   // 「違う」を押す時間を少し長めに取る
+    this.hideHandle = setTimeout(function () { self.box.hidden = true; }, 10000);
+  },
+
   resetBtn: function () { this.btn.classList.remove('listening'); this.btn.textContent = '🎤 話しかける'; },
 
   /** 聞き取った文と返事を、マイクボタンの横に表示する（数秒後に自動で消える） */
@@ -95,9 +108,10 @@ var Chooser = {
   text: '', cmd: null,
 
   /** わからない言い方をされたとき、操作の候補をボタンで出す */
-  openAction: function (text) {
+  openAction: function (text, near) {
     this.text = text; this.cmd = null;
     var opts = [];
+    if (near) opts.push([near.action, near.value, 'もしかして：' + Chooser.label(near.action, near.value)]);
     if (S.view === 'session') {
       var nums = VoiceParser.extractNumbers(VoiceParser.normalizeNumbers(text));
       if (nums.weight !== null || nums.reps !== null) opts.push(['record', '', '今の種目に記録する']);
@@ -141,10 +155,28 @@ var Chooser = {
 
   close: function () { VoiceUI.box.hidden = true; },
 
+  /** 操作の名前（「もしかして」の表示用） */
+  label: function (action, value) {
+    return { record: '今の種目に記録する', next: '次の種目を聞く', current: '今の種目を聞く', previous: '前回の記録を聞く',
+             restLeft: 'レストの残り時間', skipRest: 'レストを終える', undo: '直前の記録を取り消す', finish: '終了して保存へ',
+             suggest: '今日のおすすめを聞く', startSuggested: 'おすすめのDayを始める', startDay: 'Day' + value + 'を始める' }[action] || action;
+  },
+
   /** 選ばれた操作を実行し、言い回しを覚える */
   pick: function (action, value) {
     var text = this.text, view = S.view;
     if (action === 'none') { this.close(); return; }
+    if (action === 'wrong') {   // 判断が違っていた → 記録だったら取り消してから、正しい操作を選んでもらう
+      var t = VoiceUI.lastText, type = VoiceUI.lastType;
+      if (type === 'record' && VoiceUI.undo.length) {
+        var u = VoiceUI.undo.pop(), dr = S.draft;
+        if (u.addedItem) dr.items.splice(u.i, 1);
+        else if (u.addedSet) dr.items[u.i].sets.splice(u.j, 1);
+        else { var st = dr.items[u.i].sets[u.j]; st.w = u.before.w; st.r = u.before.r; st.done = u.before.done; st.via = u.before.via; }
+        Timer.stop(); saveDraft(); renderSession();
+      }
+      return this.openAction(t);
+    }
     this.close();
     if (action === 'exercise' || action === 'newExercise') return this.pickExercise(value, action === 'newExercise');
 
@@ -200,20 +232,28 @@ function voiceCandidates() {
 
 /** 聞き取った文を処理する */
 function handleVoice(text) {
-  var cmd = VoiceParser.parse(text, { candidates: voiceCandidates() });
-  if (S.view === 'finish') return voiceInFinish(text, cmd);
+  if (S.view === 'finish') return voiceInFinish(text, VoiceParser.parse(text, { candidates: voiceCandidates() }));
   if (S.view !== 'session' && S.view !== 'home') return;
 
-  // わからない言い方 → 覚えた言い回しを探す → それでも無ければ「どの操作ですか？」と聞く（Phase 2b）
-  if (cmd.type === 'unknown') {
-    var learned = VoiceParser.matchLearned(text, S.home.phrases, S.view);
-    if (learned) cmd = learnedToCmd(learned, text);
-    else return Chooser.openAction(text);
+  // 1. 覚えた言い方と完全に同じなら、それを最優先で実行する（決まった言い方の誤判定も、教え直せば直る）
+  var learned = VoiceParser.matchLearned(text, S.home.phrases, S.view);
+  var cmd, basis;
+  if (learned && learned.exact) {
+    cmd = learnedToCmd(learned.exact, text);
+    basis = '覚えた言い方「' + learned.exact.phrase + '」';
+  } else {
+    // 2. 決まった言い方（ルール）
+    cmd = VoiceParser.parse(text, { candidates: voiceCandidates() });
+    basis = '決まった言い方';
+    // 3. わからなければ「どの操作ですか？」。よく似た覚えた言い方があれば「もしかして」として先頭に出す（勝手には実行しない）
+    if (cmd.type === 'unknown') return Chooser.openAction(text, learned && learned.near);
   }
   if (cmd.type === 'unknownExercise' && S.view === 'session') return Chooser.openExercise(text, cmd);
 
-  if (S.view === 'session') return voiceInSession(text, cmd);
-  return voiceInHome(text, cmd);
+  var viewBefore = S.view;
+  if (S.view === 'session') voiceInSession(text, cmd); else voiceInHome(text, cmd);
+  // 何と判断したかを表示し、違っていたら「違う」で直せるようにする（画面が切り替わる操作は除く）
+  if (S.view === viewBefore) VoiceUI.addBasis(text, basis, cmd.type);
 }
 
 /** 覚えた言い回しを、操作の指示に変換する */
