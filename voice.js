@@ -192,6 +192,11 @@ var VoiceParser = {
     var inbody = /インボディ|inbody|フィジカル|体脂肪|除脂肪|ffmi/.test(t);
     var tab = weight ? 'weight' : inbody ? 'inbody' : '';
     if (/履歴|りれき|過去の(記録|測定)|測定の一覧/.test(t) && (tab || /体組成|測定/.test(t))) return { type: 'openHistory', tab: tab };
+    // トレーニング記録（Phase 3u）：「今週何回やった？」「記録を見せて」
+    if (/(今週|こんしゅう|今月|こんげつ|今年度|ことし|今年)(は|に|って)?(何回|なんかい|どれくらい|どのくらい)|何回(トレニング|練習|筋トレ)?(した|やった)/.test(t)) {
+      return { type: 'countTraining', tab: /今月|こんげつ/.test(t) ? 'month' : /今年|ことし/.test(t) ? 'year' : 'week' };
+    }
+    if (/トレニング(の)?(記録|履歴|カレンダ)|記録(を|の)?(見|みせ|一覧|カレンダ|確認)|カレンダ|これまでの(記録|トレニング)|過去の(記録|トレニング)|何をやった|何をした|なにをやった|なにをした/.test(t)) return { type: 'openRecords' };
     if (tab || /体組成|たいそせい|レポト/.test(t)) return { type: 'openBody', tab: tab };
     if (/マイメニュ|保存した(メニュ)|自分のメニュ(の)?(一覧|は|を見|見せ|教え)|登録した(メニュ)/.test(t)) return { type: 'myMenuList' };
     if (/(新しい|あたらしい)メニュ|メニュ(を)?(新しく|作|つく)/.test(t)) return { type: 'newMyMenu' };

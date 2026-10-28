@@ -337,3 +337,43 @@ body.has-avatar .voice-box::after { content: ''; position: absolute; left: 35px;
 .avatar-swatches { display: flex; gap: 12px; }
 .avatar-swatch { width: 34px; height: 34px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px var(--border); padding: 0; cursor: pointer; }
 .avatar-swatch[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--primary); }
+/* トレーニング記録のカレンダー（Phase 3u・history.js） */
+.hist-month { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.hist-title { font-size: 1.15rem; font-weight: 800; }
+.hist-nav { min-width: 44px; min-height: 40px; font-size: 1.3rem; padding: 0 10px; }
+.hist-nav[disabled] { opacity: .3; }
+.hist-summary { margin: 8px 0 10px; }
+.hist-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.hist-wd { text-align: center; font-size: .75rem; font-weight: 700; color: var(--muted); padding: 2px 0; }
+.hist-wd.sat { color: #3b6fd8; } .hist-wd.sun { color: #d64545; }
+.hist-day { aspect-ratio: 1 / 1; min-height: 38px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 0; font: inherit; color: inherit; }
+.hist-day.empty { border: none; background: transparent; }
+.hist-day[disabled] { cursor: default; }
+.hist-day.future { opacity: .45; }
+.hist-day.done { background: #eef3ff; border-color: #c4d3f6; cursor: pointer; }
+.hist-day.today { outline: 2px solid #f0b44c; outline-offset: -2px; }
+.hist-day.sel { background: var(--primary); border-color: var(--primary); color: #fff; }
+.hist-num { font-size: .9rem; font-weight: 700; line-height: 1; }
+.hist-mark { display: flex; gap: 2px; }
+.hist-mark i, .hist-legend i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; }
+.hist-mark i.team, .hist-legend i.team { background: var(--primary); }
+.hist-mark i.mine, .hist-legend i.mine { background: #2e9e5b; }
+.hist-day.sel .hist-mark i { background: #fff; }
+.hist-legend { display: flex; gap: 14px; margin-top: 8px; }
+.hist-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.hist-session { padding: 10px 0; border-top: 1px solid var(--border); }
+.hist-session:first-of-type { border-top: none; padding-top: 0; }
+.hist-stitle { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.hist-badge { font-size: .72rem; font-weight: 800; color: #fff; border-radius: 999px; padding: 2px 8px; }
+.hist-badge.team { background: var(--primary); } .hist-badge.mine { background: #2e9e5b; }
+.hist-table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: .9rem; }
+.hist-table th { text-align: left; font-weight: 700; padding: 5px 8px 5px 0; width: 42%; vertical-align: top; }
+.hist-table td { padding: 5px 0; color: var(--text); }
+.hist-table tr + tr th, .hist-table tr + tr td { border-top: 1px dashed var(--border); }
+.hist-months { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.hist-mbtn { border: 1px solid var(--border); background: var(--surface); border-radius: 10px; padding: 6px 2px; font: inherit; font-size: .8rem;
+  display: flex; flex-direction: column; align-items: center; cursor: pointer; color: inherit; }
+.hist-mbtn b { font-size: 1.05rem; }
+.hist-mbtn.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+@media (max-width: 380px) { .hist-months { grid-template-columns: repeat(4, 1fr); } .hist-day { min-height: 34px; } }

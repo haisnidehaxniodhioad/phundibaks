@@ -34,7 +34,7 @@ var VoiceUI = {
     // 新しいトレーニングを始めたら、取り消し用の履歴を空にする
     var draftId = S.draft ? S.draft.id : null;
     if (draftId !== this.draftId) { this.undo = []; this.draftId = draftId; }
-    var show = VoiceInput.supported() && !!S.home && ['home', 'session', 'finish', 'body', 'mymenu'].indexOf(S.view) >= 0;
+    var show = VoiceInput.supported() && !!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history'].indexOf(S.view) >= 0;
     this.btn.hidden = !show;
     Avatar.show(show);
     if (S.view === 'home') Avatar.greet();
@@ -42,15 +42,15 @@ var VoiceUI = {
     if (picker && S.view !== 'home') picker.hidden = true;   // ホーム以外では見た目の選択を閉じる
     document.body.classList.toggle('has-mic', show);
     if (!show) { this.box.hidden = true; return; }
-    if ((S.view === 'session' || S.view === 'home' || S.view === 'body') && !document.getElementById('voiceHelp')) {
+    if ((S.view === 'session' || S.view === 'home' || S.view === 'body' || S.view === 'history') && !document.getElementById('voiceHelp')) {
       var help = document.createElement('details');
       help.id = 'voiceHelp';
       help.className = 'card voice-help';
-      help.innerHTML = '<summary>🎤 話し方の例</summary>' + (S.view === 'body' ? '「体重にして」「InBodyにして」「体重の履歴」「閉じて」「ホームに戻って」' : S.view === 'session'
+      help.innerHTML = '<summary>🎤 話し方の例</summary>' + (S.view === 'history' ? '「今週何回やった？」「今月は何回？」「前回のスクワットは？」「ホームに戻って」' : S.view === 'body' ? '「体重にして」「InBodyにして」「体重の履歴」「閉じて」「ホームに戻って」' : S.view === 'session'
         ? '記録：「スクワット60キロ8回」「60キロ8回」（今の種目）「懸垂10回」「同じ」「同じで7回」<br>案内：「次は？」→「それ先にやる」「その次は？」／「前回は？」→「それでできた」<br>' +
           '順番：「RDLから始める」「ベンチを最後にする」（今回だけ。いつもの順番は▲▼で）<br>' +
           'レスト：「あと何秒」「延長」「あと30秒」「スキップ」<br>そのほか：「取り消し」「もう一回言って」「デッドリフト追加」「終わり」'
-        : '「今日は何をする？」「デイ2を始める」「体組成レポートを開いて」「体重見せて」「マイメニューは？」「（保存したメニューの名前）を始める」「新しいメニューを作る」') +
+        : '「今日は何をする？」「デイ2を始める」「記録を見せて」「今週何回やった？」「前回のスクワットは？」「体組成レポートを開いて」「体重見せて」「マイメニューは？」「（保存したメニューの名前）を始める」「新しいメニューを作る」') +
         '<br>「何ができるの？」と聞くと、その画面で話せることを教えてくれます。' +
         '<br>わからない言い方をされたときは、画面に操作の候補が出ます。選ぶと、次からはその言い方で動きます（チームで共有）。';
       document.getElementById('app').appendChild(help);
@@ -140,6 +140,8 @@ var Chooser = {
     // アプリの基本操作（どの画面でも）
     if (S.view === 'body') opts.push(['bodyTab', 'weight', '体重レポートにする'], ['bodyTab', 'inbody', 'InBodyレポートにする'], ['openHistory', '', '測定の履歴を開く']);
     else opts.push(['openBody', 'inbody', 'InBodyレポートを開く'], ['openBody', 'weight', '体重レポートを開く']);
+    if (S.view !== 'history') opts.push(['openRecords', '', 'トレーニング記録を開く']);
+    opts.push(['countTraining', 'week', '今週の回数を聞く']);
     if (S.view !== 'home') opts.push(['goHome', '', 'ホームに戻る']);
     if (S.view === 'home') opts.push(['myMenuList', '', '保存したメニューを聞く'], ['newMyMenu', '', '新しいメニューを作る'], ['startFree', '', '白紙から記録する']);
     opts.push(['help', '', '何ができるか聞く']);
@@ -182,7 +184,8 @@ var Chooser = {
              suggest: '今日のおすすめを聞く', startSuggested: 'おすすめのDayを始める', startDay: 'Day' + value + 'を始める',
              goHome: 'ホームに戻る', openBody: (value === 'weight' ? '体重' : 'InBody') + 'レポートを開く', bodyTab: (value === 'weight' ? '体重' : 'InBody') + 'レポートにする',
              openHistory: '測定の履歴を開く', closePanel: '閉じる', myMenuList: '保存したメニューを聞く', newMyMenu: '新しいメニューを作る',
-             startFree: '白紙から記録する', help: '何ができるか聞く' }[action] || action;
+             startFree: '白紙から記録する', help: '何ができるか聞く', openRecords: 'トレーニング記録を開く',
+             countTraining: (value === 'month' ? '今月' : value === 'year' ? '今年度' : '今週') + 'の回数を聞く' }[action] || action;
   },
 
   /** 選ばれた操作を実行し、言い回しを覚える */
@@ -271,8 +274,9 @@ function handleVoice(text) {
   var nav = VoiceParser.parseNav(text, S.home.myMenus);
   if (nav && !(S.view === 'finish' && nav.type === 'closePanel')) return doNav(text, nav);
   if (S.view === 'finish') return voiceInFinish(text, VoiceParser.parse(text, { candidates: voiceCandidates() }));
-  if (S.view === 'body' || S.view === 'mymenu') {   // レポート・メニュー作成の画面は、基本操作とちょっとした会話だけ
+  if (S.view === 'body' || S.view === 'mymenu' || S.view === 'history') {   // レポート・メニュー作成・記録の画面は、基本操作とちょっとした会話だけ
     if (smallTalk(text)) return;
+    if (S.view === 'history' && askPrevious(text)) return;
     return Chooser.openAction(text, navLearned && navLearned.near);
   }
   if (S.view !== 'session' && S.view !== 'home') return;
@@ -323,6 +327,8 @@ function voiceInHome(text, cmd) {
   } else if (cmd.type === 'suggest' || cmd.type === 'current' || cmd.type === 'next') {
     if (!h.suggestion.order.length) return reply(text, h.suggestion.reason);
     offerDay(text, h.suggestion.order[0], suggestText());
+  } else if (cmd.type === 'previous') {
+    if (!askPrevious(text)) reply(text, 'どの種目の前回の記録かな？「前回のスクワットは？」のように聞いてね。', true);
   } else if (cmd.type === 'record') {
     reply(text, '先にDayか自分のメニューを始めてね。始めたら記録できるよ。', true);
   } else {
@@ -670,7 +676,7 @@ function voiceInFinish(text, cmd) {
 
 // ---------------- アプリの基本操作（どの画面でも・Phase 3f） ----------------
 // 覚えられる基本操作の名前（学習.gs の LEARNABLE_ACTIONS にも同じ名前がある）
-var NAV_ACTIONS = ['goHome', 'openBody', 'bodyTab', 'openHistory', 'closePanel', 'myMenuList', 'startFree', 'newMyMenu', 'help'];
+var NAV_ACTIONS = ['goHome', 'openBody', 'bodyTab', 'openHistory', 'closePanel', 'myMenuList', 'startFree', 'newMyMenu', 'help', 'openRecords', 'countTraining'];
 
 /** 基本操作を実行して、アバターが返事をする */
 function doNav(text, cmd) {
@@ -695,6 +701,22 @@ function doNav(text, cmd) {
       if (S.view === 'body') return openIt();
       VoiceUI.show(text, Talk.ok() + '履歴を開くね。');
       return Body.showMine(openIt);
+    case 'openRecords':   // トレーニング記録のカレンダー（Phase 3u）
+      if (inSession) return reply(text, '記録はトレーニングが終わってから見てね。今の記録は「終わり」で保存できるよ。', true);
+      if (S.view === 'history') return reply(text, History.summary());
+      VoiceUI.show(text, Talk.ok() + 'トレーニング記録を開くね。');
+      return History.show('', function () { Avatar.feedback('success'); reply(text, History.summary()); });
+    case 'countTraining':   // 「今週何回やった？」
+      VoiceUI.show(text, 'ちょっと待ってね…');
+      var answer = function (d) {
+        var range = cmd.tab || 'week', n = range === 'month' ? d.monthCount : range === 'year' ? d.yearCount : d.weekCount;
+        var label = range === 'month' ? '今月' : range === 'year' ? '今年度' : '今週';
+        reply(text, n ? label + 'は' + n + '回トレーニングしたよ。' + (range === 'week' ? '今月は' + d.monthCount + '回だよ。' : '') + (n >= 3 ? Talk.nice() : '')
+                      : label + 'はまだトレーニングの記録がないよ。いっしょに始めよう！');
+      };
+      var cur = History.data && History.data.month === History.data.current ? History.data : null;
+      if (cur) return answer(cur);
+      return History.load('').then(answer).catch(function (e) { reply(text, e.message, true); });
     case 'closePanel':
       Body.closeHistory(); VoiceUI.box.hidden = true; Speech.stop(); return;
     case 'help':
@@ -713,13 +735,36 @@ function doNav(text, cmd) {
   }
 }
 
+/** ホームや記録の画面で「前回のスクワットは？」に答える。答えたら true */
+function askPrevious(text) {
+  if (!/前回|この前|このまえ|最後に/.test(VoiceParser.norm(text))) return false;
+  var name = VoiceParser.findExercise(text, voiceCandidates());
+  if (!name) return false;
+  var last = latestOf(name);
+  if (!last && History.data) {   // ホームの「前回の記録」に無いときは、開いている月の記録から探す
+    History.data.sessions.slice().reverse().some(function (s) {
+      var it = s.items.filter(function (x) { return x.name === name; })[0];
+      if (it) last = { date: s.date, sets: it.sets.map(function (st) { return (st.w !== '' ? st.w + 'kg' : '') + '×' + st.r; }).join(', ') };
+      return !!it;
+    });
+  }
+  if (!last) { reply(text, name + 'の記録はまだないみたい。'); return true; }
+  var sets = String(last.sets || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+  var said = sets.length ? sets[0].replace(/^(?:([\d.]+)kg)?×(\d+)$/, function (m0, w, r) { return (w ? w + 'キロで' : '') + r + '回'; }) : '';
+  var same = sets.length > 1 && sets.every(function (x) { return x === sets[0]; });
+  reply(text, '前回の' + name + 'は' + Number(last.date.slice(5, 7)) + '月' + Number(last.date.slice(8, 10)) + '日、' +
+    (said ? said + (same ? 'を' + sets.length + 'セット' : sets.length > 1 ? 'ほか、全部で' + sets.length + 'セット' : '') : '記録あり') + 'だよ。');
+  return true;
+}
+
 /** 今の画面で話せることの説明 */
 function helpText() {
   var common = 'どの画面でも「ホームに戻って」「体組成レポートを開いて」「体重見せて」が使えるよ。';
   if (S.view === 'session') return '記録は「スクワット60キロ8回」、案内は「次は？」「今の種目」「前回は？」、レストは「あと何秒」「スキップ」、間違えたら「取り消し」、終わったら「終わり」だよ。' + common;
   if (S.view === 'finish') return '「きつさ7」のように数字を言って、「保存」で保存だよ。「マイメニューに保存」も使えるよ。';
   if (S.view === 'body') return '「体重にして」「InBodyにして」で切り替え、「体重の履歴」で履歴、「閉じて」で閉じるよ。' + common;
-  return '「今日は何をする？」でおすすめ、「デイ2を始める」で開始、「マイメニューは？」で保存したメニュー、「新しいメニューを作る」でメニュー作りができるよ。' + common;
+  if (S.view === 'history') return '「今週何回やった？」「今月は何回？」で回数、「前回のスクワットは？」で前回の記録を答えるよ。日付をタップすると、その日の記録が見られるよ。' + common;
+  return '「今日は何をする？」でおすすめ、「デイ2を始める」で開始、「マイメニューは？」で保存したメニュー、「新しいメニューを作る」でメニュー作りができるよ。「記録を見せて」でトレーニング記録、「今週何回やった？」で回数も答えるよ。' + common;
 }
 
 /** あいさつ・お礼などに返事をする。返事をしたら true */
