@@ -14,7 +14,8 @@
  *   Talk … 返事に添える、ちょっとした言葉（毎回同じにならないように、いくつかの中から選ぶ）
  */
 // 画像の置き場所と、更新したときに古い画像が残らないようにする印（画像を描き直したら数字を変える）
-var AVATAR_IMG = { dir: 'assets/avatar/', ver: '21' };
+// GitHub に assets/avatar フォルダが無く、画像がいちばん上（index.html と同じ場所）にあるときは、自動でそちらを使う
+var AVATAR_IMG = { dir: 'assets/avatar/', fallbackDir: '', ver: '21' };
 // 状態ごとの右下の印（icons.js の名前）
 var AVATAR_BADGE = { listening: 'mic', success: 'check', confirming: 'question', error: 'drop' };
 // 状態ごとの目と口（base＝ふだん）。speaking の口は動かすので、ここでは決めない
@@ -85,6 +86,12 @@ var Avatar = {
       }).join('') + '</span><span class="av-badge" aria-hidden="true"></span>';
     document.body.appendChild(el);
     this.el = el;
+    // 土台の絵が読み込めなかったら、画像の置き場所をもう一方に切り替えて読み直す（1回だけ）
+    el.querySelector('.av-base').addEventListener('error', function () {
+      if (AVATAR_IMG.dir === AVATAR_IMG.fallbackDir) return;
+      AVATAR_IMG.dir = AVATAR_IMG.fallbackDir;
+      Avatar.redraw();
+    });
     this.redraw();
     var self = this;
     el.addEventListener('click', function () {
