@@ -1,11 +1,12 @@
 /**
  * app.js ― 画面の組み立てと操作
  * 画面は4つ: ログイン → ホーム → トレーニング中 → 終了（きつさの入力と保存）
+ * ほかに、体組成レポート（body.js）、自分のメニューの作成（mymenu.js）、スタッフ画面（staff.js）がある。
  * 状態はすべて S にまとめ、変わるたびに該当する画面を描き直す。
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v3f 2026-10-28';
+var APP_VERSION = 'v3g 2026-10-28';
 var S = { token: null, home: null, draft: null, view: 'loading' };
 var app = document.getElementById('app');
 
@@ -108,6 +109,9 @@ function renderHome(notice, warning) {
       '<button class="btn ghost" data-act="discard">記録を破棄</button></div></div>';
   }
 
+  // 自分のメニュー（mymenu.js）。チームのメニューが無い選手は、いちばん上に出す
+  if (!h.days.length) html += MyMenu.homeCard();
+
   // 今週の進み具合
   html += '<div class="card"><h2>今週のメニュー</h2><div class="chips">';
   h.days.forEach(function (d) {
@@ -134,7 +138,8 @@ function renderHome(notice, warning) {
     });
     html += '</details>';
   }
-  html += '<button class="btn sub block" data-act="startFree">自分のメニューで記録する</button></div>';
+  html += '</div>';
+  if (h.days.length) html += MyMenu.homeCard();
   html += '<button class="btn sub block" data-act="body">📊 体組成レポート</button>';
 
   if (h.last) {
@@ -271,7 +276,7 @@ function renderSession() {
     html += '</table><div class="row" style="margin-top:6px">' +
       '<button class="btn ghost" data-act="addSet" data-i="' + i + '">＋セット</button>' +
       (it.sets.length > 1 ? '<button class="btn ghost" data-act="removeSet" data-i="' + i + '">−セット</button>' : '') +
-      (it.planned ? '' : '<button class="btn ghost" data-act="removeItem" data-i="' + i + '">種目を削除</button>') + '</div></div>';
+      (it.planned && dr.type === 'チーム' ? '' : '<button class="btn ghost" data-act="removeItem" data-i="' + i + '">種目を削除</button>') + '</div></div>';
   });
 
   html += '<div class="card"><label for="addName">種目を追加</label><div class="row">' +
@@ -366,7 +371,7 @@ function findExercise(name) {
 }
 
 // ---------------- 終了と保存 ----------------
-function renderFinish(error) {
+function renderFinish(error, notice) {
   S.view = 'finish';
   var dr = S.draft;
   var done = dr.items.filter(function (it) { return it.sets.some(function (s) { return s.done; }); });
@@ -377,6 +382,7 @@ function renderFinish(error) {
   html += '<div class="card"><h2>今日のトレーニングのきつさ（sRPE）</h2><div class="rpe">';
   for (var i = 1; i <= 10; i++) html += '<button class="' + (dr.srpe === i ? 'on' : '') + '" data-act="rpe" data-v="' + i + '">' + i + '</button>';
   html += '</div><p class="muted small">' + (dr.srpe ? dr.srpe + '：' + (labels[dr.srpe] || '') : '1（とても楽）〜10（限界）') + '</p></div>';
+  html += MyMenu.finishCard(dr, notice);   // 自分のメニューで記録したときは、その内容をメニューとして保存できる
   html += msgHtml('error', error);
   html += '<button class="btn block big" data-act="save"' + (done.length ? '' : ' disabled') + '>保存する</button>' +
           '<button class="btn sub block" data-act="back">トレーニングに戻る</button>';
@@ -386,7 +392,7 @@ function renderFinish(error) {
 function buildPayload() {
   var dr = S.draft;
   return { id: dr.id, startedAt: dr.startedAt, endedAt: new Date().toISOString(), type: dr.type, menuId: dr.menuId,
-    day: dr.day, dayName: dr.dayName, srpe: dr.srpe || '',
+    day: dr.day, dayName: dr.dayName, srpe: dr.srpe || '', myMenuName: dr.myMenuName || '',
     items: dr.items.map(function (it) {
       return { name: it.name, planned: it.planned, rir: it.rir, method: it.method,
                sets: it.sets.filter(function (s) { return s.done; }).map(function (s) { return { w: s.w, r: s.r }; }) };
@@ -478,7 +484,7 @@ app.addEventListener('click', function (e) {
     case 'startDay': startDay(t.dataset.day); break;
     case 'startFree': startFree(); break;
     case 'body': Body.showMine(); break;
-    case 'home': Timer.stop(); Speech.stop(); renderHome(); break;
+    case 'home': Timer.stop(); Speech.stop(); Body.closeHistory(); renderHome(); break;
     case 'speakItem': Speech.speak(Speech.exerciseText(dr.items[i], latestOf(dr.items[i].name))); break;
     case 'speakCurrent': var c = currentIndex();
       Speech.speak(c < 0 ? 'すべての種目が終わっています。' : Speech.exerciseText(dr.items[c], latestOf(dr.items[c].name))); break;
@@ -512,4 +518,5 @@ app.addEventListener('keydown', function (e) {
   if (e.key === 'Enter' && S.view === 'login') doLogin();
 });
 
-init();
+// すべてのファイル（mymenu.js・avatar.js など）を読み込んでから始める
+document.addEventListener('DOMContentLoaded', init);

@@ -8,6 +8,9 @@
  *                   「レストあと何秒」「スキップ」「取り消し」「デッドリフト追加」「終わり」
  *   ホーム       : 「今日は何をする？」「デイ2を始める」
  *   終了画面     : 「きつさ7」「保存」
+ *   どの画面でも : 「ホームに戻って」「体組成レポートを開いて」「体重見せて」「InBodyにして」「体重の履歴」「閉じて」
+ *                  「マイメニューは？」「（保存したメニューの名前）を始める」「新しいメニューを作る」「何ができるの？」（Phase 3f）
+ *   返事は、画面左下のアバター（avatar.js）が吹き出しと声で返す。
  * わからない言い方は「どの操作ですか？」と候補を出し、選ばれた答えを覚える（Chooser, Phase 2b）。
  */
 var VoiceUI = {
@@ -31,19 +34,22 @@ var VoiceUI = {
     // 新しいトレーニングを始めたら、取り消し用の履歴を空にする
     var draftId = S.draft ? S.draft.id : null;
     if (draftId !== this.draftId) { this.undo = []; this.draftId = draftId; }
-    var show = VoiceInput.supported() && (S.view === 'home' || S.view === 'session' || S.view === 'finish');
+    var show = VoiceInput.supported() && !!S.home && ['home', 'session', 'finish', 'body', 'mymenu'].indexOf(S.view) >= 0;
     this.btn.hidden = !show;
+    Avatar.show(show);
+    if (S.view === 'home') Avatar.greet();
     document.body.classList.toggle('has-mic', show);
     if (!show) { this.box.hidden = true; return; }
-    if ((S.view === 'session' || S.view === 'home') && !document.getElementById('voiceHelp')) {
+    if ((S.view === 'session' || S.view === 'home' || S.view === 'body') && !document.getElementById('voiceHelp')) {
       var help = document.createElement('details');
       help.id = 'voiceHelp';
       help.className = 'card voice-help';
-      help.innerHTML = '<summary>🎤 話し方の例</summary>' + (S.view === 'session'
+      help.innerHTML = '<summary>🎤 話し方の例</summary>' + (S.view === 'body' ? '「体重にして」「InBodyにして」「体重の履歴」「閉じて」「ホームに戻って」' : S.view === 'session'
         ? '記録：「スクワット60キロ8回」「60キロ8回」（今の種目）「懸垂10回」「同じ」「同じで7回」<br>案内：「次は？」→「それ先にやる」「その次は？」／「前回は？」→「それでできた」<br>' +
           '順番：「RDLから始める」「ベンチを最後にする」（今回だけ。いつもの順番は▲▼で）<br>' +
           'レスト：「あと何秒」「延長」「あと30秒」「スキップ」<br>そのほか：「取り消し」「もう一回言って」「デッドリフト追加」「終わり」'
-        : '「今日は何をする？」「デイ2を始める」') +
+        : '「今日は何をする？」「デイ2を始める」「体組成レポートを開いて」「体重見せて」「マイメニューは？」「（保存したメニューの名前）を始める」「新しいメニューを作る」') +
+        '<br>「何ができるの？」と聞くと、その画面で話せることを教えてくれます。' +
         '<br>わからない言い方をされたときは、画面に操作の候補が出ます。選ぶと、次からはその言い方で動きます（チームで共有）。';
       document.getElementById('app').appendChild(help);
     }
@@ -55,6 +61,7 @@ var VoiceUI = {
     if (window.speechSynthesis && window.speechSynthesis.speaking && Speech.unlocked) Speech.stop();   // 読み上げ中なら止める（声をマイクが拾わないように）
     Speech.unlock();
     this.btn.classList.add('listening');
+    Avatar.listen(true);
     this.btn.textContent = '● 聞き取り中（押すと止まる）';
     this.show('聞き取り中…', '話し終わると自動で止まります');
     VoiceInput.listen({
@@ -91,14 +98,14 @@ var VoiceUI = {
     this.hideHandle = setTimeout(function () { self.box.hidden = true; }, 10000);
   },
 
-  resetBtn: function () { this.btn.classList.remove('listening'); this.btn.textContent = '🎤 話しかける'; },
+  resetBtn: function () { this.btn.classList.remove('listening'); this.btn.textContent = '🎤 話しかける'; Avatar.listen(false); },
 
   /** 聞き取った文と返事を、マイクボタンの横に表示する（数秒後に自動で消える） */
   show: function (heard, reply, ng) {
     clearTimeout(this.hideHandle);
     this.box.hidden = false;
     this.box.innerHTML = (heard ? '<div class="heard">🎤 ' + esc(heard) + '</div>' : '') +
-      (reply ? '<div class="reply' + (ng ? ' ng' : '') + '">' + esc(reply) + '</div>' : '');
+      (reply ? '<div class="av-name">' + esc(Avatar.name()) + '</div><div class="reply' + (ng ? ' ng' : '') + '">' + esc(reply) + '</div>' : '');
     var self = this;
     if (!VoiceInput.active) this.hideHandle = setTimeout(function () { self.box.hidden = true; }, 6000);
   }
@@ -119,14 +126,20 @@ var Chooser = {
       opts.push(['next', '', '次の種目を聞く'], ['current', '', '今の種目を聞く'], ['previous', '', '前回の記録を聞く'],
                 ['restLeft', '', 'レストの残り時間'], ['skipRest', '', 'レストを終える'], ['undo', '', '直前の記録を取り消す'],
                 ['finish', '', '終了して保存へ']);
-    } else {
+    } else if (S.view === 'home') {
       var first = S.home.suggestion.order[0];
       if (first) opts.push(['startSuggested', '', 'おすすめのDay（今日はDay' + first + '）を始める']);
       opts.push(['suggest', '', '今日のおすすめを聞く']);
       S.home.days.forEach(function (d) { opts.push(['startDay', String(d.day), 'Day' + d.day + (d.dayName ? '（' + d.dayName + '）' : '') + 'を始める']); });
     }
+    // アプリの基本操作（どの画面でも）
+    if (S.view === 'body') opts.push(['bodyTab', 'weight', '体重レポートにする'], ['bodyTab', 'inbody', 'InBodyレポートにする'], ['openHistory', '', '測定の履歴を開く']);
+    else opts.push(['openBody', 'inbody', 'InBodyレポートを開く'], ['openBody', 'weight', '体重レポートを開く']);
+    if (S.view !== 'home') opts.push(['goHome', '', 'ホームに戻る']);
+    if (S.view === 'home') opts.push(['myMenuList', '', '保存したメニューを聞く'], ['newMyMenu', '', '新しいメニューを作る'], ['startFree', '', '白紙から記録する']);
+    opts.push(['help', '', '何ができるか聞く']);
     this.render('どの操作ですか？ 選ぶと、次からはこの言い方で動きます。', opts);
-    Speech.speak('わかりませんでした。画面から操作を選んでください。次からは、その言い方で動きます。');
+    Speech.speak(Talk.sorry() + 'わからなかった。画面からやりたいことを選んでね。次からは、その言い方で動くよ。');
   },
 
   /** 知らない種目名が出たとき、どの種目のことかを選んでもらう */
@@ -160,7 +173,10 @@ var Chooser = {
   label: function (action, value) {
     return { record: '今の種目に記録する', next: '次の種目を聞く', current: '今の種目を聞く', previous: '前回の記録を聞く',
              restLeft: 'レストの残り時間', skipRest: 'レストを終える', undo: '直前の記録を取り消す', finish: '終了して保存へ',
-             suggest: '今日のおすすめを聞く', startSuggested: 'おすすめのDayを始める', startDay: 'Day' + value + 'を始める' }[action] || action;
+             suggest: '今日のおすすめを聞く', startSuggested: 'おすすめのDayを始める', startDay: 'Day' + value + 'を始める',
+             goHome: 'ホームに戻る', openBody: (value === 'weight' ? '体重' : 'InBody') + 'レポートを開く', bodyTab: (value === 'weight' ? '体重' : 'InBody') + 'レポートにする',
+             openHistory: '測定の履歴を開く', closePanel: '閉じる', myMenuList: '保存したメニューを聞く', newMyMenu: '新しいメニューを作る',
+             startFree: '白紙から記録する', help: '何ができるか聞く' }[action] || action;
   },
 
   /** 選ばれた操作を実行し、言い回しを覚える */
@@ -182,6 +198,8 @@ var Chooser = {
     if (action === 'exercise' || action === 'newExercise') return this.pickExercise(value, action === 'newExercise');
 
     var phrase = VoiceParser.phraseKey(text);
+    var isNav = NAV_ACTIONS.indexOf(action) >= 0;
+    if (isNav) view = 'all';   // アプリの基本操作は、どの画面で言っても同じ操作として覚える
     // 「Day3を始める」を数字の入っていない言い方で覚えると、全員がいつもDay3になってしまうので覚えない
     var learnable = !(action === 'startDay' && phrase.indexOf('#') < 0);
     if (phrase.length >= 2 && learnable) {
@@ -191,7 +209,7 @@ var Chooser = {
         .catch(function () { /* 覚えられなくても操作自体は続ける */ });
     }
     var cmd = learnedToCmd({ action: action, value: value }, text);
-    if (view === 'session') voiceInSession(text, cmd); else voiceInHome(text, cmd);
+    if (isNav) doNav(text, cmd); else if (view === 'session') voiceInSession(text, cmd); else voiceInHome(text, cmd);
   },
 
   /** 知らない種目名を、既存の種目の呼び方として覚える（または新しい種目として追加する） */
@@ -233,7 +251,17 @@ function voiceCandidates() {
 
 /** 聞き取った文を処理する */
 function handleVoice(text) {
+  // ★ アプリの基本操作（どの画面でも。Phase 3f）: 覚えた言い方 → 決まった言い方 の順
+  var navLearned = VoiceParser.matchLearned(text, S.home.phrases, S.view);
+  if (navLearned && navLearned.exact && NAV_ACTIONS.indexOf(navLearned.exact.action) >= 0) return doNav(text, learnedToCmd(navLearned.exact, text));
+  if (S.view === 'finish' && /マイメニュ|メニュ(として|に)保存/.test(VoiceParser.norm(text))) return MyMenu.voiceSaveFromFinish(text);
+  var nav = VoiceParser.parseNav(text, S.home.myMenus);
+  if (nav && !(S.view === 'finish' && nav.type === 'closePanel')) return doNav(text, nav);
   if (S.view === 'finish') return voiceInFinish(text, VoiceParser.parse(text, { candidates: voiceCandidates() }));
+  if (S.view === 'body' || S.view === 'mymenu') {   // レポート・メニュー作成の画面は、基本操作とちょっとした会話だけ
+    if (smallTalk(text)) return;
+    return Chooser.openAction(text, navLearned && navLearned.near);
+  }
   if (S.view !== 'session' && S.view !== 'home') return;
   // 0. 直前に「Day2を始めますか？」と提案していれば、その返事として受け取る
   if (answerOffer(text)) return;
@@ -250,7 +278,7 @@ function handleVoice(text) {
     cmd = VoiceParser.parse(text, { candidates: voiceCandidates() });
     basis = '決まった言い方';
     // 3. わからなければ「どの操作ですか？」。よく似た覚えた言い方があれば「もしかして」として先頭に出す（勝手には実行しない）
-    if (cmd.type === 'unknown') return Chooser.openAction(text, learned && learned.near);
+    if (cmd.type === 'unknown') { if (smallTalk(text)) return; return Chooser.openAction(text, learned && learned.near); }
   }
   if (cmd.type === 'unknownExercise' && S.view === 'session') return Chooser.openExercise(text, cmd);
 
@@ -265,6 +293,7 @@ function learnedToCmd(p, text) {
   var norm = VoiceParser.normalizeNumbers(text);
   var nums = VoiceParser.extractNumbers(norm);
   var dayInText = norm.match(/\d/);   // 「#を始めたい」のように数字入りで覚えた場合は、話した数字のDayにする
+  if (NAV_ACTIONS.indexOf(p.action) >= 0) return { type: p.action, tab: p.value || '', learned: true };
   return { type: p.action, day: p.action === 'startDay' && dayInText ? Number(dayInText[0]) : (Number(p.value) || null), exercise: p.action === 'record' ? (p.value || null) : null,
            weight: nums.weight, reps: nums.reps, learned: true };
 }
@@ -282,9 +311,9 @@ function voiceInHome(text, cmd) {
     if (!h.suggestion.order.length) return reply(text, h.suggestion.reason);
     offerDay(text, h.suggestion.order[0], suggestText());
   } else if (cmd.type === 'record') {
-    reply(text, '先にDayを始めるか、「自分のメニューで記録する」を押してください。', true);
+    reply(text, '先にDayか自分のメニューを始めてね。始めたら記録できるよ。', true);
   } else {
-    reply(text, '聞き取れませんでした。「今日は何をする？」「デイ2を始める」のように話してください。', true);
+    reply(text, Talk.sorry() + 'うまく聞き取れなかった。「今日は何をする？」「デイ2を始める」のように話してね。', true);
   }
 }
 
@@ -589,7 +618,7 @@ function voiceRecord(text, cmd) {
   VoiceUI.undo.push({ i: i, j: j, before: before, addedSet: addedSet, addedItem: addedItem });
   saveDraft();
   renderSession();
-  var said = it.name + '、' + (s.w !== '' && s.w !== null ? s.w + 'キロ' : '') + s.r + '回、' + (j + 1) + 'セット目を記録しました。';
+  var said = Talk.nice() + it.name + '、' + (s.w !== '' && s.w !== null ? s.w + 'キロ' : '') + s.r + '回、' + (j + 1) + 'セット目を記録したよ。';
   VoiceUI.show(text, said);
   afterSetDone(i, said);
 }
@@ -623,6 +652,75 @@ function voiceInFinish(text, cmd) {
   }
   if (cmd.type === 'undo' || /戻る|もどる/.test(text)) { renderSession(); return reply(text, 'トレーニングに戻ります。'); }
   reply(text, '「きつさ7」のように数字を言うか、「保存」と言ってください。', true);
+}
+
+// ---------------- アプリの基本操作（どの画面でも・Phase 3f） ----------------
+// 覚えられる基本操作の名前（学習.gs の LEARNABLE_ACTIONS にも同じ名前がある）
+var NAV_ACTIONS = ['goHome', 'openBody', 'bodyTab', 'openHistory', 'closePanel', 'myMenuList', 'startFree', 'newMyMenu', 'help'];
+
+/** 基本操作を実行して、アバターが返事をする */
+function doNav(text, cmd) {
+  var inSession = S.view === 'session' || S.view === 'finish';
+  switch (cmd.type) {
+    case 'goHome':
+      if (S.view === 'home') return reply(text, 'もうホームだよ。');
+      Body.closeHistory(); Timer.stop(); renderHome();
+      return reply(text, Talk.ok() + 'ホームに戻ったよ。' + (S.draft ? 'トレーニングの続きは「続きから」でできるよ。' : ''));
+    case 'openBody': case 'bodyTab':
+      if (cmd.tab) Body.tab = cmd.tab;
+      if (S.view === 'body') { Body.closeHistory(); Body.renderMine(); return reply(text, Body.summary(Body.tab || 'inbody')); }
+      VoiceUI.show(text, Talk.ok() + '体組成レポートを開くね。');
+      return Body.showMine(function () { reply(text, Body.summary(Body.tab || (Body.mine.inbody.length ? 'inbody' : 'weight'))); });
+    case 'openHistory':
+      var openIt = function () {
+        var tab = cmd.tab || Body.tab || 'inbody';
+        Body.tab = tab; Body.renderMine();
+        if (tab === 'weight') Body.openWeightHistory(Body.mine, ''); else Body.openInbodyHistory(Body.mine, '');
+        reply(text, (tab === 'weight' ? '体重' : 'InBody') + 'の履歴を出したよ。「閉じて」で閉じるね。');
+      };
+      if (S.view === 'body') return openIt();
+      VoiceUI.show(text, Talk.ok() + '履歴を開くね。');
+      return Body.showMine(openIt);
+    case 'closePanel':
+      Body.closeHistory(); VoiceUI.box.hidden = true; Speech.stop(); return;
+    case 'help':
+      return reply(text, helpText());
+    case 'myMenuList':
+      var list = S.home.myMenus || [];
+      if (!list.length) return reply(text, 'まだ保存したメニューはないよ。「新しいメニューを作る」で作れるし、自分のメニューで記録したあとにも保存できるよ。');
+      if (S.view !== 'home' && !inSession) renderHome();
+      return reply(text, '保存しているメニューは、' + list.map(function (m) { return m.name; }).join('、') + 'の' + list.length + 'つだよ。' +
+        '始めるときは「' + list[0].name + 'を始める」みたいに言ってね。');
+    case 'startMyMenu': case 'startFree': case 'newMyMenu':
+      if (inSession) return reply(text, '今はトレーニングの途中だよ。新しく始めるときは、先にホームに戻ってね。', true);
+      if (cmd.type === 'newMyMenu') { MyMenu.edit(null); return reply(text, Talk.ok() + '新しいメニューを作ろう。名前と種目を入れて保存してね。'); }
+      if (cmd.type === 'startFree') { startFree(); return reply(text, Talk.ok() + '白紙から記録するよ。「スクワット60キロ8回」みたいに話すと、種目ごと記録できるよ。'); }
+      return MyMenu.start(cmd.id, text);
+  }
+}
+
+/** 今の画面で話せることの説明 */
+function helpText() {
+  var common = 'どの画面でも「ホームに戻って」「体組成レポートを開いて」「体重見せて」が使えるよ。';
+  if (S.view === 'session') return '記録は「スクワット60キロ8回」、案内は「次は？」「今の種目」「前回は？」、レストは「あと何秒」「スキップ」、間違えたら「取り消し」、終わったら「終わり」だよ。' + common;
+  if (S.view === 'finish') return '「きつさ7」のように数字を言って、「保存」で保存だよ。「マイメニューに保存」も使えるよ。';
+  if (S.view === 'body') return '「体重にして」「InBodyにして」で切り替え、「体重の履歴」で履歴、「閉じて」で閉じるよ。' + common;
+  return '「今日は何をする？」でおすすめ、「デイ2を始める」で開始、「マイメニューは？」で保存したメニュー、「新しいメニューを作る」でメニュー作りができるよ。' + common;
+}
+
+/** あいさつ・お礼などに返事をする。返事をしたら true */
+function smallTalk(text) {
+  var k = VoiceParser.parseSmallTalk(text), n = S.home.name;
+  if (!k) return false;
+  var say = {
+    greet: Talk.pick(['こんにちは、' + n + 'さん！今日もいっしょにがんばろう。', n + 'さん、やあ！調子はどう？']),
+    thanks: Talk.pick(['どういたしまして！', 'いつでも呼んでね。', 'どういたしまして。その調子でいこう！']),
+    tired: Talk.pick(['おつかれさま。無理せず、できる範囲でいこう。', 'がんばってるね。水分もとってね。']),
+    cheer: Talk.pick(['その意気！いっしょにがんばろう！', 'いいね、応援してるよ！']),
+    who: 'ぼくは' + Avatar.name() + '。トレーニングの記録と案内のお手伝いをしてるよ。「何ができるの？」って聞いてみてね。'
+  }[k];
+  reply(text, say);
+  return true;
 }
 
 VoiceUI.init();

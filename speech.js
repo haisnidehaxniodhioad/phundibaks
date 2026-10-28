@@ -21,6 +21,12 @@ var Speech = {
       u.rate = 1.05;
       u.volume = 1;
       u.onstart = function () { Speech.unlocked = true; };
+      // アバターの口を動かす（avatar.js）。読み上げが終わったら止める
+      if (window.Avatar) {
+        Avatar.talk(true, text);
+        u.onend = u.onerror = function () { Avatar.talk(false); };
+        u.onboundary = function () { Avatar.pulse(); };
+      }
       window.speechSynthesis.cancel();
       window.speechSynthesis.resume();   // iPhoneで読み上げが「一時停止」のまま止まるのを防ぐ
       window.speechSynthesis.speak(u);
@@ -28,7 +34,7 @@ var Speech = {
     if (wait) setTimeout(run, wait); else run();
   },
 
-  stop: function () { if (this.supported) window.speechSynthesis.cancel(); },
+  stop: function () { if (this.supported) window.speechSynthesis.cancel(); if (window.Avatar) Avatar.talk(false); },
 
   /**
    * iPhoneは「画面をタップした瞬間」に一度読み上げておかないと、

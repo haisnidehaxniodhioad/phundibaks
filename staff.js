@@ -84,12 +84,21 @@ var Staff = {
       html += '<h2>トレーニング記録（直近' + d.sessions.length + '回）</h2>';
       if (!d.sessions.length) html += '<div class="card"><p class="muted">記録はまだありません。</p></div>';
       d.sessions.forEach(function (s) {
-        html += '<details class="card"><summary><b>' + esc(s.date) + '</b> ' + esc(s.type === 'チーム' ? 'Day' + s.day : '自分のメニュー') +
+        html += '<details class="card"><summary><b>' + esc(s.date) + '</b> ' + esc(s.type === 'チーム' ? 'Day' + s.day : '自分のメニュー' + (s.myMenu ? '「' + s.myMenu + '」' : '')) +
           (s.part ? '（' + esc(s.part) + '）' : '') + ' <span class="muted small">sRPE ' + esc(s.srpe || '-') + '・' + esc(s.minutes) + '分</span></summary>' +
           '<table class="tbl">' + s.records.map(function (r) {
             return '<tr><td>' + esc(r.name) + (r.kind !== 'メニュー通り' ? '<span class="badge off">' + esc(r.kind) + '</span>' : '') + '</td><td class="small">' + esc(r.sets) + '</td></tr>';
           }).join('') + '</table></details>';
       });
+      // 選手が保存した自分のメニュー（Phase 3f。見るだけ）
+      var mm = d.myMenus || [];
+      html += '<details class="card"><summary><b>保存している自分のメニュー（' + mm.length + '）</b></summary>' +
+        (mm.length ? mm.map(function (m) {
+          return '<div class="mm-staff"><b>' + esc(m.name) + '</b> <span class="muted small">更新 ' + esc(String(m.updated).slice(0, 10)) + '</span>' +
+            '<table class="tbl">' + m.items.map(function (it) {
+              return '<tr><td>' + esc(it.name) + '</td><td class="small">' + it.reps + '回 × ' + it.sets + 'セット' + (it.rest ? '・レスト' + it.rest + '秒' : '') + '</td></tr>';
+            }).join('') + '</table></div>';
+        }).join('') : '<p class="muted small">まだありません。</p>') + '</details>';
       Staff.current = b.name ? b : { id: d.athlete.id, name: d.athlete.name, grade: d.athlete.grade, team: d.athlete.team, caption: '', weight: [], inbody: [], base: null };
       html += '<div class="row report-actions"><button class="btn sub" data-staff="xInbodyPdf">📄 フィジカルレポートをPDFで保存</button>' +
         '<button class="btn sub" data-staff="xReportXlsx">📊 InBody・体重の履歴をExcelで保存</button></div>' + Body.physicalHtml(Staff.current) + BodyBase.athleteCard(Staff.current);

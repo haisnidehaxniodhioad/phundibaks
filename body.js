@@ -24,13 +24,14 @@ var Body = {
   ],
 
   // ---------------- 選手本人の画面 ----------------
-  showMine: function () {
+  showMine: function (after) {   // after: 表示し終わったあとにすること（音声で開いたときの読み上げなど）
     S.view = 'body';
     app.innerHTML = '<div class="loading">読み込み中…</div>';
     Api.call('myBody', { token: S.token }).then(function (res) {
       if (res.chart) Body.chart = res.chart;
       Body.mine = { id: 'me', name: res.name, caption: res.caption || '', weight: res.weight || [], inbody: res.inbody || [], base: res.base };
       Body.renderMine();
+      if (after) after();
     }).catch(function (err) {
       app.innerHTML = msgHtml('error', err.message) + '<button class="btn block" data-act="home">ホームへ</button>';
     });
@@ -42,6 +43,27 @@ var Body = {
       '<div class="tabs"><button class="tab' + (tab === 'inbody' ? ' on' : '') + '" data-body-tab="inbody">InBody</button>' +
       '<button class="tab' + (tab === 'weight' ? ' on' : '') + '" data-body-tab="weight">体重</button></div>' +
       (tab === 'inbody' ? Body.physicalHtml(a) : Body.weightReportHtml(a));
+  },
+
+  /** アバターが読み上げる、レポートのひとこと要約（音声で開いたとき） */
+  summary: function (tab) {
+    var a = Body.mine;
+    if (!a) return '';
+    if (tab === 'weight') {
+      var st = Body.weightStats(a.weight);
+      if (!st) return '体重レポートだよ。まだ体重の記録はないみたい。';
+      return '体重レポートだよ。' + Body.dShort(st.last.date).replace('/', '月') + '日の体重は' + st.last.value.toFixed(1) + 'キロ' +
+        (st.prev ? '、前回より' + Body.speakDiff(st.last.value - st.prev.value, 'キロ') : '') + '。直近4週間の平均は' + st.w1.avg.toFixed(1) + 'キロだよ。';
+    }
+    var ib = a.inbody, r = ib[ib.length - 1];
+    if (!r) return 'InBodyのレポートだよ。まだInBodyの記録はないみたい。';
+    return 'InBodyのレポートだよ。' + Body.dShort(r.date).replace('/', '月') + '日の測定で、体重' + Body.f1(r.weight) + 'キロ、体脂肪率' + Body.f1(r.fat) + 'パーセント、除脂肪体重' +
+      Body.f1(r.lbm) + 'キロ' + (Body.num(r.ffmi) !== null ? '、FFMIは' + Body.f1(r.ffmi) + (r.rank ? 'で、同じ日に測った' + r.rankOf + '人中' + r.rank + '位' : '') : '') + 'だよ。';
+  },
+  /** 差を読み上げ用に（「0.4キロ増えた」「変わらない」） */
+  speakDiff: function (d, unit) {
+    var r = Math.round(d * 10) / 10;
+    return r === 0 ? '変わらず' : Math.abs(r).toFixed(1) + unit + (r > 0 ? '増えた' : '減った');
   },
 
   // ---------------- 小さな部品 ----------------

@@ -157,13 +157,56 @@ var VoiceParser = {
   matchLearned: function (text, phrases, view) {
     var key = this.phraseKey(text), best = null, bestScore = 0;
     (phrases || []).forEach(function (p) {
-      if (p.view && p.view !== view) return;
+      if (p.view && p.view !== 'all' && p.view !== view) return;   // 'all' はどの画面でも使う言い方（アプリの基本操作）
       var score = VoiceParser.similarity(key, p.phrase);
       if (score > bestScore) { best = p; bestScore = score; }
     });
     if (!best) return null;
     if (bestScore === 1) return { exact: best };
     if (key.length >= 5 && best.phrase.length >= 5 && bestScore >= 0.7) return { near: best };
+    return null;
+  },
+
+  /**
+   * アプリの基本操作（どの画面でも使える。Phase 3f）を読み取る。当てはまらなければ null。
+   *   myMenus: [{id, name}] … 保存した自分のメニュー（名前を言うとそのメニューを始める）
+   * 返す形: { type: 'goHome' } { type: 'openBody', tab: 'inbody'|'weight'|'' } { type: 'openHistory', tab }
+   *        { type: 'closePanel' } { type: 'myMenuList' } { type: 'newMyMenu' } { type: 'startFree' }
+   *        { type: 'startMyMenu', id } { type: 'help' }
+   * 重量・回数の入った文（記録）は対象外。キーワードは norm() 後の形（長音「ー」なし）で書く。
+   */
+  parseNav: function (rawText, myMenus) {
+    var text = this.normalizeNumbers(rawText), t = this.norm(text);
+    if (!t || /\d+(キロ|kg|回|かい|レップ)/.test(t)) return null;
+    if (/何ができ|なにができ|使い方|つかいかた|ヘルプ|何て言え|なんて言え|なんていえ|どう話/.test(t)) return { type: 'help' };
+    // 保存した自分のメニューの名前（長い名前を優先）
+    var hit = null;
+    (myMenus || []).forEach(function (m) {
+      var n = VoiceParser.norm(m.name);
+      if (n.length >= 2 && t.indexOf(n) >= 0 && (!hit || n.length > VoiceParser.norm(hit.name).length)) hit = m;
+    });
+    if (hit && !/編集|へんしゅう|直|なお|消|けし/.test(t)) return { type: 'startMyMenu', id: hit.id };
+    if (/ホム|最初の画面|トップ(画面|に|へ|に戻)|メイン画面/.test(t)) return { type: 'goHome' };
+    if (/閉じ|とじて|とじる|閉めて|しめて/.test(t)) return { type: 'closePanel' };
+    var weight = /体重/.test(t) && !/インボディ|inbody|体組成|フィジカル|体脂肪|除脂肪|ffmi/.test(t);
+    var inbody = /インボディ|inbody|フィジカル|体脂肪|除脂肪|ffmi/.test(t);
+    var tab = weight ? 'weight' : inbody ? 'inbody' : '';
+    if (/履歴|りれき|過去の(記録|測定)|測定の一覧/.test(t) && (tab || /体組成|測定/.test(t))) return { type: 'openHistory', tab: tab };
+    if (tab || /体組成|たいそせい|レポト/.test(t)) return { type: 'openBody', tab: tab };
+    if (/マイメニュ|保存した(メニュ)|自分のメニュ(の)?(一覧|は|を見|見せ|教え)|登録した(メニュ)/.test(t)) return { type: 'myMenuList' };
+    if (/(新しい|あたらしい)メニュ|メニュ(を)?(新しく|作|つく)/.test(t)) return { type: 'newMyMenu' };
+    if (/白紙|自由に記録|フリ(で|の)?記録|自分のメニュで(記録|始|やる)/.test(t)) return { type: 'startFree' };
+    return null;
+  },
+
+  /** ちょっとした会話（あいさつ・お礼など）。当てはまらなければ null */
+  parseSmallTalk: function (rawText) {
+    var t = this.norm(rawText);
+    if (/^(こんにちは|こんにちわ|こんばんは|こんばんわ|おはよ|やあ|ハロ|hello|hi$)/.test(t)) return 'greet';
+    if (/ありがと|サンキュ|thank|助かった|たすかった/.test(t)) return 'thanks';
+    if (/疲れた|つかれた|しんどい|だるい|眠い|ねむい/.test(t)) return 'tired';
+    if (/頑張る|がんばる|やるぞ|いくぞ|行くぞ|気合/.test(t)) return 'cheer';
+    if (/(君|きみ|あなた)(は|の名前|だれ|誰)|名前は|誰(ですか|なの)|だれ(ですか|なの)/.test(t)) return 'who';
     return null;
   },
 

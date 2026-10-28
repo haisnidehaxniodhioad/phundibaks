@@ -221,3 +221,40 @@ body.report-modal-open { overflow: hidden; }
 .report-mark-sm { font-size: 0.6em; vertical-align: 0.15em; margin-right: 2px; }
 .base-row label { flex: 1; min-width: 140px; margin-top: 4px; }
 .base-dates { max-height: 320px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; margin-bottom: 10px; }
+/* Phase 3f: 話しかけると返事をするアバター（avatar.js）。マイクボタンの左に置き、吹き出しで返事をする */
+.avatar { position: fixed; left: 12px; bottom: calc(8px + env(safe-area-inset-bottom)); z-index: 62; width: 66px; height: 66px;
+  padding: 0; border: 3px solid #fff; border-radius: 50%; background: #e8efff; box-shadow: 0 6px 18px rgba(0,0,0,0.25); cursor: pointer; }
+.avatar svg { width: 100%; height: 100%; display: block; }
+body.has-avatar .mic-fab { left: 88px; }
+.avatar .av-mouth { opacity: 0; transform-origin: 32px 45.5px; }
+.avatar.talking .av-smile { opacity: 0; }
+.avatar.talking .av-mouth { opacity: 1; animation: av-talk 0.28s infinite alternate ease-in-out; }
+.avatar.pulse .av-mouth { animation: av-talk 0.28s infinite alternate ease-in-out, av-pulse 0.2s; }
+@keyframes av-talk { from { transform: scaleY(0.25); } to { transform: scaleY(1.1); } }
+@keyframes av-pulse { 50% { transform: scale(1.25, 1.3); } }
+.avatar .av-eyes { transform-origin: 32px 35px; animation: av-blink 4.5s infinite; }
+@keyframes av-blink { 0%, 95%, 100% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
+.avatar.listening { border-color: var(--danger); animation: pulse 1.2s infinite; }
+.avatar.listening .av-eyes { transform: scale(1.15); animation: none; }
+.avatar.talking { animation: av-bob 0.6s infinite alternate ease-in-out; }
+@keyframes av-bob { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+/* 吹き出し（返事）。アバターの上に出し、左下にしっぽを付ける */
+body.has-avatar .voice-box { left: 12px; bottom: calc(86px + env(safe-area-inset-bottom)); border-radius: 16px; border-color: #c9d6f5; }
+body.has-avatar .voice-box::after { content: ''; position: absolute; left: 30px; bottom: -9px; width: 16px; height: 16px; background: #fff;
+  border-right: 1px solid #c9d6f5; border-bottom: 1px solid #c9d6f5; transform: rotate(45deg); }
+.voice-box .av-name { font-size: 0.72rem; font-weight: 700; color: var(--primary); margin-top: 4px; }
+.voice-box .heard { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
+.voice-box .reply { color: var(--text); margin-top: 2px; }
+/* Phase 3f: 自分のメニュー（mymenu.js） */
+.mm-row { display: flex; gap: 6px; align-items: stretch; }
+.mm-row .day-btn { flex: 1; }
+.mm-row .btn.ghost { margin-top: 8px; }
+.mm-item { border: 1px solid var(--border); border-radius: 10px; padding: 8px; margin-bottom: 8px; background: var(--bg); }
+.mm-no { font-weight: 700; color: var(--muted); width: 1.4em; }
+.mm-nums { margin-top: 6px; }
+.mm-num { flex: 1; min-width: 80px; margin: 0; font-size: 0.75rem; color: var(--muted); }
+.mm-num input { padding: 8px; text-align: center; }
+/* 履歴のウィンドウ（z-index 1000）を開いていても「閉じて」と話しかけられるよう、マイク・アバター・吹き出しは一番上に出す */
+.mic-fab { z-index: 1001; }
+.avatar { z-index: 1002; }
+.voice-box { z-index: 1003; }
