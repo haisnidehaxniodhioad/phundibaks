@@ -90,10 +90,11 @@ var Staff = {
             return '<tr><td>' + esc(r.name) + (r.kind !== 'メニュー通り' ? '<span class="badge off">' + esc(r.kind) + '</span>' : '') + '</td><td class="small">' + esc(r.sets) + '</td></tr>';
           }).join('') + '</table></details>';
       });
-      Staff.current = b.name ? b : { id: d.athlete.id, name: d.athlete.name, grade: d.athlete.grade, team: d.athlete.team, weight: [], inbody: [] };
-      html += '<h2>InBodyレポート</h2><div class="row"><button class="btn sub" data-staff="xInbodyPdf">InBodyレポートをPDFで保存</button>' +
-        '<button class="btn sub" data-staff="xReportXlsx">InBody・体重の履歴をExcelで保存</button></div>' + Body.inbodyHtml(b.inbody || []);
-      html += '<h2>体重レポート</h2><div class="row"><button class="btn sub" data-staff="xWeightPdf">体重レポートをPDFで保存</button></div>' + Body.weightHtml(b.weight || []);
+      Staff.current = b.name ? b : { id: d.athlete.id, name: d.athlete.name, grade: d.athlete.grade, team: d.athlete.team, caption: '', weight: [], inbody: [], base: null };
+      html += '<div class="row report-actions"><button class="btn sub" data-staff="xInbodyPdf">📄 フィジカルレポートをPDFで保存</button>' +
+        '<button class="btn sub" data-staff="xReportXlsx">📊 InBody・体重の履歴をExcelで保存</button></div>' + Body.physicalHtml(Staff.current);
+      html += '<div class="row report-actions"><button class="btn sub" data-staff="xWeightPdf">📄 体重レポートをPDFで保存</button></div>' + Body.weightReportHtml(Staff.current);
+      html += '<p class="muted small">PDFは印刷画面が開くので「PDFとして保存」を選んでください（グラフの下に数値の表も付きます）。</p>';
       app.innerHTML = Staff.frame(html);
     }).catch(Staff.fail);
   },
@@ -101,7 +102,7 @@ var Staff = {
   // ---------------- 体組成データの読み込み（InBody・体重タブで共通） ----------------
   loadBody: function (force) {
     if (Staff.body && !force) return Promise.resolve(Staff.body);
-    return Api.call('staffBody', { token: S.token }).then(function (res) { Staff.body = res; return res; });
+    return Api.call('staffBody', { token: S.token }).then(function (res) { Staff.body = res; if (res.chart) Body.chart = res.chart; return res; });
   },
 
   fail: function (err) {

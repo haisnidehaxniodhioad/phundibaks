@@ -2,9 +2,9 @@
  * staff_body.js ― スタッフ画面の「InBody」タブと「体重」タブ（Phase 3c）
  *
  * InBodyタブ: 体組成Excel（InBody結果）の取り込み、ランキング（FFMI・除脂肪体重・体脂肪率・体重）、
- *             InBodyレポートのPDF（1人ずつ・まとめて）、Excel（ランキング・最新値）
+ *             フィジカルレポートのPDF（学年まとめ）、Excel（ランキング・最新値）
  * 体重タブ  : 体重管理表の取り込み、測定日ごとの体重一覧（未測定は赤・前回比・4週前比）、
- *             体重レポートのPDF（まとめて）、Excel（一覧・全履歴）
+ *             体重レポートのPDF（学年まとめ）、Excel（一覧・全履歴）
  * 取り込みは、それぞれのタブで対応するファイルだけを受け付ける（違うファイルを選ぶと知らせる）。
  */
 var StaffBody = {
@@ -110,7 +110,7 @@ var StaffBody = {
       Staff.select('grade', '学年', uniq(Staff.body.athletes.map(function (a) { return a.grade; }))) + '</div>' +
       '<p class="muted small">測定日を選ぶと、その日以前のいちばん新しい記録で並べます。選手名を押すと個別のレポートを表示します。</p>' +
       '<div class="row"><button class="btn sub" data-sb="xRankPdf">📄 ランキングをPDF</button><button class="btn sub" data-sb="xRankXlsx">📊 ランキングをExcel</button></div>' +
-      '<div class="row"><button class="btn sub" data-sb="xReportsPdf">📄 表示中の選手のInBodyレポートをまとめてPDF（1人1ページ）</button>' +
+      '<div class="row"><button class="btn sub" data-sb="xReportsPdf">📄 学年のフィジカルレポートをまとめてPDF保存</button>' +
       '<button class="btn sub" data-sb="xLatestXlsx">📊 表示中の選手のInBody最新値をExcel</button></div></div>';
     html += '<div class="card"><table class="tbl"><tr><th>順位</th><th>選手</th><th>学年</th><th>' + esc(labels[metric]) + '</th><th>測定日</th></tr>' +
       StaffBody.rankRows.map(function (r) {
@@ -155,7 +155,7 @@ var StaffBody = {
       '<p class="small">表示 ' + rows.length + '人' + (StaffBody.weightDate ? ' ／ <b class="ng-text">未測定 ' + missing + '人</b>' : '') + '</p>' +
       '<div class="row"><button class="btn sub" data-sb="xWeightPdf">📄 一覧をPDF</button><button class="btn sub" data-sb="xWeightXlsx">📊 一覧をExcel</button>' +
       '<button class="btn sub" data-sb="xWeightAllXlsx">📊 全員の体重の全履歴をExcel</button></div>' +
-      '<div class="row"><button class="btn sub" data-sb="xWeightReportsPdf">📄 表示中の選手の体重レポートをまとめてPDF（1人1ページ）</button></div></div>';
+      '<div class="row"><button class="btn sub" data-sb="xWeightReportsPdf">📄 学年の体重レポートをまとめてPDF保存</button></div></div>';
     html += '<div class="card"><div class="table-scroll"><table class="tbl"><tr><th>選手</th><th>学年</th><th>体重</th><th>前回比</th><th>4週前比</th><th>測定日</th></tr>' +
       rows.map(function (r) {
         var fmt = function (d) { return d === '' ? '-' : (d > 0 ? '▲' : d < 0 ? '▼' : '±') + Math.abs(d); };
@@ -175,12 +175,12 @@ app.addEventListener('click', function (e) {
     case 'doImport': StaffBody.doImport(); break;
     case 'xRankPdf': Export.rankingPdf(StaffBody.rankTitle, StaffBody.rankSub, StaffBody.rankRows); break;
     case 'xRankXlsx': Export.rankingExcel(StaffBody.rankTitle, StaffBody.rankRows); break;
-    case 'xReportsPdf': Export.reportsPdf(people, label, 'inbody'); break;
+    case 'xReportsPdf': Export.bulkDialog('inbody'); break;
     case 'xLatestXlsx': Export.excel('inbody_latest_' + Export.today() + '.xlsx', [{ name: 'InBody最新値', rows: Export.inbodyLatestRows(people) }]); break;
     case 'xWeightPdf': Export.weightTablePdf(StaffBody.weightDate, label + '・' + StaffBody.weightList.length + '人', StaffBody.weightList); break;
     case 'xWeightXlsx': Export.weightTableExcel(StaffBody.weightDate, StaffBody.weightList); break;
     case 'xWeightAllXlsx': Export.weightPivotExcel(people); break;
-    case 'xWeightReportsPdf': Export.reportsPdf(people, label, 'weight'); break;
+    case 'xWeightReportsPdf': Export.bulkDialog('weight'); break;
   }
 });
 app.addEventListener('change', function (e) {

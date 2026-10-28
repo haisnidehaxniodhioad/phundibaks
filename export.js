@@ -1,5 +1,5 @@
 /**
- * export.js ― スタッフ画面の「PDFで保存」「Excelで保存」（Phase 3b、3cでInBodyと体重を分けた）
+ * export.js ― スタッフ画面の「PDFで保存」「Excelで保存」（Phase 3b、3cでInBodyと体重を分けた、3dでレポートを既存アプリの形に）
  *
  * PDF  : ブラウザの印刷機能を使う。印刷画面で「PDFとして保存」（iPhoneは共有→「プリント」→ピンチアウトでPDF）を選ぶ。
  *        印刷用の内容だけを #printArea に入れ、それ以外を隠してから印刷する（A4縦）。
@@ -34,15 +34,20 @@ var Export = {
 
   /** 印刷（PDF保存）する。pagesHtml は1ページ分ずつのHTMLの配列 */
   print: function (title, pagesHtml) {
+    Body.closeHistory();
     var area = document.getElementById('printArea');
     if (!area) { area = document.createElement('div'); area.id = 'printArea'; document.body.appendChild(area); }
     area.innerHTML = pagesHtml.map(function (h) { return '<section class="print-page">' + h + '</section>'; }).join('');
+    // A4の1枚（余白を除いた高さ 約1030px）に収まらないページは、グラフを一段小さくする（既存アプリと同じ）
+    area.style.cssText = 'display:block;position:absolute;left:-10000px;top:0;width:700px;';
+    Array.prototype.forEach.call(area.children, function (sec) { if (sec.offsetHeight > 1030) sec.classList.add('compact'); });
+    area.style.cssText = '';
     var oldTitle = document.title;
     document.title = title;   // PDFのファイル名の候補になる
     document.body.classList.add('printing');
     var done = function () { document.body.classList.remove('printing'); area.innerHTML = ''; document.title = oldTitle; };
     window.addEventListener('afterprint', function once() { window.removeEventListener('afterprint', once); done(); });
-    setTimeout(function () { window.print(); }, 300);   // グラフの描画が終わるのを少し待つ
+    setTimeout(function () { window.print(); }, 300);   // 描画が終わるのを少し待つ
   },
 
   /** 印刷用の見出し */
@@ -51,25 +56,57 @@ var Export = {
       (sub ? '<div class="print-sub">' + esc(sub) + '</div>' : '') + '</div><div class="print-date">作成日 ' + Export.today() + '</div></div>';
   },
 
-  // ---------------- 体組成レポート（InBody と 体重 は別々） ----------------
-  /** 1人分のレポートのページ。kind: 'inbody' または 'weight' */
+  // ---------------- 体組成レポート（フィジカルレポート と 体重レポート は別々） ----------------
+  /** 1人分のレポートのページ（見出し・作成日などはレポートの中に入っている）。kind: 'inbody' または 'weight' */
   reportPage: function (a, kind) {
-    var title = kind === 'weight' ? '体重レポート' : 'InBodyレポート';
-    return Export.head(title + '　' + a.name, [a.id, a.grade, a.team].filter(String).join('・')) +
-      (kind === 'weight' ? Body.weightHtml(a.weight, { print: true }) : Body.inbodyHtml(a.inbody, { print: true }));
+    return kind === 'weight' ? Body.weightReportHtml(a, { print: true }) : Body.physicalHtml(a, { print: true });
   },
+
+  fileTitle: function (kind) { return kind === 'weight' ? '体重レポート_' : 'フィジカルレポート_'; },
 
   reportPdf: function (a, kind) {
-    Export.print((kind === 'weight' ? '体重レポート_' : 'InBodyレポート_') + a.name + '_' + Export.today(), [Export.reportPage(a, kind)]);
+    Export.print(Export.fileTitle(kind) + a.name + '_' + Export.today(), [Export.reportPage(a, kind)]);
   },
 
-  /** 複数人のレポートを1人1ページでPDFに（記録がある選手だけ） */
+  /** 複数人のレポートを1人1ページでPDFに（記録がある選手だけ。並び順は渡された順） */
   reportsPdf: function (list, label, kind) {
     var withData = list.filter(function (a) { return kind === 'weight' ? a.weight.length : a.inbody.length; });
     if (!withData.length) { alert('記録がある選手がいません。'); return; }
-    if (!confirm(withData.length + '人分のレポートを1人1ページでPDFにします。人数が多いと印刷画面が出るまで時間がかかります。')) return;
-    Export.print((kind === 'weight' ? '体重レポート_' : 'InBodyレポート_') + label + '_' + Export.today(),
-                 withData.map(function (a) { return Export.reportPage(a, kind); }));
+    Export.print(Export.fileTitle(kind) + label + '_' + Export.today(), withData.map(function (a) { return Export.reportPage(a, kind); }));
+  },
+
+  /**
+   * 「学年のレポートをまとめてPDF保存」の画面（既存アプリと同じ）。学年を選ぶと、1人1ページで
+   * 学年の順 → 同じ学年の中は選手マスタの行の順 に並べてPDFにする。記録がない選手は含めない。
+   */
+  bulkDialog: function (kind) {
+    var all = Staff.body.athletes.filter(function (a) { return a.active && String(a.grade) !== ''; });
+    var has = function (a) { return kind === 'weight' ? a.weight.length : a.inbody.length; };
+    var grades = uniq(all.map(function (a) { return String(a.grade); })).sort(function (x, y) { return x.localeCompare(y, 'ja', { numeric: true }); });
+    var name = kind === 'weight' ? '体重レポート' : 'フィジカルレポート';
+    var body = !grades.length ? '<p class="muted">学年が入っている選手がいません（選手マスタの「学年」を入れてください）。</p>' :
+      '<p class="muted small">PDFにまとめる学年を選んでください（複数可）。1人を1ページ（A4）にして、学年の順・同じ学年の中は選手マスタの順に並べます。' +
+      (kind === 'weight' ? '体重' : 'InBody') + 'の記録がまだない選手は含まれません。</p>' +
+      grades.map(function (g) {
+        var list = all.filter(function (a) { return String(a.grade) === g; }), n = list.filter(has).length;
+        return '<label class="check-line"><input type="checkbox" class="bulk-grade" value="' + esc(g) + '"' + (n ? '' : ' disabled') + '> ' + esc(g) + '（' + n + '名 / 全' + list.length + '名）</label>';
+      }).join('') +
+      '<p class="ng-text small" id="bulkMsg"></p><div class="row"><button class="btn" id="bulkGo">PDFにまとめる</button><button class="btn sub" id="bulkCancel">キャンセル</button></div>' +
+      '<p class="muted small">印刷画面が開くので「PDFとして保存」を選んでください。人数が多いと準備に少し時間がかかります。</p>';
+    var ov = Body.modal('学年の' + name + 'をまとめてPDF保存', '', body);
+    var go = ov.querySelector('#bulkGo');
+    if (!go) return;
+    ov.querySelector('#bulkCancel').onclick = Body.closeHistory;
+    go.onclick = function () {
+      var sel = Array.prototype.filter.call(ov.querySelectorAll('.bulk-grade'), function (c) { return c.checked; }).map(function (c) { return c.value; });
+      if (!sel.length) { ov.querySelector('#bulkMsg').textContent = '学年を1つ以上選んでください。'; return; }
+      var list = [];
+      sel.sort(function (x, y) { return grades.indexOf(x) - grades.indexOf(y); }).forEach(function (g) {
+        all.forEach(function (a) { if (String(a.grade) === g && has(a)) list.push(a); });   // all は選手マスタの行の順
+      });
+      Body.closeHistory();
+      Export.reportsPdf(list, sel.join('-'), kind);
+    };
   },
 
   /** 1人分の測定データをExcelに（InBodyと体重の2シート） */
