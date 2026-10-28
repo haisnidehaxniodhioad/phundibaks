@@ -274,6 +274,8 @@ function voiceCandidates() {
 
 /** 聞き取った文を処理する */
 function handleVoice(text) {
+  // v22：「えっと」「〜してください」などを取り除いてから読み取る（chat.js）
+  text = Chat.clean(text);
   // ★ アプリの基本操作（どの画面でも。Phase 3f）: 覚えた言い方 → 決まった言い方 の順
   var navLearned = VoiceParser.matchLearned(text, S.home.phrases, S.view);
   if (navLearned && navLearned.exact && NAV_ACTIONS.indexOf(navLearned.exact.action) >= 0) return doNav(text, learnedToCmd(navLearned.exact, text));
@@ -284,12 +286,16 @@ function handleVoice(text) {
   if (S.view === 'body' || S.view === 'mymenu' || S.view === 'history') {   // レポート・メニュー作成・記録の画面は、基本操作とちょっとした会話だけ
     if (smallTalk(text)) return;
     if (S.view === 'history' && askPrevious(text)) return;
+    if (Chat.question(text)) return;   // 「今何時？」「今週あと何回？」など（chat.js）
     return Chooser.openAction(text, navLearned && navLearned.near);
   }
   if (S.view !== 'session' && S.view !== 'home') return;
   // 0. 直前に「Day2を始めますか？」と提案していれば、その返事として受け取る
   if (answerOffer(text)) return;
   if (S.view === 'session' && answerSession(text)) return;
+  // v22：くだけた言い方（「できた」「重くして」「休憩する」）と質問（「何キロでやればいい？」「あと何セット？」）（chat.js）
+  if (S.view === 'session' && Chat.sessionAction(text)) return;
+  if (Chat.question(text)) return;
 
   // 1. 覚えた言い方と完全に同じなら、それを最優先で実行する（決まった言い方の誤判定も、教え直せば直る）
   var learned = VoiceParser.matchLearned(text, S.home.phrases, S.view);
@@ -369,7 +375,8 @@ function answerOffer(text) {
   if (S.view !== 'home' || !Offer.day || Date.now() > Offer.until) return false;
   var t = VoiceParser.norm(VoiceParser.normalizeNumbers(text));
   var no = /いいえ|いや|違う|ちがう|他|ほか|別|べつ|やめ|やだ|嫌|変え|かえ/.test(t);
-  var yes = /^(はい|うん|ええ|お願い|おねがい|オケ|オッケ|ok|いいよ|いいね|いい|それ|そうする|そうしよ|そうしま|やる|やろ|やります|始め|はじめ|スタト|行こ|いこ|頼む|たのむ|よろしく|了解|りょうかい)/.test(t) ||
+  // 「やる気が出ない」「やりたくない」などは「はい」とみなさない（v22）
+  var yes = !/やる気|たくない|ない$/.test(t) && /^(はい|うん|ええ|お願い|おねがい|オケ|オッケ|ok|いいよ|いいね|いい|それ|そうする|そうしよ|そうしま|やる|やろ|やります|始め|はじめ|スタト|行こ|いこ|頼む|たのむ|よろしく|了解|りょうかい)/.test(t) ||
             /それ(を|で|に)?(しよ|する|やる|やろ|始め|はじめ|お願い|おねがい|いこ|行こ)/.test(t);
   if (no) { offerNext(text); return true; }
   if (yes) { var day = Offer.day; Offer.day = null; VoiceUI.show(text, 'Day' + day + 'を始めます'); startDay(day); return true; }
@@ -406,7 +413,7 @@ var Ctx = { type: null, data: null, until: 0 };
 function setCtx(type, data) { Ctx.type = type; Ctx.data = data; Ctx.until = Date.now() + 120000; }
 function ctxIs(type) { return Ctx.type === type && Date.now() < Ctx.until; }
 
-var YES_RE = /^(はい|うん|ええ|お願い|おねがい|オケ|オッケ|ok|いいよ|いいね|そうする|そうしよ|やる|やろ|やります|了解|りょうかい)/;
+var YES_RE = /^(はい|うん|ええ|お願い|おねがい|オケ|オッケ|ok|いいよ|いいね|そうする|そうしよ|やる(?!気)|やろ|やります|了解|りょうかい)/;
 var GO_RE = /(それ|そっち|そちら|そいつ)(を|から|に)?(先|さき)?(に)?(やる|やろ|する|しよ|いく|いこ|行く|行こ|始め|はじめ)|先に(やる|やろ|する|しよ|いく|行く)/;
 var SAME_RE = /^(同じ|おなじ|同様|さっきと同じ|前と同じ|それと同じ|もう1セット|もういっちょ|もう1回|もういっかい|もう一回)|同じ(で|重さ|重量|回数|く)/;
 
@@ -792,26 +799,14 @@ function askPrevious(text) {
 /** 今の画面で話せることの説明 */
 function helpText() {
   var common = 'どの画面でも「ホームに戻って」「体組成レポートを開いて」「体重見せて」が使えるよ。';
-  if (S.view === 'session') return '記録は「スクワット60キロ8回」、案内は「次は？」「今の種目」「前回は？」、レストは「あと何秒」「スキップ」、間違えたら「取り消し」、終わったら「終わり」だよ。' + common;
+  if (S.view === 'session') return '記録は「スクワット60キロ8回」や「できた」、案内は「次は？」「あと何セット？」「何キロでやればいい？」、重さは「重くして」「軽くして」、レストは「休憩する」「あと何秒」「スキップ」、間違えたら「取り消し」、終わったら「終わり」だよ。' + common;
   if (S.view === 'finish') return '「きつさ7」のように数字を言って、「保存」で保存だよ。「マイメニューに保存」も使えるよ。';
   if (S.view === 'body') return '「体重にして」「InBodyにして」で切り替え、「体重の履歴」で履歴、「閉じて」で閉じるよ。' + common;
   if (S.view === 'history') return '「今週何回やった？」「今月は何回？」で回数、「前回のスクワットは？」で前回の記録を答えるよ。日付をタップすると、その日の記録が見られるよ。' + common;
   return '「今日は何をする？」でおすすめ、「デイ2を始める」で開始、「マイメニューは？」で保存したメニュー、「新しいメニューを作る」でメニュー作りができるよ。「記録を見せて」でトレーニング記録、「今週何回やった？」で回数も答えるよ。' + common;
 }
 
-/** あいさつ・お礼などに返事をする。返事をしたら true */
-function smallTalk(text) {
-  var k = VoiceParser.parseSmallTalk(text), n = S.home.name;
-  if (!k) return false;
-  var say = {
-    greet: Talk.pick(['こんにちは、' + n + 'さん！今日もいっしょにがんばろう。', n + 'さん、やあ！調子はどう？']),
-    thanks: Talk.pick(['どういたしまして！', 'いつでも呼んでね。', 'どういたしまして。その調子でいこう！']),
-    tired: Talk.pick(['おつかれさま。無理せず、できる範囲でいこう。', 'がんばってるね。水分もとってね。']),
-    cheer: Talk.pick(['その意気！いっしょにがんばろう！', 'いいね、応援してるよ！']),
-    who: Avatar.me() + 'は' + Avatar.name() + '。トレーニングの記録と案内のお手伝いをしてるよ。「何ができるの？」って聞いてみてね。'
-  }[k];
-  reply(text, say);
-  return true;
-}
+/** あいさつ・雑談に返事をする。返事をしたら true（v22 から中身は chat.js の Chat.smallTalk） */
+function smallTalk(text) { return Chat.smallTalk(text); }
 
 VoiceUI.init();

@@ -204,16 +204,7 @@ var VoiceParser = {
     return null;
   },
 
-  /** ちょっとした会話（あいさつ・お礼など）。当てはまらなければ null */
-  parseSmallTalk: function (rawText) {
-    var t = this.norm(rawText);
-    if (/^(こんにちは|こんにちわ|こんばんは|こんばんわ|おはよ|やあ|ハロ|hello|hi$)/.test(t)) return 'greet';
-    if (/ありがと|サンキュ|thank|助かった|たすかった/.test(t)) return 'thanks';
-    if (/疲れた|つかれた|しんどい|だるい|眠い|ねむい/.test(t)) return 'tired';
-    if (/頑張る|がんばる|やるぞ|いくぞ|行くぞ|気合/.test(t)) return 'cheer';
-    if (/(君|きみ|あなた)(は|の名前|だれ|誰)|名前は|誰(ですか|なの)|だれ(ですか|なの)/.test(t)) return 'who';
-    return null;
-  },
+  // ちょっとした会話（あいさつ・雑談）は v22 から chat.js の Chat.kind で見分ける
 
   /**
    * 聞き取った文を、操作の指示に変換する。
@@ -259,8 +250,9 @@ var VoiceParser = {
     }
 
     // ここから下は「キーワードを含むか」で判定するため、長い文で誤判定しやすい。
-    // 長い文（13文字以上）は判定せず「わからない」にして、画面で操作を選んでもらう（選ぶと覚える）。
-    if (t.length > 12) return { type: 'unknown', text: text };
+    // 長い文（17文字以上）は判定せず「わからない」にして、画面で操作を選んでもらう（選ぶと覚える）。
+    // v22：「えっと」「〜してください」などは先に取り除いている（chat.js）ので、少し長めまで判定する。
+    if (t.length > 16) return { type: 'unknown', text: text };
     if (/前回/.test(t)) return { type: 'previous', exercise: this.findExercise(text, candidates) };
     if (/次|つぎ/.test(t)) return { type: 'next' };
     if (/今日は?(何|なに)|何(を)?(する|やる)|なにする|なにやる|おすすめ/.test(t)) return { type: 'suggest' };
