@@ -38,6 +38,8 @@ var VoiceUI = {
     this.btn.hidden = !show;
     Avatar.show(show);
     if (S.view === 'home') Avatar.greet();
+    var picker = document.getElementById('avatarAppearancePicker');
+    if (picker && S.view !== 'home') picker.hidden = true;   // ホーム以外では見た目の選択を閉じる
     document.body.classList.toggle('has-mic', show);
     if (!show) { this.box.hidden = true; return; }
     if ((S.view === 'session' || S.view === 'home' || S.view === 'body') && !document.getElementById('voiceHelp')) {
@@ -103,6 +105,9 @@ var VoiceUI = {
   /** 聞き取った文と返事を、マイクボタンの横に表示する（数秒後に自動で消える） */
   show: function (heard, reply, ng) {
     clearTimeout(this.hideHandle);
+    if (ng && window.Avatar && typeof Avatar.feedback === 'function') Avatar.feedback('error', 1800);
+    else if (reply && /どの操作|どの種目|選んでください|始めますか|ですか[。！!]?$/.test(reply) &&
+             window.Avatar && typeof Avatar.feedback === 'function') Avatar.feedback('confirming', 1600);
     this.box.hidden = false;
     this.box.innerHTML = (heard ? '<div class="heard">🎤 ' + esc(heard) + '</div>' : '') +
       (reply ? '<div class="av-name">' + esc(Avatar.name()) + '</div><div class="reply' + (ng ? ' ng' : '') + '">' + esc(reply) + '</div>' : '');
@@ -139,6 +144,7 @@ var Chooser = {
     if (S.view === 'home') opts.push(['myMenuList', '', '保存したメニューを聞く'], ['newMyMenu', '', '新しいメニューを作る'], ['startFree', '', '白紙から記録する']);
     opts.push(['help', '', '何ができるか聞く']);
     this.render('どの操作ですか？ 選ぶと、次からはこの言い方で動きます。', opts);
+    if (window.Avatar && typeof Avatar.feedback === 'function') Avatar.feedback('confirming', 1600);
     Speech.speak(Talk.sorry() + 'わからなかった。画面からやりたいことを選んでね。次からは、その言い方で動くよ。');
   },
 
@@ -236,7 +242,14 @@ VoiceUI.box.addEventListener('change', function (e) {
 });
 
 /** 返事を画面に出して、読み上げる */
-function reply(heard, text, ng) { VoiceUI.show(heard, text, ng); Speech.speak(text); VoiceUI.lastReply = text; }
+function reply(heard, text, ng) {
+  if (ng && window.Avatar && typeof Avatar.feedback === 'function') Avatar.feedback('error', 1800);
+  else if (/どの操作|どの種目|選んでください|始めますか/.test(text) &&
+           window.Avatar && typeof Avatar.feedback === 'function') Avatar.feedback('confirming', 1600);
+  VoiceUI.show(heard, text, ng);
+  Speech.speak(text);
+  VoiceUI.lastReply = text;
+}
 
 /** 種目名の候補（トレーニング中の種目 ＋ 種目マスタ） */
 function voiceCandidates() {
@@ -616,6 +629,7 @@ function voiceRecord(text, cmd) {
   s.done = true; s.via = 'voice';
   it.method = it.sets.some(function (x) { return x.done && x.via !== 'voice'; }) ? 'タップ・音声' : '音声';
   VoiceUI.undo.push({ i: i, j: j, before: before, addedSet: addedSet, addedItem: addedItem });
+  if (window.Avatar && typeof Avatar.feedback === 'function') Avatar.feedback('success', 1900);
   saveDraft();
   renderSession();
   var said = Talk.nice() + it.name + '、' + (s.w !== '' && s.w !== null ? s.w + 'キロ' : '') + s.r + '回、' + (j + 1) + 'セット目を記録したよ。';
@@ -664,13 +678,13 @@ function doNav(text, cmd) {
   switch (cmd.type) {
     case 'goHome':
       if (S.view === 'home') return reply(text, 'もうホームだよ。');
-      Body.closeHistory(); Timer.stop(); renderHome();
+      Body.closeHistory(); Timer.stop(); renderHome(); Avatar.feedback('success');
       return reply(text, Talk.ok() + 'ホームに戻ったよ。' + (S.draft ? 'トレーニングの続きは「続きから」でできるよ。' : ''));
     case 'openBody': case 'bodyTab':
       if (cmd.tab) Body.tab = cmd.tab;
       if (S.view === 'body') { Body.closeHistory(); Body.renderMine(); return reply(text, Body.summary(Body.tab || 'inbody')); }
       VoiceUI.show(text, Talk.ok() + '体組成レポートを開くね。');
-      return Body.showMine(function () { reply(text, Body.summary(Body.tab || (Body.mine.inbody.length ? 'inbody' : 'weight'))); });
+      return Body.showMine(function () { Avatar.feedback('success'); reply(text, Body.summary(Body.tab || (Body.mine.inbody.length ? 'inbody' : 'weight'))); });
     case 'openHistory':
       var openIt = function () {
         var tab = cmd.tab || Body.tab || 'inbody';
@@ -717,7 +731,7 @@ function smallTalk(text) {
     thanks: Talk.pick(['どういたしまして！', 'いつでも呼んでね。', 'どういたしまして。その調子でいこう！']),
     tired: Talk.pick(['おつかれさま。無理せず、できる範囲でいこう。', 'がんばってるね。水分もとってね。']),
     cheer: Talk.pick(['その意気！いっしょにがんばろう！', 'いいね、応援してるよ！']),
-    who: 'ぼくは' + Avatar.name() + '。トレーニングの記録と案内のお手伝いをしてるよ。「何ができるの？」って聞いてみてね。'
+    who: Avatar.me() + 'は' + Avatar.name() + '。トレーニングの記録と案内のお手伝いをしてるよ。「何ができるの？」って聞いてみてね。'
   }[k];
   reply(text, say);
   return true;

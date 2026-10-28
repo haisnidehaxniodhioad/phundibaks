@@ -221,23 +221,37 @@ body.report-modal-open { overflow: hidden; }
 .report-mark-sm { font-size: 0.6em; vertical-align: 0.15em; margin-right: 2px; }
 .base-row label { flex: 1; min-width: 140px; margin-top: 4px; }
 .base-dates { max-height: 320px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; margin-bottom: 10px; }
-/* Phase 3f: 話しかけると返事をするアバター（avatar.js）。マイクボタンの左に置き、吹き出しで返事をする */
+/* Phase 3f: 話しかけると返事をするアバター（男女切り替え対応） */
 .avatar { position: fixed; left: 12px; bottom: calc(8px + env(safe-area-inset-bottom)); z-index: 62; width: 66px; height: 66px;
-  padding: 0; border: 3px solid #fff; border-radius: 50%; background: #e8efff; box-shadow: 0 6px 18px rgba(0,0,0,0.25); cursor: pointer; }
+  padding: 0; overflow: hidden; border: 3px solid #fff; border-radius: 50%; background: #e8efff; box-shadow: 0 6px 18px rgba(0,0,0,0.25); cursor: pointer; }
 .avatar svg { width: 100%; height: 100%; display: block; }
+.avatar:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
 body.has-avatar .mic-fab { left: 88px; }
-.avatar .av-mouth { opacity: 0; transform-origin: 32px 45.5px; }
+.avatar .av-mouth { opacity: 0; transform-origin: 32px 43px; }
 .avatar.talking .av-smile { opacity: 0; }
 .avatar.talking .av-mouth { opacity: 1; animation: av-talk 0.28s infinite alternate ease-in-out; }
 .avatar.pulse .av-mouth { animation: av-talk 0.28s infinite alternate ease-in-out, av-pulse 0.2s; }
 @keyframes av-talk { from { transform: scaleY(0.25); } to { transform: scaleY(1.1); } }
 @keyframes av-pulse { 50% { transform: scale(1.25, 1.3); } }
-.avatar .av-eyes { transform-origin: 32px 35px; animation: av-blink 4.5s infinite; }
+.avatar .av-eyes { transform-origin: 32px 34px; animation: av-blink 4.5s infinite; }
 @keyframes av-blink { 0%, 95%, 100% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
 .avatar.listening { border-color: var(--danger); animation: pulse 1.2s infinite; }
 .avatar.listening .av-eyes { transform: scale(1.15); animation: none; }
 .avatar.talking { animation: av-bob 0.6s infinite alternate ease-in-out; }
-@keyframes av-bob { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+@keyframes av-bob { from { translate: 0 0; } to { translate: 0 -3px; } }
+.avatar.state-success { border-color: var(--ok); }
+.avatar.state-confirming { border-color: #d99a2b; }
+.avatar.state-error { border-color: var(--danger); }
+.avatar.state-success .av-smile { stroke: var(--ok); stroke-width: 2.4; }
+.avatar-picker { position: fixed; left: 12px; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 1004;
+  display: flex; flex-direction: column; gap: 8px; width: min(260px, calc(100vw - 24px)); padding: 14px;
+  border: 1px solid var(--border); border-radius: 14px; background: var(--surface);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18); }
+.avatar-picker[hidden] { display: none; }
+.avatar-picker-title { font-weight: 700; margin-bottom: 2px; }
+.avatar-picker-option { width: 100%; text-align: left; }
+.avatar-picker-option[aria-pressed="true"] { background: var(--primary); color: #fff; }
+.avatar-picker-close { align-self: flex-end; }
 /* 吹き出し（返事）。アバターの上に出し、左下にしっぽを付ける */
 body.has-avatar .voice-box { left: 12px; bottom: calc(86px + env(safe-area-inset-bottom)); border-radius: 16px; border-color: #c9d6f5; }
 body.has-avatar .voice-box::after { content: ''; position: absolute; left: 30px; bottom: -9px; width: 16px; height: 16px; background: #fff;
@@ -245,6 +259,9 @@ body.has-avatar .voice-box::after { content: ''; position: absolute; left: 30px;
 .voice-box .av-name { font-size: 0.72rem; font-weight: 700; color: var(--primary); margin-top: 4px; }
 .voice-box .heard { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
 .voice-box .reply { color: var(--text); margin-top: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .avatar, .avatar * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}
 /* Phase 3f: 自分のメニュー（mymenu.js） */
 .mm-row { display: flex; gap: 6px; align-items: stretch; }
 .mm-row .day-btn { flex: 1; }
@@ -258,3 +275,10 @@ body.has-avatar .voice-box::after { content: ''; position: absolute; left: 30px;
 .mic-fab { z-index: 1001; }
 .avatar { z-index: 1002; }
 .voice-box { z-index: 1003; }
+/* v3i: 結果の表情（成功＝目を細めて笑う／確認＝片方の眉を上げる／エラー＝困り眉と下がった口）。枠の色と合わせて出す */
+.avatar .av-brows path, .avatar .av-eyes { transform-box: fill-box; transform-origin: center; transition: transform 0.2s; }
+.avatar.state-success .av-eyes { transform: scaleY(0.45); animation: none; }
+.avatar.state-confirming .av-brows path:last-child { transform: translateY(-1.8px) rotate(-8deg); }
+.avatar.state-error .av-brows path:first-child { transform: rotate(-14deg); }   /* 内側を上げた困り眉 */
+.avatar.state-error .av-brows path:last-child { transform: rotate(14deg); }
+.avatar.state-error .av-smile { transform: translateY(3px) scaleY(-0.6); transform-box: fill-box; transform-origin: center; }

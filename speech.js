@@ -24,7 +24,10 @@ var Speech = {
       // アバターの口を動かす（avatar.js）。読み上げが終わったら止める
       if (window.Avatar) {
         Avatar.talk(true, text);
-        u.onend = u.onerror = function () { Avatar.talk(false); };
+        u.onend = u.onerror = function () {
+          Avatar.talk(false);
+          if (typeof Avatar.finishFeedbackAfterSpeech === 'function') Avatar.finishFeedbackAfterSpeech();
+        };
         u.onboundary = function () { Avatar.pulse(); };
       }
       window.speechSynthesis.cancel();

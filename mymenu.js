@@ -39,6 +39,7 @@ var MyMenu = {
     saveDraft();
     renderSession();
     var first = S.draft.items[0];
+    Avatar.feedback('success');
     var say = Talk.ok() + m.name + 'を始めるよ。最初は' + Speech.exerciseText(first, latestOf(first.name));
     if (text) reply(text, say); else Speech.speak(say);
   },
@@ -99,6 +100,7 @@ var MyMenu = {
     MyMenu.send({ id: e.id, name: e.name.trim(), items: items }).then(function (res) {
       S.edit = null;
       renderHome('「' + res.menu.name + '」を保存しました。');
+      Avatar.feedback('success');
       Speech.speak(Talk.ok() + res.menu.name + 'を保存したよ。次からホームで選んで始められるよ。');
     }).catch(function (err) { MyMenu.renderEdit(err.message); });
   },

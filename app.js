@@ -6,7 +6,7 @@
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v3g 2026-10-28';
+var APP_VERSION = 'v3i 2026-10-28';
 var S = { token: null, home: null, draft: null, view: 'loading' };
 var app = document.getElementById('app');
 
@@ -141,6 +141,7 @@ function renderHome(notice, warning) {
   html += '</div>';
   if (h.days.length) html += MyMenu.homeCard();
   html += '<button class="btn sub block" data-act="body">📊 体組成レポート</button>';
+  html += '<div class="card"><h2>トレーナー設定</h2><p class="muted small">話しかけるトレーナーの見た目を選べます。この端末に保存されます。</p><button class="btn sub block" data-act="avatarSettings">男性／女性トレーナーを選ぶ</button></div>';
 
   if (h.last) {
     html += '<p class="muted small">前回: ' + esc(h.last.date) + '（' + esc(h.last.type) +
@@ -484,6 +485,7 @@ app.addEventListener('click', function (e) {
     case 'startDay': startDay(t.dataset.day); break;
     case 'startFree': startFree(); break;
     case 'body': Body.showMine(); break;
+    case 'avatarSettings': if (window.Avatar && typeof Avatar.openAppearancePicker === 'function') Avatar.openAppearancePicker(); else alert('トレーナー設定を読み込めませんでした。ページを再読み込みしてください。'); break;
     case 'home': Timer.stop(); Speech.stop(); Body.closeHistory(); renderHome(); break;
     case 'speakItem': Speech.speak(Speech.exerciseText(dr.items[i], latestOf(dr.items[i].name))); break;
     case 'speakCurrent': var c = currentIndex();
