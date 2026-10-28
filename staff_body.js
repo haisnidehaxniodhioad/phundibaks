@@ -5,6 +5,7 @@
  *             フィジカルレポートのPDF（学年まとめ）、Excel（ランキング・最新値）
  * 体重タブ  : 体重管理表の取り込み、測定日ごとの体重一覧（未測定は赤・前回比・4週前比）、
  *             体重レポートのPDF（学年まとめ）、Excel（一覧・全履歴）
+ * InBodyタブの一番下に「基準の設定（全員共通）」（body_base.js・Phase 3e）。
  * 取り込みは、それぞれのタブで対応するファイルだけを受け付ける（違うファイルを選ぶと知らせる）。
  */
 var StaffBody = {
@@ -18,7 +19,7 @@ var StaffBody = {
       Staff.loadBody().then(function () { StaffBody.render(kind); }).catch(Staff.fail);
       return;
     }
-    app.innerHTML = Staff.frame(StaffBody.importCard(kind) + (kind === 'weight' ? StaffBody.weightView() : StaffBody.inbodyView()));
+    app.innerHTML = Staff.frame(StaffBody.importCard(kind) + (kind === 'weight' ? StaffBody.weightView() : StaffBody.inbodyView() + BodyBase.teamCard()));
   },
 
   /** 絞り込み後の選手（在籍中のみ） */

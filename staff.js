@@ -92,7 +92,7 @@ var Staff = {
       });
       Staff.current = b.name ? b : { id: d.athlete.id, name: d.athlete.name, grade: d.athlete.grade, team: d.athlete.team, caption: '', weight: [], inbody: [], base: null };
       html += '<div class="row report-actions"><button class="btn sub" data-staff="xInbodyPdf">📄 フィジカルレポートをPDFで保存</button>' +
-        '<button class="btn sub" data-staff="xReportXlsx">📊 InBody・体重の履歴をExcelで保存</button></div>' + Body.physicalHtml(Staff.current);
+        '<button class="btn sub" data-staff="xReportXlsx">📊 InBody・体重の履歴をExcelで保存</button></div>' + Body.physicalHtml(Staff.current) + BodyBase.athleteCard(Staff.current);
       html += '<div class="row report-actions"><button class="btn sub" data-staff="xWeightPdf">📄 体重レポートをPDFで保存</button></div>' + Body.weightReportHtml(Staff.current);
       html += '<p class="muted small">PDFは印刷画面が開くので「PDFとして保存」を選んでください（グラフの下に数値の表も付きます）。</p>';
       app.innerHTML = Staff.frame(html);

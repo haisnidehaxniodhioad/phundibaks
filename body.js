@@ -162,7 +162,7 @@ var Body = {
         '<div class="report-note">色の付いた列が「体組成の比較」のグラフに丸で表示されている記録です（<span class="report-mark report-mark-base">●基準</span>＝青い丸・' +
         '<span class="report-mark report-mark-latest">●最新</span>＝赤い丸。基準が複数日のときはその平均が青い丸になります）。</div>';
     }
-    var baseNote = base.label ? '基準: ' + base.label + (base.team ? '（全員共通の設定）' : '（選手マスタの「体組成の基準日」）') +
+    var baseNote = base.label ? '基準: ' + base.label + (base.team ? '（全員共通の設定）' : '（スタッフが選手ごとに設定）') +
                                 (base.team && !base.dates.length ? '。この選手にはその期間のInBody記録がないため、基準比は表示されません' : '')
                               : '基準: まだ設定されていません（スタッフが設定すると「基準比」が表示されます）';
     html += '<div class="report-note">前回比は、その項目の直前の記録との差です。体重・体脂肪率・除脂肪体重・FFMIは、すべてInBodyの値を使っています。' +
