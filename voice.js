@@ -233,6 +233,7 @@ var VoiceParser = {
     if (/取り消|とりけし|キャンセル|やり直|間違え|まちがえ/.test(t)) return { type: 'undo' };
     if (/スキップ|レスト(終了|終わり|おわり)|休憩(終了|終わり|おわり)/.test(t)) return { type: 'skipRest' };
     if (/(あと|残り|のこり)(何|なん)?秒|レスト(は|あと)/.test(t)) return { type: 'restLeft' };
+    if (/(残り|のこり)(の)?(種目|メニュ|は)|(あと|残り)(何|なに|なん)(種目|が残)|何が残|今日の(種目|メニュ)/.test(t)) return { type: 'remainingList' };
 
     var addMatch = text.match(/^(.+?)\s*を?\s*(追加|ついか)/);
     if (addMatch) {

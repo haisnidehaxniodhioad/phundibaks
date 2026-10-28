@@ -38,9 +38,8 @@ var MyMenu = {
                 }) };
     saveDraft();
     renderSession();
-    var first = S.draft.items[0];
     Avatar.feedback('success');
-    var say = Talk.ok() + m.name + 'を始めるよ。最初は' + Speech.exerciseText(first, latestOf(first.name));
+    var say = announceStart(Talk.ok() + m.name + 'を始めるよ。');   // 種目の一覧を伝えて、どれから始めるか選んでもらう（app.js）
     if (text) reply(text, say); else Speech.speak(say);
   },
 

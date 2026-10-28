@@ -324,7 +324,7 @@ function voiceInHome(text, cmd) {
   } else if (cmd.type === 'startDay') {
     if (findDay(cmd.day)) { VoiceUI.show(text, 'Day' + cmd.day + 'を始めます'); startDay(cmd.day); }
     else reply(text, 'Day' + cmd.day + 'はメニューにありません。', true);
-  } else if (cmd.type === 'suggest' || cmd.type === 'current' || cmd.type === 'next') {
+  } else if (cmd.type === 'suggest' || cmd.type === 'current' || cmd.type === 'next' || cmd.type === 'remainingList') {   // 「今日のメニューは？」も、おすすめのDayと種目の一覧を答える
     if (!h.suggestion.order.length) return reply(text, h.suggestion.reason);
     offerDay(text, h.suggestion.order[0], suggestText());
   } else if (cmd.type === 'previous') {
@@ -346,7 +346,7 @@ var Offer = { day: null, until: 0 };
 function offerDay(text, day, intro) {
   var d = findDay(day);
   Offer.day = day; Offer.until = Date.now() + 90000;
-  var say = (intro ? intro : 'Day' + day + (d && d.dayName ? '（' + d.dayName + '）' : '') + 'はどうですか。') +
+  var say = (intro ? intro : 'Day' + day + (d && d.dayName ? '（' + d.dayName + '）' : '') + 'はどうですか。' + (d ? menuText('Day' + day, applySavedOrder(d.items, d.day)) : '')) +
             'デイ' + day + 'を始めますか？「はい」で始めます。';
   VoiceUI.show(text, say);
   Speech.speak(say.replace(/Day(\d)/g, 'デイ$1'));   // 「Day」は読み上げで「デイ」と読ませる
@@ -439,11 +439,12 @@ function answerSession(text) {
   // 残りのメニューを出した直後の「RDLにする」「RDLで」「RDL」
   if (ctxIs('remaining') && named && Ctx.data.names.indexOf(named) >= 0 &&
       (t.length <= 12 && !/\d/.test(t))) {
+    var firstPick = Ctx.data.mode === 'start';
     Ctx.type = null;
     var ri = dr.items.map(function (it) { return it.name; }).indexOf(named);
     if (ri > currentIndex()) moveToCurrent(ri);
     VoiceUI.box.hidden = true;
-    reply(text, '次は' + Speech.exerciseText(dr.items[currentIndex()], latestOf(named)));
+    reply(text, (firstPick ? 'オッケー、最初は' : '次は') + Speech.exerciseText(dr.items[currentIndex()], latestOf(named)));
     return true;
   }
 
@@ -519,19 +520,36 @@ function moveToCurrent(i) {
 }
 
 // ---------------- 残りのメニュー（種目が終わるたびに表示） ----------------
-/** 残りの種目をボタンで出す。押した種目を次にやる（今回だけ順番を入れ替える） */
-function showRemaining(remaining) {
-  setCtx('remaining', { names: remaining.map(function (r) { return r.name; }) });
+/**
+ * 残りの種目をボタンで出す。押した種目を次にやる（今回だけ順番を入れ替える）。
+ * mode: 'start' … トレーニングを始めたとき（どれから始めるか） / 'next' … 種目が終わったとき / 'last' … 残り1種目
+ */
+function showRemaining(remaining, mode) {
+  mode = mode || 'next';
+  setCtx('remaining', { names: remaining.map(function (r) { return r.name; }), mode: mode });
   clearTimeout(VoiceUI.hideHandle);
   VoiceUI.box.hidden = false;
-  VoiceUI.box.innerHTML = '<div class="heard">残りのメニュー（' + remaining.length + '種目）</div>' +
-    '<div class="reply">次にやる種目を選べます。そのままでよければ閉じてください。</div><div class="choose-list">' +
-    remaining.map(function (r, k) {
-      return '<button class="btn ' + (k === 0 ? '' : 'sub ') + 'choose-btn" data-remain="' + esc(r.name) + '">' +
-        (k === 0 ? '次：' : '') + esc(r.name) + '</button>';
-    }).join('') + '<button class="btn ghost choose-btn" data-remain="">閉じる</button></div>';
-  // 何も選ばなければ20秒で閉じる（画面の下の方を隠し続けないように）
-  VoiceUI.hideHandle = setTimeout(function () { if (VoiceUI.box.querySelector('[data-remain]')) VoiceUI.box.hidden = true; }, 20000);
+  var title = mode === 'start' ? 'どの種目から始めますか？（' + remaining.length + '種目）' : '残りのメニュー（' + remaining.length + '種目）';
+  var lead = mode === 'last' ? '最後の種目です。' : 'やる種目を選んでください。選ばなければ上から順に進みます。';
+  VoiceUI.box.innerHTML = '<div class="heard">' + esc(title) + '</div>' +
+    '<div class="reply">' + esc(lead) + '</div><div class="choose-list">' +
+    remaining.map(function (r) {
+      return '<button class="btn sub choose-btn" data-remain="' + esc(r.name) + '">' + esc(r.name) + '</button>';
+    }).join('') + '<button class="btn ghost choose-btn" data-remain="">' + (mode === 'last' ? '閉じる' : 'このままの順番で') + '</button></div>';
+  // 何も選ばなければ閉じる（画面の下の方を隠し続けないように）。始めるときは少し長めに出しておく
+  VoiceUI.hideHandle = setTimeout(function () { if (VoiceUI.box.querySelector('[data-remain]')) VoiceUI.box.hidden = true; }, mode === 'start' ? 40000 : 25000);
+}
+
+/** 残りの種目を読み上げる文 */
+function remainingText() {
+  var rem = remainingItems(), cur = currentIndex();
+  if (!rem.length) return 'すべての種目が終わっています。「終わり」と言うと保存の画面に進みます。';
+  // 今の種目をやっている途中なら、それを除いた残りを伝える
+  var started = cur >= 0 && S.draft.items[cur].sets.some(function (x) { return x.done; });
+  var names = rem.filter(function (r) { return !(started && r.index === cur); }).map(function (r) { return r.name; });
+  var head = started ? '今は' + S.draft.items[cur].name + 'の途中です。' : '';
+  if (!names.length) return head + 'これが最後の種目です。';
+  return head + (started ? 'そのあとの' : '') + (names.length > 1 ? '残りは、' + names.join('、') + 'の' + names.length + '種目です。' + (started ? '' : '次はどれにしますか？') : '残りは' + names[0] + 'だけです。');
 }
 
 // 残りのメニューを表示中に画面のほかの場所を触ったら閉じる（そのままの順番で続ける）
@@ -547,9 +565,10 @@ VoiceUI.box.addEventListener('click', function (e) {
   var name = b.dataset.remain;
   if (!name) return;
   var idx = S.draft.items.map(function (it) { return it.name; }).indexOf(name);
+  var isStart = Ctx.data && Ctx.data.mode === 'start';
   if (idx > currentIndex()) moveToCurrent(idx);
   Ctx.type = null;
-  Speech.speak('次は' + Speech.exerciseText(S.draft.items[currentIndex()], latestOf(name)));
+  Speech.speak((isStart ? '最初は' : '次は') + Speech.exerciseText(S.draft.items[currentIndex()], latestOf(name)));
 });
 
 // ---------------- トレーニング中 ----------------
@@ -559,10 +578,16 @@ function voiceInSession(text, cmd) {
     case 'record': return voiceRecord(text, cmd);
     case 'unknownExercise':
       return reply(text, '「' + cmd.name + '」という種目が見つかりません。メニュー外の種目なら「' + cmd.name + '追加」と言ってから記録してください。', true);
+    case 'remainingList':   // 「残りの種目は？」
+      var rem = remainingItems();
+      reply(text, remainingText());
+      var notStarted = !(cur >= 0 && dr.items[cur].sets.some(function (x) { return x.done; }));
+      if (rem.length > 1 && notStarted) showRemaining(rem, 'next');   // まだ始めていなければ、次にやる種目を選べるようにする
+      return;
     case 'next':
       var nx = cur < 0 ? -1 : cur + 1;
       if (nx > 0 && nx < dr.items.length) setCtx('next', { index: nx });   // 「それ先にやる」「その次は？」に備える
-      return reply(text, nx > 0 && nx < dr.items.length ? '次は' + Speech.exerciseText(dr.items[nx], latestOf(dr.items[nx].name)) :
+      return reply(text, nx > 0 && nx < dr.items.length ? '順番どおりなら、次は' + Speech.exerciseText(dr.items[nx], latestOf(dr.items[nx].name)) :
         (cur >= 0 ? '今の' + dr.items[cur].name + 'が最後の種目です。' : 'すべての種目が終わっています。「終わり」と言うと保存の画面に進みます。'));
     case 'current':
       return reply(text, cur < 0 ? 'すべての種目が終わっています。' :

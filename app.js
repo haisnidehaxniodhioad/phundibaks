@@ -6,7 +6,7 @@
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v18 2026-10-28';
+var APP_VERSION = 'v19 2026-10-28';
 var S = { token: null, home: null, draft: null, view: 'loading' };
 var app = document.getElementById('app');
 
@@ -155,7 +155,27 @@ function findDay(dayNo) { return S.home.days.filter(function (d) { return d.day 
 
 function suggestText() {
   var h = S.home, d = findDay(h.suggestion.order[0]);
-  return h.name + 'さん、' + h.suggestion.reason.replace(/Day(\d+)/g, 'デイ$1') + '最初の種目は' + d.items[0].name + 'です。';
+  return h.name + 'さん、' + h.suggestion.reason.replace(/Day(\d+)/g, 'デイ$1') + menuText(Speech.dayText(d.day), applySavedOrder(d.items, d.day));
+}
+
+/** メニューの中身を読み上げる文（「デイ2は、スクワット、ベンチプレス、懸垂の3種目です。」） */
+function menuText(title, items) {
+  var names = items.map(function (it) { return it.name; });
+  if (!names.length) return '';
+  return title + 'は、' + names.join('、') + 'の' + names.length + '種目です。';
+}
+
+/**
+ * トレーニングを始めたときの案内。種目の一覧を伝えて、どれから始めるかを選んでもらう（順番は選手が決める）。
+ * 選ばなければ、画面の上から順に進む。
+ */
+function announceStart(intro) {
+  var remaining = remainingItems();
+  var say = intro + '今日の種目は、' + remaining.map(function (r) { return r.name; }).join('、') + 'の' + remaining.length + '種目です。' +
+    (remaining.length > 1 ? 'どの種目から始めますか？画面で選ぶか、「' + remaining[0].name + 'から」のように話してね。'
+                          : '最初は' + Speech.exerciseText(S.draft.items[0], latestOf(S.draft.items[0].name)));
+  if (remaining.length > 1 && window.showRemaining) showRemaining(remaining, 'start');
+  return say;
 }
 
 // ---------------- トレーニングの開始 ----------------
@@ -177,7 +197,7 @@ function startDay(dayNo) {
               items: items.map(function (it) { return makeItem(it, true); }) };
   saveDraft();
   renderSession();
-  Speech.speak(Speech.dayText(d.day) + 'を始めます。最初は' + Speech.exerciseText(items[0], latestOf(items[0].name)));
+  Speech.speak(announceStart(Speech.dayText(d.day) + 'を始めます。'));
 }
 
 // ---------------- 自分で決めた種目の並び順 ----------------
@@ -327,14 +347,14 @@ function afterSetDone(i, prefix) {
   if (it.sets.every(function (x) { return x.done; })) {
     var next = currentIndex();
     if (next >= 0) {
-      Timer.start(it.rest, '次は' + S.draft.items[next].name + 'です。');
-      // 種目が1つ終わるたびに、残りのメニューを読み上げ、画面に一覧を出して次の種目を選べるようにする
+      Timer.start(it.rest, '');
+      // 種目が1つ終わるたびに、残りの種目を伝えて、次にやる種目を選んでもらう（順番は選手が決める）
       var remaining = remainingItems();
       var names = remaining.map(function (r) { return r.name; });
       Speech.speak(prefix + it.name + '、おつかれさまでした。' +
-        (names.length > 1 ? '残りは、' + names.join('、') + 'の' + names.length + '種目です。次は' + names[0] + 'です。'
+        (names.length > 1 ? '残りは、' + names.join('、') + 'の' + names.length + '種目です。次はどれにしますか？'
                           : '残りは' + names[0] + 'だけです。'));
-      if (window.showRemaining) showRemaining(remaining);
+      if (window.showRemaining) showRemaining(remaining, names.length > 1 ? 'next' : 'last');
     } else {
       Timer.stop();
       Speech.speak(prefix + 'すべての種目が終わりました。終了して保存を押してください。');
