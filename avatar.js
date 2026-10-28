@@ -29,54 +29,79 @@ var AVATAR_COLORS = {
 };
 
 /**
- * 男性・女性で形が違うパーツ（髪・輪郭・眉・目・鼻・口）。デザイン見本「アバター デザイン（完成版）」に合わせている。
- * 男性：眉はやや直線的で太め、目は少し細めの切れ長、輪郭はあごに向かってすっきり。
- * 女性：アーチ形の細い眉、丸く大きな目とまつげ、やわらかい輪郭、横に流した前髪とポニーテール。
+ * 先が細くなる線（髪の毛の流れ・眉・つやに使う）を、塗りつぶしの形で作る。
+ *   (x0,y0) から (x2,y2) へ、(cx,cy) を通るように曲がる。w0 = 始まりの太さの半分、wc = まん中の太さの半分
+ *   始まりは丸く、終わりはとがる。
+ */
+function avTaper(x0, y0, cx, cy, x2, y2, w0, wc, fill, opacity) {
+  var r = function (v) { return Math.round(v * 100) / 100; };
+  var dx = x2 - x0, dy = y2 - y0, len = Math.sqrt(dx * dx + dy * dy) || 1;
+  var nx = -dy / len, ny = dx / len;                       // 線に直角な向き
+  return '<path d="M' + r(x0 + nx * w0) + ' ' + r(y0 + ny * w0) +
+    ' Q' + r(cx + nx * wc) + ' ' + r(cy + ny * wc) + ' ' + r(x2) + ' ' + r(y2) +
+    ' Q' + r(cx - nx * wc) + ' ' + r(cy - ny * wc) + ' ' + r(x0 - nx * w0) + ' ' + r(y0 - ny * w0) +
+    ' A' + r(w0) + ' ' + r(w0) + ' 0 0 1 ' + r(x0 + nx * w0) + ' ' + r(y0 + ny * w0) + ' Z" fill="' + fill + '"' +
+    (opacity != null ? ' opacity="' + opacity + '"' : '') + '/>';
+}
+
+/** 髪の毛の流れ（暗い線）とつや（明るい線）をまとめて描く。list = [[x0,y0,cx,cy,x2,y2,太さ], …] */
+function avStrands(list, fill, opacity) {
+  return list.map(function (s) { return avTaper(s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[6] * 1.1, fill, opacity); }).join('');
+}
+
+/**
+ * 男性・女性で形が違うパーツ（髪・輪郭・眉・目・鼻・口・頬）。デザイン見本「アバター デザイン（完成版）」に合わせている。
+ * 男性：眉はやや直線的で太め、目は少し細めの切れ長、輪郭はあごに向かってすっきり、束感のある短髪。
+ * 女性：アーチ形の細い眉、丸く大きな目、やわらかい輪郭、横に流した前髪とポニーテール。
  * 数字は 128×128 の中の位置。少しずつ変えて、見た目を確かめながら調整する。
  *   eye の中身 … y: 目の高さ / w: 目の横幅の半分 / top: 上まぶたの高さ / bottom: 下まぶたの深さ / tilt: 目尻の上がり
  *                iris: 瞳の大きさ / thick: 目尻の上まぶたの線の太さ / wing: 目尻の線の伸び / wingUp: 伸びた先の上がり
  *                lower: 下まぶたの線の太さ / lowerColor: 下まぶたの線の色
+ *   brow の中身 … color: 色 / left: 左の眉の [眉頭x, 眉頭y, 曲がりx, 曲がりy, 眉尻x, 眉尻y]（右は左右反転） / w0: 眉頭の太さ / wc: まん中の太さ
+ *   hairFront … 前髪の形（front）、髪の流れの線（strands）、つや（shine）
  */
 var AVATAR_SHAPES = {
   male: {
     face: 'M44.5 43 Q45 25 64 24.5 Q83 25 83.5 43 Q84.5 60 80 69 Q73 79.5 64 82 Q55 79.5 48 69 Q43.5 60 44.5 43 Z',
     ears: { x: 42.8, y: 57, rx: 3.8, ry: 6 },
-    brow: { color: '#33241d',
-      paths: '<path d="M60.4 49.4 Q61.2 48.5 60.6 47.6 Q54 45.4 46.8 48.8 Q46.6 49.2 47.2 49.1 Q54 47.4 60.4 49.4 Z"/><path d="M67.6 49.4 Q66.8 48.5 67.4 47.6 Q74 45.4 81.2 48.8 Q81.4 49.2 80.8 49.1 Q74 47.4 67.6 49.4 Z"/>' },
+    brow: { color: '#2e201a', left: [60.6, 48.4, 54, 45.4, 46.4, 48.8], w0: 1.35, wc: 1.1 },
     eye: { y: 57.2, w: 6.6, top: 5, bottom: 4, tilt: .5, iris: 3.4, thick: 2, wing: 1.4, wingUp: -.2, lower: .7, lowerColor: '#6e4436' },
-    cheek: '.14',
+    cheek: { x: 50.5, y: 65.8, rx: 5.6, ry: 3.2, opacity: .32 },
     nose: 'M64.3 60.6 Q63.3 64.6 64.9 66',
     smile: 'M59.4 71 Q64 73.4 68.6 71', smileColor: '#94453f', smileWidth: 1.5,
-    hairLine: '#6d5444',   // 髪のつやの線
-    hairBack: function (h) {
-      return '<path d="M38.5 54 Q33 28 49 18.5 Q64 11 81 16 Q96 23.5 92.5 48 L90 56 L39 56 Z" fill="' + h + '"/>';
+    hairBack: function (h, dark) {
+      return '<path d="M38.5 54 Q33 29 49 20 Q64 14 79 20 Q95 29 89.5 54 L89 56 L39 56 Z" fill="' + dark + '"/>';
     },
-    hairFront: function (h, line) {
-      return '<path d="M40 58.5 Q35.5 46 37.2 34 Q38.4 24.5 45 19 L43.6 15 Q49.5 13.6 53 14.8 Q57.4 10.4 63.6 10.8 L66.4 6.8 Q69.6 9.8 73 10.2 Q80.4 10.4 85 14.6 L89.4 12.8 Q90 17.8 91.4 20.8 Q95.6 27 94.8 36 Q94.2 47.5 89 58.5 L87.2 52.5 Q86.4 46.5 84.6 43.2 L83.2 47.4 Q81.6 40.6 77.8 37.8 L76.6 42.6 Q73 37 67.4 36.4 Q64.6 38.6 62.6 42.4 L60.6 48.6 Q59.8 41.6 56.2 39.6 L52.4 47.4 Q51.6 41.8 48.6 41.2 L45.6 49.4 Q44.6 47.4 44 49.4 Q43.6 53 43.8 56.4 L41.8 54.8 Z" fill="' + h + '"/>' +
-        '<path d="M47 25 Q56 18.5 66 18.5 M71 19.5 Q82 21 88 30 M58.5 27 Q58 34 56.2 39.6 M70 26 Q75 31 77.8 37.8" stroke="' + line + '" stroke-width="1.2" fill="none" stroke-linecap="round" opacity=".8"/>';
-    }
+    // 前髪：毛先は少し曲げて、とがりすぎないようにする
+    front: 'M40.4 59.4 Q36.2 54.6 35.6 47 Q35.2 38.6 37.6 31.4 Q39.6 24.5 45 20.2 Q45 18.8 45.6 18.2 Q50 16.6 53.4 17 Q57.8 14 63.6 14 Q65.2 13.6 66.2 13.2 Q68 13.8 70.4 13.8 Q75.2 14.8 78.6 17 Q82 17.4 82.6 18.4 Q83 19.4 82.6 20.4 Q88.4 24 90.4 31.4 Q92.8 38.6 92.4 47 Q91.8 54.6 87.6 59.4 Q86.8 55.8 86.4 52.6 Q85.8 46.6 84.6 43.2 Q84.4 46.6 82.8 49.6 Q82 43.6 78.4 40.6 Q77.6 45.4 75.6 48.6 Q74.4 42.6 70.6 40.2 Q69.4 44 67.6 47.4 Q66.6 41.6 63.8 40 Q62.6 44.6 60.6 48.6 Q60.6 42.4 56.2 39.6 Q55 44.2 52.4 47.4 Q52.8 42.6 48.6 41.2 Q47.8 46.2 45.6 49.4 Q45.2 47.6 44 49.4 Q43.6 53 43.8 56.4 Q42.4 56.6 41.8 54.8 Q41.4 57.4 40.4 59.4 Z',
+    strands: [[55, 27, 52.4, 37, 52.6, 46.6, .5], [62.6, 27, 61.2, 38, 60.8, 47.6, .5], [74, 26, 77, 36, 75.8, 48, .5], [83, 29, 85.4, 38, 82.9, 49.2, .45], [70, 27, 70.6, 36, 67.8, 46.8, .45],
+      [42, 34, 40, 44, 41.8, 53.4, .45], [89.8, 36, 90.8, 46, 87.8, 55.4, .45]],
+    strandColor: '#120b09',
+    shine: [[45.5, 27, 50.5, 21.4, 58.5, 20.2, 1.1], [61, 19.8, 66.5, 18.8, 73, 19.8, 1.1], [74.5, 19.6, 81.4, 21.6, 85.6, 27.6, 1]],
+    shineColor: '#8a6e5e'
   },
   female: {
     face: 'M43.5 43 Q44 25 64 24.5 Q84 25 84.5 43 Q85.5 61 80.5 70.5 Q73.5 80.5 64 81.8 Q54.5 80.5 47.5 70.5 Q42.5 61 43.5 43 Z',
     ears: { x: 42.2, y: 57, rx: 3.6, ry: 5.8 },
-    brow: { color: '#6b4332',
-      paths: '<path d="M59.8 47.9 Q60.5 47.2 60 46.5 Q53.3 43.9 46.8 47.9 Q46.7 48.2 47.2 48.1 Q53.3 45.4 59.8 47.9 Z"/><path d="M68.2 47.9 Q67.5 47.2 68 46.5 Q74.7 43.9 81.2 47.9 Q81.3 48.2 80.8 48.1 Q74.7 45.4 68.2 47.9 Z"/>' },
+    brow: { color: '#6b4332', left: [60, 47, 53.4, 44.4, 46.6, 47.8], w0: .85, wc: .7 },
     eye: { y: 57.6, w: 6.8, top: 6.6, bottom: 5.2, tilt: .4, iris: 3.9, thick: 2.3, wing: 1.8, wingUp: .9, lower: .75, lowerColor: '#7a4a3a' },
-    cheek: '.38',
+    cheek: { x: 50.5, y: 66.2, rx: 6, ry: 3.4, opacity: .55 },
     nose: 'M64.3 62.4 Q63.6 64.9 64.9 65.8',
     smile: 'M59.6 70.8 Q64 74 68.4 70.8', smileColor: '#b2484e', smileWidth: 1.7,
-    hairLine: '#bb8660',
-    hairBack: function (h, line) {
-      return '<path d="M75 17.5 Q83 9 92.5 13.5 Q97.5 19.5 91 25 Q83 23 75 17.5 Z" fill="' + h + '"/>' +
-        '<path d="M79 17 Q97 14 101 34 Q105 55 101 77 Q98 93 92.5 101 Q89.5 105 88.5 99 Q93.5 81 92.5 63 Q91.5 45 84 37 Z" fill="' + h + '"/>' +
-        '<path d="M96 40 Q101 62 95 92 M92 46 Q96 66 91.5 90" stroke="' + line + '" stroke-width="1.1" fill="none" opacity=".6"/>' +
-        '<path d="M39.5 64 Q33.5 30 51.5 19 Q70 11.5 84.5 20 Q95.5 30 91.5 60 L88.5 65 L41.5 65 Z" fill="' + h + '"/>';
+    hairBack: function (h, dark) {
+      return '<path d="M80 24 Q92.4 21 97.2 31 Q101.2 44 99.8 64 Q98.4 86 94.4 100 Q92 105 89.8 100.4 Q92.8 82 91.8 64 Q91.2 48 85.5 38 Z" fill="' + h + '"/>' +
+        avStrands([[91, 28, 97, 42, 96, 70, .45], [95, 34, 99.6, 55, 95.4, 90, .4], [88, 40, 92.4, 56, 91.4, 92, .4]], '#3d1f13', .45) +
+        avStrands([[89, 25, 93.6, 26, 96, 32, .55], [96.2, 38, 99, 50, 98.2, 62, .55]], '#d8a479', .6) +
+        '<path d="M39.5 64 Q33.5 30 51.5 19 Q70 11.5 84.5 20 Q93.6 29 90.4 55 L88.4 59 L41.5 65 Z" fill="' + dark + '"/>';
     },
-    hairFront: function (h, line) {
-      return '<path d="M40.5 66 Q35.5 45 40 32 Q45.5 19.5 60 16.5 Q76.5 13.5 86 24 Q93 34 90.5 57 L88.4 51 Q87.4 43.4 83.6 39 L82.4 45 Q80.4 39.6 75.6 38.2 L73.8 45.6 Q71.4 39.8 66.4 39.6 L62.4 46.6 Q61.4 40.6 57 40.6 L51.4 47.4 Q51 42.6 48.4 42.6 L45.4 50.6 Q44.6 57 44.8 63 Z" fill="' + h + '"/>' +
-        '<path d="M44.6 46 Q39.6 59 41.6 78 Q43.2 70 45 63.6 Q44.6 55 46.2 48.4 Z M84.4 46 Q88.6 58 86.6 72 Q85.4 66 84 61.6 Q84.6 53 83.2 48.4 Z" fill="' + h + '"/>' +
-        '<path d="M47 27.5 Q58 20 72 20.5 M77 22.5 Q85.5 27 88.5 36 M61 24.5 Q60 33 57 40.6 M70.5 24.5 Q74 31 75.6 38.2" stroke="' + line + '" stroke-width="1.2" fill="none" stroke-linecap="round" opacity=".75"/>';
-    }
+    front: 'M40.5 66 Q35.5 45 40 32.5 Q45.5 19.5 60 16.5 Q76.5 13.5 86 24.5 Q93 34 90.5 57 Q89.4 52 88.6 48.6 Q87.8 43 85 39.4 Q84.8 44.4 82.8 48.6 Q81.6 42.4 78.4 39.6 Q78 44.6 76 47.8 Q75 41.4 72 37.6 Q70.4 42 68.6 45.4 Q68.4 41.2 66.4 40.6 Q64.6 44.2 62.6 47.8 Q63 42.4 61 39.6 Q58.4 43.4 55.4 46.6 Q55.6 42.6 54 40.4 Q50.6 44.6 47.6 47.2 Q47.6 43.6 46.6 42.2 Q44.6 46.4 44.8 51 Q44.4 57 44.8 63 Q42.8 64.6 40.5 66 Z' +
+      ' M44.6 46 Q39.6 59 41.4 78 Q42.4 72 44.6 64.6 Q44.4 55 46.2 48.4 Z M84.4 46 Q88.6 58 86.8 72 Q85.6 66.6 84 61.6 Q84.6 53 83.2 48.4 Z',
+    strands: [[70.4, 25, 66.4, 34, 62.8, 46.8, .4], [69, 24, 61, 32, 55.6, 45.6, .4], [67.6, 23, 56, 29, 47.8, 46.4, .4], [72.4, 26, 77, 36, 76.2, 47.2, .32],
+      [75.6, 25, 82, 33, 82.8, 48, .32], [71.6, 25, 71.2, 34, 68.8, 45, .32], [79.6, 25, 86.4, 31.6, 88.6, 47.6, .32], [71.6, 19.6, 71.8, 24, 71.3, 30.6, .3], [64, 27, 59, 33, 58.6, 38.8, .3],
+      [42, 40, 40, 50, 41.8, 62, .4], [44, 54, 42.4, 64, 41.8, 76, .3], [85, 54, 86.6, 62, 86.6, 70, .3]],
+    strandColor: '#45241a',
+    shine: [[46, 28.5, 54.5, 21.2, 65, 19.6, 1.1], [73.5, 20, 80, 21, 86, 27.5, 1], [42.4, 37, 41, 42.5, 41.2, 48, .6], [60, 30.5, 56.6, 34.6, 52.4, 38.6, .55], [66.6, 31, 65, 35.6, 63.6, 39.6, .45]],
+    shineColor: '#d9a77d'
   }
 };
 
@@ -211,6 +236,7 @@ var Avatar = {
         '<linearGradient id="avHair" x1="0" y1="0" x2=".5" y2="1"><stop offset="0" stop-color="' + c.hair[g][0] + '"/><stop offset="1" stop-color="' + c.hair[g][1] + '"/></linearGradient>' +
         '<linearGradient id="avJacket" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + j.light + '"/><stop offset=".45" stop-color="' + j.main + '"/><stop offset="1" stop-color="' + j.dark + '"/></linearGradient>' +
         '<linearGradient id="avSkin" x1="0" y1="0" x2=".6" y2="1"><stop offset="0" stop-color="#fdebdd"/><stop offset="1" stop-color="' + c.skin + '"/></linearGradient>' +
+        '<radialGradient id="avBlush"><stop offset="0" stop-color="' + c.cheek + '" stop-opacity=".9"/><stop offset=".55" stop-color="' + c.cheek + '" stop-opacity=".45"/><stop offset="1" stop-color="' + c.cheek + '" stop-opacity="0"/></radialGradient>' +
         '<linearGradient id="avWhite" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e3d9d8"/><stop offset=".5" stop-color="#fdfbfa"/><stop offset="1" stop-color="#ffffff"/></linearGradient>' +
         '<linearGradient id="avLidShade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a2016" stop-opacity=".55"/><stop offset=".38" stop-color="#3a2016" stop-opacity="0"/></linearGradient>' +
         '<radialGradient id="avIrisEdge" cx=".5" cy=".5" r=".5"><stop offset=".62" stop-color="#2a160c" stop-opacity="0"/><stop offset="1" stop-color="#2a160c" stop-opacity=".7"/></radialGradient>' +
@@ -239,15 +265,32 @@ var Avatar = {
       '</g>' +
       /* 頭（髪・顔・耳・表情）。確認のときはこのまとまりごと首をかしげる */
       '<g class="av-head"><g transform="translate(64 59) scale(1.14) translate(-64 -57)">' +
-        f.hairBack(hair, f.hairLine) +
-        '<ellipse cx="' + f.ears.x + '" cy="' + f.ears.y + '" rx="' + f.ears.rx + '" ry="' + f.ears.ry + '" fill="' + c.skin + '"/>' +
-        '<ellipse cx="' + (128 - f.ears.x) + '" cy="' + f.ears.y + '" rx="' + f.ears.rx + '" ry="' + f.ears.ry + '" fill="' + c.skin + '"/>' +
-        '<path class="av-face" d="' + f.face + '" fill="url(#avSkin)" stroke="#dba68d" stroke-width=".7"/>' +
-        f.hairFront(hair, f.hairLine) +
-        '<g class="av-brows" fill="' + f.brow.color + '" stroke="' + f.brow.color + '" stroke-width=".5" stroke-linejoin="round">' + f.brow.paths + '</g>' +
+        f.hairBack(hair, c.hair[g][1]) +
+        /* 耳（内側に影の線） */
+        '<ellipse cx="' + f.ears.x + '" cy="' + f.ears.y + '" rx="' + f.ears.rx + '" ry="' + f.ears.ry + '" fill="url(#avSkin)"/>' +
+        '<ellipse cx="' + (128 - f.ears.x) + '" cy="' + f.ears.y + '" rx="' + f.ears.rx + '" ry="' + f.ears.ry + '" fill="url(#avSkin)"/>' +
+        '<path d="M' + n(f.ears.x - 1.2) + ' ' + n(f.ears.y - 3) + ' Q' + n(f.ears.x + 1.4) + ' ' + n(f.ears.y) + ' ' + n(f.ears.x - .6) + ' ' + n(f.ears.y + 3) +
+          ' M' + n(128 - f.ears.x + 1.2) + ' ' + n(f.ears.y - 3) + ' Q' + n(128 - f.ears.x - 1.4) + ' ' + n(f.ears.y) + ' ' + n(128 - f.ears.x + .6) + ' ' + n(f.ears.y + 3) +
+          '" stroke="#d99a82" stroke-width=".8" fill="none" stroke-linecap="round" opacity=".75"/>' +
+        '<path class="av-face" d="' + f.face + '" fill="url(#avSkin)" stroke="#d9a186" stroke-width=".7"/>' +
+        /* 前髪の影（おでこに落ちる影）。前髪と同じ形を少し下にずらし、顔の形で切り抜く */
+        '<clipPath id="avFaceClip"><path d="' + f.face + '"/></clipPath>' +
+        '<g clip-path="url(#avFaceClip)"><path d="' + f.front + '" transform="translate(.4 2)" fill="' + c.skinShade + '" opacity=".7"/></g>' +
+        /* 前髪・髪の流れ・つや */
+        '<path d="' + f.front + '" fill="' + hair + '"/>' +
+        avStrands(f.strands, f.strandColor, .4) +
+        avStrands(f.shine, f.shineColor, .6) +
+        /* 眉（眉頭が太く、眉尻に向かって細くなる。左右反転で右の眉を作る） */
+        (function () {
+          var b = f.brow, L = b.left;
+          return '<g class="av-brows">' + avTaper(L[0], L[1], L[2], L[3], L[4], L[5], b.w0, b.wc, b.color) +
+            avTaper(128 - L[0], L[1], 128 - L[2], L[3], 128 - L[4], L[5], b.w0, b.wc, b.color) + '</g>';
+        })() +
         '<g class="av-eyes"><g class="av-eye-left">' + eye(54, -1) + '</g><g class="av-eye-right">' + eye(74, 1) + '</g></g>' +
         '<g class="av-eyes-happy" stroke="' + c.line + '" stroke-width="2.1" fill="none" stroke-linecap="round"><path d="M48 58.5 Q54 52.5 60 58.5"/><path d="M68 58.5 Q74 52.5 80 58.5"/></g>' +
-        '<ellipse class="av-cheek" cx="51" cy="65.5" rx="4.2" ry="2.3" fill="' + c.cheek + '" opacity="' + f.cheek + '"/><ellipse class="av-cheek" cx="77" cy="65.5" rx="4.2" ry="2.3" fill="' + c.cheek + '" opacity="' + f.cheek + '"/>' +
+        /* 頬（ふちがぼけた赤み） */
+        '<ellipse class="av-cheek" cx="' + f.cheek.x + '" cy="' + f.cheek.y + '" rx="' + f.cheek.rx + '" ry="' + f.cheek.ry + '" fill="url(#avBlush)" opacity="' + f.cheek.opacity + '"/>' +
+        '<ellipse class="av-cheek" cx="' + (128 - f.cheek.x) + '" cy="' + f.cheek.y + '" rx="' + f.cheek.rx + '" ry="' + f.cheek.ry + '" fill="url(#avBlush)" opacity="' + f.cheek.opacity + '"/>' +
         '<path d="' + f.nose + '" stroke="#dca189" stroke-width=".75" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' +
         /* 口 */
         '<path class="av-smile" d="' + f.smile + '" stroke="' + f.smileColor + '" stroke-width="' + f.smileWidth + '" fill="none" stroke-linecap="round"/>' +
