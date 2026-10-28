@@ -6,7 +6,7 @@
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v4 2026-10-28';
+var APP_VERSION = 'v6 2026-10-28';
 var S = { token: null, home: null, draft: null, view: 'loading' };
 var app = document.getElementById('app');
 
@@ -141,7 +141,7 @@ function renderHome(notice, warning) {
   html += '</div>';
   if (h.days.length) html += MyMenu.homeCard();
   html += '<button class="btn sub block" data-act="body">📊 体組成レポート</button>';
-  html += '<div class="card"><h2>トレーナー設定</h2><p class="muted small">話しかけるトレーナーの見た目を選べます。この端末に保存されます。</p><button class="btn sub block" data-act="avatarSettings">男性／女性トレーナーを選ぶ</button></div>';
+  html += '<div class="card"><h2>トレーナー設定</h2><p class="muted small">話しかけるトレーナーの種類（男性・女性）と色を選べます。この端末に保存されます。</p><button class="btn sub block" data-act="avatarSettings">トレーナーの種類・色を選ぶ</button></div>';
 
   if (h.last) {
     html += '<p class="muted small">前回: ' + esc(h.last.date) + '（' + esc(h.last.type) +
