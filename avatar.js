@@ -394,7 +394,7 @@ var Avatar = {
           self.setState('idle');
           self.finishFeedbackAfterSpeech();
         }
-      }, 1500 + String(text || '').length * 160);
+      }, (1500 + String(text || '').length * 160) * 1.05 / ((window.Speech && Speech.rate) ? Speech.rate() : 1.05));   // 速く話す設定なら早めに口を閉じる
     } else if (this.currentState === 'speaking') {
       this.setState('idle');
     }
@@ -485,19 +485,29 @@ var Avatar = {
         '<span class="avatar-picker-genders"><button type="button" class="btn sub avatar-picker-option" data-gender="male">男性</button>' +
         '<button type="button" class="btn sub avatar-picker-option" data-gender="female">女性</button></span></div>' +
       '<div class="avatar-picker-row"><span class="avatar-picker-label">色</span><span class="avatar-swatches">' + colors + '</span></div>' +
-      '<div class="avatar-picker-description">種類と色はこの端末に保存されます。名前は「設定」シートの「キャラクターの名前」で変えられます。</div>' +
+      '<div class="avatar-picker-row"><span class="avatar-picker-label">声の速さ</span><span class="avatar-picker-rates">' +
+        Speech.RATES.map(function (r) { return '<button type="button" class="btn sub avatar-picker-option" data-rate="' + r.key + '">' + r.label + '</button>'; }).join('') + '</span></div>' +
+      '<button type="button" class="btn sub avatar-picker-try" data-try="1">🔊 声を試す</button>' +
+      '<div class="avatar-picker-description">種類・色・声の速さはこの端末に保存されます。声は男性・女性で変わります（スマホに入っている声によって聞こえ方は違います）。名前は「設定」シートの「キャラクターの名前」で変えられます。</div>' +
       '<button type="button" class="btn ghost avatar-picker-close">閉じる</button>';
 
     panel.addEventListener('click', function (e) {
       var t = e.target.closest('button');
       if (!t) return;
-      if (t.dataset.gender) self.setGender(t.dataset.gender);
+      if (t.dataset.gender) { self.setGender(t.dataset.gender); self.trySpeak(); }
       else if (t.dataset.color) self.setColor(t.dataset.color);
+      else if (t.dataset.rate) { Speech.setRate(t.dataset.rate); self.trySpeak(); }
+      else if (t.dataset.try) { self.trySpeak(); return; }
       else if (t.classList.contains('avatar-picker-close')) { panel.hidden = true; return; }
       self.refreshPicker(panel);
     });
     document.body.appendChild(panel);
     this.refreshPicker(panel);
+  },
+
+  /** 今の声（男女・速さ）で試しに話す */
+  trySpeak: function () {
+    Speech.speak((this.currentGender === 'female' ? 'わたし' : 'ぼく') + 'は' + this.name() + '。この速さで話すね。今日もいっしょにがんばろう！', true);
   },
 
   /** パネルの「選んでいる印」を今の設定に合わせる */
@@ -509,6 +519,9 @@ var Avatar = {
     });
     Array.prototype.forEach.call(panel.querySelectorAll('[data-color]'), function (b) {
       b.setAttribute('aria-pressed', String(b.dataset.color === self.currentColor));
+    });
+    Array.prototype.forEach.call(panel.querySelectorAll('[data-rate]'), function (b) {
+      b.setAttribute('aria-pressed', String(b.dataset.rate === Speech.rateKey));
     });
   },
 

@@ -377,3 +377,9 @@ body.has-avatar .voice-box::after { content: ''; position: absolute; left: 35px;
 .hist-mbtn b { font-size: 1.05rem; }
 .hist-mbtn.on { background: var(--primary); color: #fff; border-color: var(--primary); }
 @media (max-width: 380px) { .hist-months { grid-template-columns: repeat(4, 1fr); } .hist-day { min-height: 34px; } }
+/* 声の速さ（Phase 3v） */
+.avatar-picker-rates { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; flex: 1; }
+.avatar-picker-rates .avatar-picker-option { min-height: 38px; text-align: center; font-size: .85rem; padding: 4px; }
+.avatar-picker-try { min-height: 40px; }
+.avatar-picker { max-height: calc(100vh - 130px); overflow-y: auto; }
+.avatar-picker > * { flex-shrink: 0; }

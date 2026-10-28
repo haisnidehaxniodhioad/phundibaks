@@ -8,6 +8,51 @@ var Speech = {
   micEndedAt: 0,   // 音声認識が終わった時刻（voice.js が記録する）
 
   /**
+   * 声の速さ（トレーナー設定で選ぶ。この端末に保存）。数字を大きくすると速くなる（1 がふつうの速さ）。
+   */
+  RATES: [
+    { key: 'slow', label: 'ゆっくり', rate: 0.9 },
+    { key: 'normal', label: 'ふつう', rate: 1.05 },
+    { key: 'fast', label: 'はやい', rate: 1.25 },
+    { key: 'faster', label: 'とてもはやい', rate: 1.5 }
+  ],
+  rateKey: 'normal',
+  storageKey: 'trainingVoiceRate',
+  rate: function () {
+    var k = this.rateKey, r = this.RATES.filter(function (x) { return x.key === k; })[0];
+    return r ? r.rate : 1.05;
+  },
+  setRate: function (key) {
+    if (!this.RATES.some(function (x) { return x.key === key; })) return;
+    this.rateKey = key;
+    try { localStorage.setItem(this.storageKey, key); } catch (e) {}
+  },
+
+  /**
+   * 男性・女性で声を変える（Phase 3v）。
+   * 端末に入っている日本語の声から、男性・女性の声を名前で探して使う（見つからなければ、ふつうの声のまま高さだけ変える）。
+   *   男性の声の名前の例：Otoya（iPhone）、Ichiro・Keita（Windows）
+   *   女性の声の名前の例：Kyoko（iPhone）、Haruka・Ayumi・Nanami（Windows）、Google 日本語（Android など）
+   * 高さ（pitch）は 1 がふつう。男性は低め、女性は少し高めにする。
+   */
+  MALE_VOICE: /otoya|ichiro|keita|daichi|takumi|hattori|male|男性/i,
+  FEMALE_VOICE: /kyoko|haruka|ayumi|nanami|sayaka|mizuki|o-ren|female|女性|google/i,
+  voices: [],
+  loadVoices: function () {
+    if (!this.supported) return;
+    this.voices = window.speechSynthesis.getVoices().filter(function (v) { return /^ja/i.test(v.lang); });
+  },
+  /** 今のトレーナー（男性・女性）に合う声と高さ */
+  voiceSetting: function () {
+    var male = !(window.Avatar && Avatar.currentGender === 'female');
+    if (!this.voices.length) this.loadVoices();
+    var re = male ? this.MALE_VOICE : this.FEMALE_VOICE;
+    var hit = this.voices.filter(function (v) { return re.test(v.name) && !(male && /female|女性/i.test(v.name)); })[0] || null;
+    // 男性の声が見つかったときは高さを少しだけ下げる。見つからないときは、ふつうの声を低くして男性らしくする
+    return { voice: hit, pitch: male ? (hit ? 0.95 : 0.7) : (hit ? 1.05 : 1.15) };
+  },
+
+  /**
    * 文章を読み上げる。前の読み上げが残っていれば止めてから読む。
    * iPhoneは、マイクを使った直後に読み上げると声が出ないことがあるため、少し待ってから読む。
    */
@@ -18,7 +63,10 @@ var Speech = {
     var run = function () {
       var u = new SpeechSynthesisUtterance(text);
       u.lang = 'ja-JP';
-      u.rate = 1.05;
+      var vs = Speech.voiceSetting();
+      try { if (vs.voice) u.voice = vs.voice; } catch (e) { /* 声を選べない端末では、ふつうの声のまま */ }
+      u.pitch = vs.pitch;
+      u.rate = Speech.rate();
       u.volume = 1;
       u.onstart = function () { Speech.unlocked = true; };
       // アバターの口を動かす（avatar.js）。読み上げが終わったら止める
@@ -152,6 +200,13 @@ var Sound = {
     ALARM_MELODY.forEach(function (n) { self.note(n[0], n[1], n[2], 0.5); });
   }
 };
+
+// 保存しておいた声の速さを読み込む。声の一覧はあとから届くことがあるので、届いたら読み直す
+try { var savedRate = localStorage.getItem(Speech.storageKey); if (savedRate) Speech.setRate(savedRate); } catch (e) {}
+if (Speech.supported) {
+  Speech.loadVoices();
+  if ('onvoiceschanged' in window.speechSynthesis) window.speechSynthesis.onvoiceschanged = function () { Speech.loadVoices(); };
+}
 
 // 最初のタップで、読み上げとアラーム音を使える状態にする（iPhone対策）
 ['touchend', 'click'].forEach(function (ev) {
