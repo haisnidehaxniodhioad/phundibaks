@@ -10,7 +10,7 @@
  *   終了画面     : 「きつさ7」「保存」
  *   どの画面でも : 「ホームに戻って」「体組成レポートを開いて」「体重見せて」「InBodyにして」「体重の履歴」「閉じて」
  *                  「マイメニューは？」「（保存したメニューの名前）を始める」「新しいメニューを作る」「何ができるの？」（Phase 3f）
- *   返事は、画面左下のアバター（avatar.js）が吹き出しと声で返す。
+ *   返事は、画面の下のバー（dock.js）のアバター（avatar.js）が吹き出しと声で返す。
  * わからない言い方は「どの操作ですか？」と候補を出し、選ばれた答えを覚える（Chooser, Phase 2b）。
  */
 var VoiceUI = {
@@ -21,6 +21,7 @@ var VoiceUI = {
 
   init: function () {
     var self = this;
+    this.btn.innerHTML = Icon('mic', 30);
     this.btn.addEventListener('click', function () {
       if (VoiceInput.active) { VoiceInput.stop(); return; }
       self.start();
@@ -36,10 +37,10 @@ var VoiceUI = {
     if (draftId !== this.draftId) { this.undo = []; this.draftId = draftId; }
     var show = VoiceInput.supported() && !!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history'].indexOf(S.view) >= 0;
     this.btn.hidden = !show;
-    Avatar.show(show);
+    // アバターの表示と置き場所は dock.js（画面の下のバー）が決める
     if (S.view === 'home') Avatar.greet();
     var picker = document.getElementById('avatarAppearancePicker');
-    if (picker && S.view !== 'home') picker.hidden = true;   // ホーム以外では見た目の選択を閉じる
+    if (picker && ['home', 'history', 'body'].indexOf(S.view) < 0) picker.hidden = true;   // タブの無い画面では見た目の選択を閉じる
     document.body.classList.toggle('has-mic', show);
     if (!show) { this.box.hidden = true; return; }
     if ((S.view === 'session' || S.view === 'home' || S.view === 'body' || S.view === 'history') && !document.getElementById('voiceHelp')) {
@@ -64,7 +65,7 @@ var VoiceUI = {
     Speech.unlock();
     this.btn.classList.add('listening');
     Avatar.listen(true);
-    this.btn.textContent = '● 聞き取り中（押すと止まる）';
+    this.btn.setAttribute('aria-label', '聞き取り中（押すと止まる）');
     this.show('聞き取り中…', '話し終わると自動で止まります');
     VoiceInput.listen({
       onInterim: function (t) { self.show(t, '聞き取り中…'); },
@@ -100,7 +101,13 @@ var VoiceUI = {
     this.hideHandle = setTimeout(function () { self.box.hidden = true; }, 10000);
   },
 
-  resetBtn: function () { this.btn.classList.remove('listening'); this.btn.textContent = '🎤 話しかける'; Avatar.listen(false); },
+  /** マイクボタンを元の形（マイクの絵）に戻す */
+  resetBtn: function () {
+    this.btn.classList.remove('listening');
+    this.btn.innerHTML = Icon('mic', 30);
+    this.btn.setAttribute('aria-label', '話しかける');
+    Avatar.listen(false);
+  },
 
   /** 聞き取った文と返事を、マイクボタンの横に表示する（数秒後に自動で消える） */
   show: function (heard, reply, ng) {
@@ -555,7 +562,7 @@ function remainingText() {
 // 残りのメニューを表示中に画面のほかの場所を触ったら閉じる（そのままの順番で続ける）
 document.addEventListener('pointerdown', function (e) {
   if (!VoiceUI.box.hidden && VoiceUI.box.querySelector('[data-remain]') &&
-      !VoiceUI.box.contains(e.target) && e.target !== VoiceUI.btn) VoiceUI.box.hidden = true;
+      !VoiceUI.box.contains(e.target) && !VoiceUI.btn.contains(e.target)) VoiceUI.box.hidden = true;
 }, true);
 
 VoiceUI.box.addEventListener('click', function (e) {

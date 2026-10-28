@@ -334,7 +334,8 @@ var Avatar = {
 
     var self = this;
     el.addEventListener('click', function () {
-      if (typeof VoiceUI !== 'undefined' && VoiceUI.btn && typeof VoiceUI.btn.click === 'function') {
+      // マイクが出ている画面のときだけ、アバターを押しても話しかけられる（ログイン画面などでは何もしない）
+      if (typeof VoiceUI !== 'undefined' && VoiceUI.btn && !VoiceUI.btn.hidden && typeof VoiceUI.btn.click === 'function') {
         VoiceUI.btn.click();
       }
     });
@@ -356,6 +357,17 @@ var Avatar = {
       var panel = document.getElementById('avatarAppearancePicker');
       if (panel && !panel.hidden && !panel.contains(event.target) && !event.target.closest('[data-act="avatarSettings"]')) panel.hidden = true;
     }, true);
+  },
+
+  /**
+   * アバターを置く場所を変える（v20・dock.js から呼ぶ）。
+   * size: 'big' … ホーム・ログインの一番上（大きく） / 'dock' … 画面の下のバーの左（小さく）
+   */
+  mount: function (slot, size) {
+    if (!this.el || !slot) return;
+    if (this.el.parentNode !== slot) slot.appendChild(this.el);
+    this.el.classList.toggle('av-big', size === 'big');
+    this.el.classList.toggle('av-dock', size !== 'big');
   },
 
   show: function (on) {
@@ -537,9 +549,10 @@ var Avatar = {
         : first ? '今日はDay' + first + 'がおすすめだよ。'
           : (h.myMenus && h.myMenus.length ? '保存したメニューから始められるよ。' : '')) +
       '話しかけるときは、' + this.me() + 'かマイクのボタンを押してね。';
-    setTimeout(function () {
-      if (S.view === 'home' && VoiceUI.box.hidden) VoiceUI.show('', text);
-    }, 600);
+    // v20：ホームではコーチの出迎え（あいさつ）を画面の一番上に出すので、吹き出しは出さない。
+    // 声で読み上げたいときは、次の行の // を消す
+    // Speech.speak(text);
+    return text;
   }
 };
 

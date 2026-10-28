@@ -46,15 +46,17 @@ var History = {
     if (S.view !== 'history') return;
     var d = History.data, days = History.trainedDays();
     var y = Number(d.month.slice(0, 4)), m = Number(d.month.slice(5, 7));
-    var html = '<div class="topbar"><h1>トレーニング記録</h1><button class="btn ghost" data-act="home">ホームへ</button></div>';
+    var monthCount = d.sessions.length, dayCount = Object.keys(days).length;
+    // いちばん上：その月に何日やったか（v20：レイアウト案 2a）
+    var html = '<div class="topbar"><span class="kicker">トレーニング記録</span><button class="btn ghost" data-act="home">ホームへ</button></div>' +
+      '<div class="hist-summary"><span class="big-num">' + (d.month === d.current ? '今月' : m + '月') + 'は<em> ' + dayCount + '日 </em>' +
+      (dayCount ? 'がんばったね' : 'まだ記録がないよ') + '</span>' +
+      '<span class="muted small">' + (monthCount !== dayCount ? 'この月 ' + monthCount + '回・' : '') + '今週 ' + d.weekCount + '回・今年度 ' + d.yearCount + '回</span></div>';
     // 月の切り替え
     html += '<div class="card"><div class="hist-month">' +
       '<button class="btn ghost hist-nav" data-hist-month="' + History.shift(d.month, -1) + '"' + (d.month <= d.fyStart ? ' disabled' : '') + ' aria-label="前の月">‹</button>' +
       '<div class="hist-title">' + y + '年' + m + '月</div>' +
       '<button class="btn ghost hist-nav" data-hist-month="' + History.shift(d.month, 1) + '"' + (d.month >= d.current ? ' disabled' : '') + ' aria-label="次の月">›</button></div>';
-    var monthCount = d.sessions.length, dayCount = Object.keys(days).length;
-    html += '<p class="hist-summary">この月は <b>' + dayCount + '日</b>' + (monthCount !== dayCount ? '（' + monthCount + '回）' : '') +
-      ' トレーニングしました<span class="muted small">　今年度 ' + d.yearCount + '回・今週 ' + d.weekCount + '回</span></p>';
     // カレンダー
     html += '<div class="hist-cal">' + History.WEEK.map(function (w, i) {
       return '<div class="hist-wd' + (i === 5 ? ' sat' : i === 6 ? ' sun' : '') + '">' + w + '</div>';
@@ -65,10 +67,12 @@ var History = {
     var today = Body.today();
     for (var day = 1; day <= lastDay; day++) {
       var key = d.month + '-' + ('0' + day).slice(-2), list = days[key];
-      var cls = 'hist-day' + (list ? ' done' : '') + (key === today ? ' today' : '') + (key === History.selected ? ' sel' : '') + (key > today ? ' future' : '');
+      // 丸の色：チームメニューがあった日は青、自分のメニュー・白紙だけの日は赤
+      var mineOnly = list && list.every(function (s) { return s.type !== 'チーム'; });
+      var cls = 'hist-day' + (list ? ' done' : '') + (mineOnly ? ' mine-only' : '') + (key === today ? ' today' : '') + (key === History.selected ? ' sel' : '') + (key > today ? ' future' : '');
       html += '<button class="' + cls + '" data-hist-day="' + key + '"' + (list ? '' : ' disabled') + '>' +
         '<span class="hist-num">' + day + '</span>' +
-        (list ? '<span class="hist-mark">' + list.map(function (s) { return '<i class="' + History.kindClass(s) + '"></i>'; }).join('') + '</span>' : '') +
+        (list && list.length > 1 ? '<span class="hist-mark">' + list.map(function (s) { return '<i class="' + History.kindClass(s) + '"></i>'; }).join('') + '</span>' : '') +
         '</button>';
     }
     html += '</div>';
