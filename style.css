@@ -221,69 +221,76 @@ body.report-modal-open { overflow: hidden; }
 .report-mark-sm { font-size: 0.6em; vertical-align: 0.15em; margin-right: 2px; }
 .base-row label { flex: 1; min-width: 140px; margin-top: 4px; }
 .base-dates { max-height: 320px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; margin-bottom: 10px; }
-/* Phase 3f: 表情・発話に連動するトレーナーアバター */
-.avatar { position: fixed; left: 12px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 1002; width: 78px; height: 78px;
-  padding: 0; overflow: hidden; border: 3px solid #fff; border-radius: 50%; background: #e8efff;
-  box-shadow: 0 7px 22px rgba(21, 43, 86, .28); cursor: pointer; transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease; }
-.avatar svg { width: 100%; height: 100%; display: block; }
-.avatar:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
-.avatar:active { transform: scale(.95); }
+/* 完成版：トレーナーアバターの外見・表情・モーション */
+.avatar { position: fixed; left: 14px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 1002; width: 82px; height: 82px;
+  padding: 0; overflow: hidden; border: 3px solid rgba(255,255,255,.98); border-radius: 50%; background: #e8efff;
+  box-shadow: 0 7px 22px rgba(21,43,86,.26), 0 1px 4px rgba(21,43,86,.12); cursor: pointer;
+  -webkit-tap-highlight-color: transparent; transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease, filter .22s ease; }
+.avatar::after { content: ''; position: absolute; inset: 2px; border: 1px solid rgba(255,255,255,.5); border-radius: 50%; pointer-events: none; }
+.avatar svg { position: relative; z-index: 1; width: 100%; height: 100%; display: block; }
+.avatar:focus-visible { outline: 3px solid var(--primary); outline-offset: 4px; }
+.avatar:active { transform: scale(.94); }
 .avatar .av-mouth { opacity: 0; transform-box: fill-box; transform-origin: center; }
 .avatar .av-mouth-teeth, .avatar .av-frown, .avatar .av-confirm-mouth { opacity: 0; }
-.avatar .av-smile, .avatar .av-frown, .avatar .av-confirm-mouth { transition: opacity .16s ease, stroke .16s ease; }
-.avatar.state-idle { animation: av-idle-breathe 3.8s infinite ease-in-out; }
-@keyframes av-idle-breathe { 0%, 100% { box-shadow: 0 7px 22px rgba(21,43,86,.25); } 50% { box-shadow: 0 9px 25px rgba(21,43,86,.29); } }
-.avatar.talking .av-smile, .avatar.talking .av-frown { opacity: 0; }
-.avatar.talking .av-mouth { opacity: 1; animation: av-talk .22s infinite alternate ease-in-out; }
-.avatar.talking .av-mouth-teeth { opacity: .95; }
-.avatar.pulse .av-mouth { animation: av-talk .22s infinite alternate ease-in-out, av-pulse .2s; }
-@keyframes av-talk { from { transform: scaleY(.35) scaleX(.9); } to { transform: scaleY(1.18) scaleX(1.05); } }
-@keyframes av-pulse { 50% { transform: scale(1.18, 1.3); } }
-.avatar .av-eyes { transform-box: fill-box; transform-origin: center; animation: av-blink 4.6s infinite; transition: transform .2s ease; }
-@keyframes av-blink { 0%, 94%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.08); } }
-.avatar.listening { border-color: #efb64e; box-shadow: 0 0 0 5px rgba(239,182,78,.2), 0 7px 22px rgba(21,43,86,.25); animation: av-listen 1.25s infinite ease-in-out; }
-.avatar.listening .av-eyes { transform: scale(1.12, 1.18); animation: none; }
-.avatar.listening .av-brows { transform: translateY(-1px); }
-@keyframes av-listen { 0%, 100% { box-shadow: 0 0 0 3px rgba(239,182,78,.12), 0 7px 22px rgba(21,43,86,.25); } 50% { box-shadow: 0 0 0 7px rgba(239,182,78,.25), 0 7px 22px rgba(21,43,86,.25); } }
-.avatar.talking { border-color: #7799ef; box-shadow: 0 0 0 4px rgba(119,153,239,.18), 0 8px 24px rgba(21,43,86,.3); animation: av-bob .55s infinite alternate ease-in-out; }
+.avatar .av-smile, .avatar .av-frown, .avatar .av-confirm-mouth { transition: opacity .18s ease, stroke .18s ease; }
+.avatar .av-brows { transform-box: fill-box; transform-origin: center; transition: transform .18s ease; }
+.avatar .av-cheek { transition: opacity .2s ease; }
+.avatar.state-idle { animation: av-idle-breathe 4.2s infinite ease-in-out; }
+@keyframes av-idle-breathe { 0%,100% { box-shadow: 0 7px 22px rgba(21,43,86,.24), 0 1px 4px rgba(21,43,86,.12); } 50% { box-shadow: 0 9px 26px rgba(21,43,86,.3), 0 1px 4px rgba(21,43,86,.12); } }
+.avatar.talking .av-smile, .avatar.talking .av-frown, .avatar.talking .av-confirm-mouth { opacity: 0; }
+.avatar.talking .av-mouth { opacity: 1; animation: av-talk .2s infinite alternate ease-in-out; }
+.avatar.talking .av-mouth-teeth { opacity: .92; }
+.avatar.pulse .av-mouth { animation: av-talk .2s infinite alternate ease-in-out, av-pulse .22s; }
+@keyframes av-talk { from { transform: scaleY(.28) scaleX(.86); } to { transform: scaleY(1.24) scaleX(1.06); } }
+@keyframes av-pulse { 50% { transform: scale(1.15,1.28); } }
+.avatar .av-eyes { transform-box: fill-box; transform-origin: center; animation: av-blink 4.8s infinite; transition: transform .2s ease; }
+@keyframes av-blink { 0%, 92%, 100% { transform: scaleY(1); } 94% { transform: scaleY(.08); } 96% { transform: scaleY(1); } }
+.avatar.listening { border-color: #efb64e; box-shadow: 0 0 0 4px rgba(239,182,78,.16), 0 0 0 8px rgba(239,182,78,.06), 0 7px 22px rgba(21,43,86,.25); animation: av-listen 1.35s infinite ease-in-out; }
+.avatar.listening .av-eyes { transform: scale(1.12,1.16); animation: none; }
+.avatar.listening .av-brows { transform: translateY(-1.4px); }
+@keyframes av-listen { 0%,100% { box-shadow: 0 0 0 3px rgba(239,182,78,.12), 0 7px 22px rgba(21,43,86,.25); } 50% { box-shadow: 0 0 0 7px rgba(239,182,78,.25), 0 0 0 11px rgba(239,182,78,.07), 0 7px 22px rgba(21,43,86,.25); } }
+.avatar.talking { border-color: #7799ef; box-shadow: 0 0 0 4px rgba(119,153,239,.18), 0 8px 24px rgba(21,43,86,.3); animation: av-bob .58s infinite alternate ease-in-out; }
 .avatar.talking .av-eyes { animation-duration: 5.8s; }
-@keyframes av-bob { from { translate: 0 0; } to { translate: 0 -3px; } }
-.avatar.state-success { border-color: var(--ok); box-shadow: 0 0 0 4px rgba(46,160,99,.17), 0 7px 22px rgba(21,43,86,.25); }
-.avatar.state-success .av-smile { stroke: var(--ok); stroke-width: 2.5; }
-.avatar.state-success .av-cheek { opacity: .95; }
-.avatar.state-success .av-eyes { transform: scaleY(.9); }
+@keyframes av-bob { from { translate: 0 0; } to { translate: 0 -2.5px; } }
+.avatar.state-success { border-color: var(--ok); box-shadow: 0 0 0 4px rgba(46,160,99,.17), 0 7px 22px rgba(21,43,86,.25); animation: av-success-pop .34s ease-out; }
+.avatar.state-success .av-smile { stroke: var(--ok); stroke-width: 2.7; }
+.avatar.state-success .av-cheek { opacity: 1; }
+.avatar.state-success .av-eyes { transform: scaleY(.82); }
+@keyframes av-success-pop { 0% { transform: scale(.92); } 65% { transform: scale(1.06); } 100% { transform: scale(1); } }
 .avatar.state-confirming { border-color: #d99a2b; box-shadow: 0 0 0 4px rgba(217,154,43,.18), 0 7px 22px rgba(21,43,86,.25); }
-.avatar.state-confirming .av-brows { transform: translateY(1px); }
+.avatar.state-confirming .av-brows { transform: translateY(1.3px); }
 .avatar.state-confirming .av-smile { opacity: 0; }
 .avatar.state-confirming .av-confirm-mouth { opacity: 1; }
-.avatar.state-confirming .av-eyes { transform: scaleY(1.08); animation: none; }
-.avatar.state-error { border-color: var(--danger); box-shadow: 0 0 0 4px rgba(215,67,67,.16), 0 7px 22px rgba(21,43,86,.25); }
+.avatar.state-confirming .av-eyes { transform: scaleY(1.06); animation: none; }
+.avatar.state-error { border-color: var(--danger); box-shadow: 0 0 0 4px rgba(215,67,67,.16), 0 7px 22px rgba(21,43,86,.25); animation: av-error-nudge .26s ease-in-out; }
 .avatar.state-error .av-smile { opacity: 0; }
 .avatar.state-error .av-frown { opacity: 1; stroke: var(--danger); }
 .avatar.state-error .av-brows { transform: translateY(2px); }
 .avatar.state-error .av-eyes { transform: scaleY(.92); animation: none; }
-.avatar-picker { position: fixed; left: 12px; bottom: calc(98px + env(safe-area-inset-bottom)); z-index: 1004;
-  display: flex; flex-direction: column; gap: 8px; width: min(280px, calc(100vw - 24px)); padding: 14px;
-  border: 1px solid var(--border); border-radius: 16px; background: var(--surface);
-  box-shadow: 0 12px 30px rgba(0,0,0,.2); }
+@keyframes av-error-nudge { 0%,100% { translate: 0 0; } 30% { translate: -2px 0; } 70% { translate: 2px 0; } }
+.avatar-picker { position: fixed; left: 14px; bottom: calc(108px + env(safe-area-inset-bottom)); z-index: 1004;
+  display: flex; flex-direction: column; gap: 9px; width: min(290px, calc(100vw - 28px)); padding: 15px;
+  border: 1px solid var(--border); border-radius: 18px; background: var(--surface);
+  box-shadow: 0 14px 34px rgba(0,0,0,.2); }
 .avatar-picker[hidden] { display: none; }
-.avatar-picker-title { font-weight: 800; margin-bottom: 2px; }
-.avatar-picker-option { width: 100%; min-height: 44px; text-align: left; border-radius: 10px; }
+.avatar-picker-title { font-weight: 800; font-size: 1rem; margin-bottom: 0; }
+.avatar-picker-description { color: var(--muted); font-size: .82rem; line-height: 1.5; }
+.avatar-picker-option { width: 100%; min-height: 46px; text-align: left; border-radius: 11px; }
 .avatar-picker-option[aria-pressed="true"] { background: var(--primary); color: #fff; box-shadow: inset 0 0 0 2px rgba(255,255,255,.24); }
-.avatar-picker-close { align-self: flex-end; }
+.avatar-picker-close { align-self: flex-end; min-height: 40px; }
 /* 吹き出しはアバターの上に配置 */
-body.has-avatar .mic-fab { left: 98px; }
-body.has-avatar .voice-box { left: 12px; bottom: calc(98px + env(safe-area-inset-bottom)); border-radius: 16px; border-color: #c9d6f5; }
-body.has-avatar .voice-box::after { content: ''; position: absolute; left: 34px; bottom: -9px; width: 16px; height: 16px; background: #fff;
+body.has-avatar .mic-fab { left: 104px; }
+body.has-avatar .voice-box { left: 14px; bottom: calc(108px + env(safe-area-inset-bottom)); border-radius: 16px; border-color: #c9d6f5; }
+body.has-avatar .voice-box::after { content: ''; position: absolute; left: 35px; bottom: -9px; width: 16px; height: 16px; background: #fff;
   border-right: 1px solid #c9d6f5; border-bottom: 1px solid #c9d6f5; transform: rotate(45deg); }
 .voice-box .av-name { font-size: .72rem; font-weight: 800; color: var(--primary); margin-top: 4px; }
 .voice-box .heard { color: var(--muted); font-weight: 600; font-size: .85rem; }
 .voice-box .reply { color: var(--text); margin-top: 2px; }
 @media (max-width: 380px) {
-  .avatar { width: 70px; height: 70px; }
+  .avatar { width: 72px; height: 72px; left: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); }
   body.has-avatar .mic-fab { left: 88px; }
-  body.has-avatar .voice-box { bottom: calc(90px + env(safe-area-inset-bottom)); }
-  .avatar-picker { bottom: calc(90px + env(safe-area-inset-bottom)); }
+  body.has-avatar .voice-box { left: 10px; bottom: calc(94px + env(safe-area-inset-bottom)); }
+  .avatar-picker { left: 10px; bottom: calc(94px + env(safe-area-inset-bottom)); width: min(290px, calc(100vw - 20px)); }
 }
 @media (prefers-reduced-motion: reduce) {
   .avatar, .avatar * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
@@ -302,7 +309,7 @@ body.has-avatar .voice-box::after { content: ''; position: absolute; left: 34px;
 .mic-fab { z-index: 1001; }
 .avatar { z-index: 1002; }
 .voice-box { z-index: 1003; }
-/* v3k調整: 眉の形でも気持ちが伝わるようにする（確認＝片方の眉を上げる／エラー＝内側を上げた困り眉） */
+/* v4調整: 眉の形でも気持ちが伝わるようにする（確認＝片方の眉を上げる／エラー＝内側を上げた困り眉） */
 .avatar .av-brows path { transform-box: fill-box; transform-origin: center; transition: transform .2s ease; }
 .avatar.state-confirming .av-brows path:last-child { transform: translateY(-2px) rotate(-8deg); }
 .avatar.state-error .av-brows path:first-child { transform: rotate(-13deg); }

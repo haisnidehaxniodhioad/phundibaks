@@ -1,5 +1,5 @@
 /**
- * avatar.js ― 話しかけると返事をするアバター（Phase 3f、v3iで男女の切り替えと表情、v3kで絵を描き直し）
+ * avatar.js ― 話しかけると返事をするアバター（Phase 3f、v3iで男女の切り替えと表情、v3k・v4で絵と動きを仕上げ）
  *
  *   Avatar.talk / listen / pulse / greet … 話している間は口を動かす・聞き取り中の顔・ホームのあいさつ
  *   Avatar.feedback('success'|'confirming'|'error') … 結果の表情（読み上げ中なら、読み上げのあとに出す）
@@ -28,6 +28,7 @@ var Avatar = {
   currentState: 'idle',
   greeted: false,
   storageKey: 'trainingAvatarGender',
+  motionEnabled: true,
 
   name: function () {
     return (S.home && S.home.avatarName) || 'コーチ';
@@ -51,6 +52,7 @@ var Avatar = {
       this.el.dataset.gender = gender;
       this.el.setAttribute('aria-label', 'トレーナーに話しかける（' +
         (gender === 'male' ? '男性' : '女性') + '）');
+      this.el.setAttribute('title', (gender === 'male' ? '男性' : '女性') + 'トレーナー：タップして話しかける');
       this.applyState();
     }
     return true;
@@ -81,6 +83,7 @@ var Avatar = {
       /* 肩とトレーナー用ジャケット */
       '<path d="M5 80 L8 65 Q12 57 24 55 L48 55 Q60 57 64 65 L67 80 Z" fill="url(#avShirt)"/>' +
       '<path d="M24 55 L36 65 L48 55 L45 80 L27 80 Z" fill="#f7f9ff"/>' +
+      '<path d="M9 72 Q18 65 25 66 M63 72 Q54 65 47 66" stroke="#6f8bb9" stroke-width="1" fill="none" opacity=".7"/>' +
       '<path d="M24 55 L36 65 L30 70 L21 59 Z M48 55 L36 65 L42 70 L51 59 Z" fill="#ffffff"/>' +
       '<path d="M35.8 65 L35.8 79" stroke="#cbd5e8" stroke-width="1.1"/>' +
       '<circle cx="39" cy="71" r="1" fill="#7b8cab"/><circle cx="39" cy="76" r="1" fill="#7b8cab"/>' +
@@ -125,6 +128,7 @@ var Avatar = {
     el.hidden = true;
     el.type = 'button';
     el.setAttribute('aria-label', 'トレーナーに話しかける');
+    el.setAttribute('title', 'タップしてトレーナーに話しかける');
     el.innerHTML = this.svg();
     el.dataset.gender = this.currentGender;
     document.body.appendChild(el);
@@ -137,6 +141,23 @@ var Avatar = {
       }
     });
     this.applyState();
+    this.bindGlobalPickerDismiss();
+  },
+
+  bindGlobalPickerDismiss: function () {
+    if (this._pickerDismissBound) return;
+    this._pickerDismissBound = true;
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') {
+        var panel = document.getElementById('avatarAppearancePicker');
+        if (panel) panel.hidden = true;
+      }
+    });
+    // パネルの外をタップしても閉じる（「トレーナー設定」のボタン自体は除く）
+    document.addEventListener('pointerdown', function (event) {
+      var panel = document.getElementById('avatarAppearancePicker');
+      if (panel && !panel.hidden && !panel.contains(event.target) && !event.target.closest('[data-act="avatarSettings"]')) panel.hidden = true;
+    }, true);
   },
 
   show: function (on) {
@@ -255,6 +276,11 @@ var Avatar = {
     title.className = 'avatar-picker-title';
     title.textContent = 'トレーナーを選ぶ';
     panel.appendChild(title);
+
+    var description = document.createElement('div');
+    description.className = 'avatar-picker-description';
+    description.textContent = '好みのトレーナーを選べます。選択はこのブラウザに保存されます。';
+    panel.appendChild(description);
 
     var self = this;
     [
