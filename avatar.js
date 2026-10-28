@@ -1,10 +1,11 @@
 /**
- * avatar.js ― 話しかけると返事をするアバター（Phase 3f、v3iで男女の切り替えと表情を追加）
+ * avatar.js ― 話しかけると返事をするアバター（Phase 3f、v3iで男女の切り替えと表情、v3kで絵を描き直し）
  *
  *   Avatar.talk / listen / pulse / greet … 話している間は口を動かす・聞き取り中の顔・ホームのあいさつ
  *   Avatar.feedback('success'|'confirming'|'error') … 結果の表情（読み上げ中なら、読み上げのあとに出す）
  *   Avatar.setGender('male'|'female') … 見た目の切り替え。ホームの「トレーナー設定」から選ぶ（この端末に保存）
- *   表情の見た目は style.css の .avatar.state-○○ で変えられる。
+ *   表情は style.css の .avatar.state-○○ で、SVGのパーツ（av-eyes / av-brows / av-smile / av-frown /
+ *   av-confirm-mouth / av-mouth）の見せ方を変えて作っている。パーツのクラス名は変えないこと。
  *   Talk … 返事に添える、ちょっとした言葉（毎回同じにならないように、いくつかの中から選ぶ）
  */
 var AVATAR_COLORS = {
@@ -55,47 +56,58 @@ var Avatar = {
     return true;
   },
 
-  /** SVGアバター。顔・髪・服装をパーツ化し、既存の口アニメーション用クラスを維持。 */
+  /** 表情をCSSから切り替えられるSVGアバター。外部画像素材は使用しない。 */
   svg: function () {
     var c = AVATAR_COLORS;
     var female = this.currentGender === 'female';
     var hairBack = female
-      ? '<path class="av-hair-back" d="M15 34 Q10 8 32 7 Q55 7 51 34 L49 49 L43 53 L43 29 Q32 18 21 29 L21 51 L15 47 Z" fill="' + c.head + '"/>'
-      : '<path class="av-hair-back" d="M17 29 Q13 8 32 8 Q50 8 48 29 L43 24 Q32 18 22 25 Z" fill="' + c.head + '"/>';
-
+      ? '<path class="av-hair-back" d="M17 42 Q10 13 31 8 Q54 4 59 28 Q62 41 56 64 L48 75 L43 45 L22 43 L20 70 L13 60 Z" fill="url(#avHair)"/>'
+      : '<path class="av-hair-back" d="M17 40 Q11 13 31 8 Q52 5 57 28 L53 48 L18 48 Z" fill="url(#avHair)"/>';
     var hairFront = female
-      ? '<path class="av-hair-front" d="M15 31 Q12 8 32 8 Q52 8 49 31 L44 27 Q42 20 37 18 Q29 25 20 25 Z" fill="' + c.head + '"/>'
-      : '<path class="av-hair-front" d="M17 26 Q15 8 32 8 Q48 8 47 26 L41 21 L36 23 L30 18 L24 24 Z" fill="' + c.head + '"/>';
-
-    return '<svg viewBox="0 0 64 64" role="img" aria-label="' +
-      (female ? '女性トレーナー' : '男性トレーナー') + '">' +
-      /* 肩・ポロシャツ */
-      '<path d="M8 64 L11 54 Q15 49 23 47 L41 47 Q49 49 53 54 L56 64 Z" fill="' + c.shirt + '"/>' +
-      '<path d="M23 47 L32 55 L41 47 L38 64 L26 64 Z" fill="' + c.shirtLight + '"/>' +
-      '<path d="M23 47 L32 55 L28 59 L21 50 Z" fill="' + c.shirtLight + '"/>' +
-      '<path d="M41 47 L32 55 L36 59 L43 50 Z" fill="' + c.shirtLight + '"/>' +
-      /* 髪の後ろ・耳・顔 */
+      ? '<path class="av-hair-front" d="M15 34 Q12 8 34 7 Q55 7 57 31 L49 27 Q43 19 37 18 Q28 27 18 29 Z" fill="url(#avHair)"/><path d="M18 29 Q17 41 21 48" stroke="' + c.head + '" stroke-width="3" fill="none" stroke-linecap="round"/>'
+      : '<path class="av-hair-front" d="M15 32 Q12 8 34 7 Q54 7 56 29 L49 23 L43 25 L36 18 L28 25 L21 23 Z" fill="url(#avHair)"/>';
+    var lashes = female
+      ? '<path d="M22 36 l-2 -2 M26 34 l-1 -2 M45 36 l2 -2 M41 34 l1 -2" stroke="' + c.line + '" stroke-width="1.2" stroke-linecap="round"/>'
+      : '';
+    return '<svg viewBox="0 0 72 80" role="img" aria-label="' +
+      (female ? '女性トレーナー' : '男性トレーナー') + '" xmlns="http://www.w3.org/2000/svg">' +
+      '<defs>' +
+        '<linearGradient id="avBg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#eef4ff"/><stop offset="1" stop-color="#cbdcff"/></linearGradient>' +
+        '<linearGradient id="avHair" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b3540"/><stop offset="1" stop-color="' + c.head + '"/></linearGradient>' +
+        '<linearGradient id="avShirt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3c5d91"/><stop offset="1" stop-color="' + c.shirt + '"/></linearGradient>' +
+      '</defs>' +
+      '<circle class="av-halo" cx="36" cy="39" r="37" fill="url(#avBg)"/>' +
+      '<circle cx="36" cy="39" r="34.5" fill="none" stroke="#ffffff" stroke-opacity=".7" stroke-width="1.5"/>' +
+      /* 肩とトレーナー用ジャケット */
+      '<path d="M5 80 L8 65 Q12 57 24 55 L48 55 Q60 57 64 65 L67 80 Z" fill="url(#avShirt)"/>' +
+      '<path d="M24 55 L36 65 L48 55 L45 80 L27 80 Z" fill="#f7f9ff"/>' +
+      '<path d="M24 55 L36 65 L30 70 L21 59 Z M48 55 L36 65 L42 70 L51 59 Z" fill="#ffffff"/>' +
+      '<path d="M35.8 65 L35.8 79" stroke="#cbd5e8" stroke-width="1.1"/>' +
+      '<circle cx="39" cy="71" r="1" fill="#7b8cab"/><circle cx="39" cy="76" r="1" fill="#7b8cab"/>' +
+      /* 首と耳 */
       hairBack +
-      '<ellipse cx="17" cy="35" rx="3.5" ry="5" fill="' + c.face + '"/>' +
-      '<ellipse cx="47" cy="35" rx="3.5" ry="5" fill="' + c.face + '"/>' +
-      '<ellipse cx="32" cy="34" rx="17" ry="21" fill="' + c.face + '"/>' +
-      /* 首 */
-      '<path d="M26 48 L26 53 Q32 58 38 53 L38 48 Z" fill="' + c.face + '"/>' +
-      /* 髪の前 */
+      '<path d="M26 48 L26 58 Q36 65 46 58 L46 48 Z" fill="' + c.face + '"/>' +
+      '<ellipse cx="18.5" cy="39" rx="4.2" ry="6" fill="' + c.face + '"/><ellipse cx="53.5" cy="39" rx="4.2" ry="6" fill="' + c.face + '"/>' +
+      '<path d="M16 37 Q18 33 21 38 M51 38 Q54 33 56 37" stroke="#d39e89" stroke-width="1" fill="none"/>' +
+      /* 顔 */
+      '<path class="av-face" d="M19 29 Q19 17 36 16 Q53 17 53 29 L51 43 Q48 54 36 56 Q24 54 21 43 Z" fill="' + c.face + '"/>' +
+      '<path d="M22 44 Q24 51 31 53" stroke="#e7bca7" stroke-width="1.1" fill="none" opacity=".8"/>' +
       hairFront +
-      /* 眉・目 */
-      '<g class="av-brows" stroke="' + c.line + '" stroke-width="1.5" stroke-linecap="round" fill="none">' +
-        '<path d="M21 29 Q25 27 28 29"/><path d="M36 29 Q40 27 43 29"/>' +
-      '</g>' +
-      '<g class="av-eyes"><ellipse cx="24.5" cy="33.5" rx="2.3" ry="2.8" fill="' + c.line + '"/>' +
-        '<ellipse cx="39.5" cy="33.5" rx="2.3" ry="2.8" fill="' + c.line + '"/>' +
-        '<circle cx="25.2" cy="32.6" r="0.8" fill="#fff"/><circle cx="40.2" cy="32.6" r="0.8" fill="#fff"/></g>' +
+      /* 眉 */
+      '<g class="av-brows" stroke="' + c.line + '" stroke-width="1.7" stroke-linecap="round" fill="none"><path d="M23 31 Q27 28 31 31"/><path d="M41 31 Q45 28 49 31"/></g>' +
+      /* 目とハイライト */
+      '<g class="av-eyes"><g class="av-eye-left"><ellipse cx="27" cy="36" rx="3.1" ry="3.7" fill="#fff"/><ellipse cx="27.5" cy="36.4" rx="1.9" ry="2.6" fill="#293446"/><circle cx="28.2" cy="35.4" r=".85" fill="#fff"/></g>' +
+      '<g class="av-eye-right"><ellipse cx="45" cy="36" rx="3.1" ry="3.7" fill="#fff"/><ellipse cx="45.5" cy="36.4" rx="1.9" ry="2.6" fill="#293446"/><circle cx="46.2" cy="35.4" r=".85" fill="#fff"/></g></g>' + lashes +
       /* 頬・鼻・口 */
-      '<ellipse cx="20" cy="39" rx="3" ry="1.8" fill="' + c.cheek + '" opacity=".7"/>' +
-      '<ellipse cx="44" cy="39" rx="3" ry="1.8" fill="' + c.cheek + '" opacity=".7"/>' +
-      '<path d="M32 35.5 L30.8 39" stroke="#d0a58f" stroke-width="1.2" stroke-linecap="round" fill="none"/>' +
-      '<path class="av-smile" d="M26 42 Q32 47 38 42" stroke="' + c.line + '" stroke-width="1.8" fill="none" stroke-linecap="round"/>' +
-      '<ellipse class="av-mouth" cx="32" cy="43" rx="3.8" ry="3" fill="' + c.mouth + '"/>' +
+      '<ellipse class="av-cheek av-cheek-left" cx="22.5" cy="43" rx="4" ry="2.2" fill="' + c.cheek + '" opacity=".6"/><ellipse class="av-cheek av-cheek-right" cx="49.5" cy="43" rx="4" ry="2.2" fill="' + c.cheek + '" opacity=".6"/>' +
+      '<path d="M36 37 L34.5 41 Q36 42.5 38 41" stroke="#d09e87" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>' +
+      '<path class="av-smile" d="M29 46 Q36 52 43 46" stroke="' + c.line + '" stroke-width="1.8" fill="none" stroke-linecap="round"/>' +
+      '<path class="av-frown" d="M30 49 Q36 44 42 49" stroke="' + c.line + '" stroke-width="1.8" fill="none" stroke-linecap="round"/>' +
+      '<path class="av-confirm-mouth" d="M31 48 Q36 49.5 41 48" stroke="' + c.line + '" stroke-width="1.8" fill="none" stroke-linecap="round"/>' +
+      '<ellipse class="av-mouth" cx="36" cy="47.3" rx="4.3" ry="2.7" fill="' + c.mouth + '"/>' +
+      '<path class="av-mouth-teeth" d="M33 46.4 Q36 47.5 39 46.4" stroke="#fff" stroke-width="1.2" stroke-linecap="round" fill="none"/>' +
+      /* 小さな胸元ロゴ */
+      '<circle cx="53" cy="68" r="3.2" fill="#eaf1ff"/><path d="M51.5 68 L53 66.5 L54.5 68 L53 69.5 Z" fill="#5273b5"/>' +
       '</svg>';
   },
 
@@ -241,13 +253,13 @@ var Avatar = {
 
     var title = document.createElement('div');
     title.className = 'avatar-picker-title';
-    title.textContent = 'トレーナーの見た目';
+    title.textContent = 'トレーナーを選ぶ';
     panel.appendChild(title);
 
     var self = this;
     [
-      { gender: 'male', label: '男性トレーナー' },
-      { gender: 'female', label: '女性トレーナー' }
+      { gender: 'male', label: '👨 男性トレーナー' },
+      { gender: 'female', label: '👩 女性トレーナー' }
     ].forEach(function (item) {
       var button = document.createElement('button');
       button.type = 'button';
