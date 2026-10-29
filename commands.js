@@ -700,6 +700,14 @@ function voiceUndo(text) {
 
 // ---------------- 終了画面 ----------------
 function voiceInFinish(text, cmd) {
+  // 「昨日の分」「おととい」「3日前」「今日」→ いつのトレーニングかを変える（v26）。数字を「きつさ」と取り違えないよう先に見る
+  var nt = VoiceParser.norm(VoiceParser.normalizeNumbers(text));
+  var bd = /一昨日|おととい/.test(nt) ? 2 : /昨日|きのう/.test(nt) ? 1 : (nt.match(/(\d)日前/) ? Number(nt.match(/(\d)日前/)[1]) : (/^今日|きょう(の|に|で)/.test(nt) ? 0 : -1));
+  if (bd >= 0 && !/きつさ|キツさ|保存/.test(nt)) {
+    if (bd > MAX_BACKDATE_DAYS) return reply(text, MAX_BACKDATE_DAYS + '日前までしか入れられないよ。それより前はスタッフに相談してね。', true);
+    readFinishMinutes(); S.draft.backdate = bd; saveDraft(); renderFinish();
+    return reply(text, bd ? backdateLabel(bd) + 'の記録にするね。' : '今日の記録にするね。');
+  }
   var n = VoiceParser.normalizeNumbers(text).match(/(\d+)/);
   if (/保存|ほぞん/.test(text)) {
     if (!S.draft.srpe && !n) return reply(text, '先にきつさを1から10で教えてね。', true);

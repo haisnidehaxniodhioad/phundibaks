@@ -8,7 +8,9 @@
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v25 2026-10-29';
+var APP_VERSION = 'v26 2026-10-29';
+// 記録し忘れた日の分を、何日前まで遡って入力できるか（v26）。Apps Script の 設定.gs の MAX_BACKDATE_DAYS と同じ数字にする
+var MAX_BACKDATE_DAYS = 3;
 var S = { token: null, home: null, draft: null, view: 'loading' };
 var app = document.getElementById('app');
 
@@ -21,6 +23,17 @@ function esc(v) {
 function msgHtml(type, text) { return text ? '<div class="msg ' + type + '">' + esc(text) + '</div>' : ''; }
 function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 function saveDraft() { if (S.draft) Store.set('draft', S.draft); else Store.remove('draft'); }
+/** n日前の日付の表示（「10月27日（火）」）。n=0 は今日 */
+function backdateLabel(n) {
+  var d = new Date(); d.setDate(d.getDate() - n);
+  return (d.getMonth() + 1) + '月' + d.getDate() + '日（' + '日月火水木金土'.charAt(d.getDay()) + '）';
+}
+function backdateWord(n) { return ['今日', '昨日', 'おととい', '3日前'][n] || n + '日前'; }
+/** 新しく始めたトレーニングに「何日前の分か」を付ける（ホームで「記録し忘れた日の分」を選んでいたとき） */
+function applyBackdate(dr) {
+  if (S.backdate) { dr.backdate = S.backdate; S.backdate = 0; }
+  return dr;
+}
 function latestOf(name) { return (S.home && S.home.latest && S.home.latest[name]) || null; }
 
 // ---------------- 起動 ----------------
@@ -164,6 +177,7 @@ function renderHome(notice, warning) {
     html += '</details>';
   }
   if (h.days.length) html += MyMenu.homeCard();
+  html += backdateCard();
 
   if (h.last) {
     html += '<p class="muted small">前回: ' + esc(h.last.date) + '（' + esc(h.last.type) +
@@ -171,6 +185,24 @@ function renderHome(notice, warning) {
   }
   html += '<p class="ver">' + esc(APP_VERSION) + '</p>';
   app.innerHTML = html;
+}
+
+/**
+ * 記録し忘れた日の分を入れる（v26）。日付を選ぶと、上の「はじめる」や自分のメニューから始めたトレーニングが、その日の記録になる。
+ * S.backdate … 選んだ日（何日前か。0 なら今日）
+ */
+function backdateCard() {
+  if (S.draft) return '';
+  var html = '<details class="again backdate"' + (S.backdate ? ' open' : '') + '><summary>記録し忘れた日の分を入れる（' + MAX_BACKDATE_DAYS + '日前まで）</summary>';
+  if (S.backdate) {
+    html += '<div class="msg ok">' + backdateLabel(S.backdate) + 'の分を入れます。上の「はじめる」や自分のメニューから始めてね。' +
+      '<button class="btn ghost small" data-act="backdatePick" data-v="0">やめる</button></div>';
+  } else {
+    html += '<div class="next-pills">';
+    for (var n = 1; n <= MAX_BACKDATE_DAYS; n++) html += '<button class="btn sub btn-pill" data-act="backdatePick" data-v="' + n + '">' + backdateWord(n) + '<br><span class="small">' + backdateLabel(n) + '</span></button>';
+    html += '</div>';
+  }
+  return html + '</details>';
 }
 
 /** ホームの出迎えのひとこと */
@@ -227,9 +259,10 @@ function startDay(dayNo) {
   S.draft = { id: newId(), startedAt: new Date().toISOString(), type: 'チーム', menuId: S.home.menuId,
               day: d.day, dayName: d.dayName, title: 'Day' + d.day + (d.dayName ? '（' + d.dayName + '）' : ''),
               items: items.map(function (it) { return makeItem(it, true); }) };
+  applyBackdate(S.draft);
   saveDraft();
   renderSession();
-  Speech.speak(announceStart(Speech.dayText(d.day) + 'を始めるよ。'));
+  Speech.speak(announceStart(Speech.dayText(d.day) + (S.draft.backdate ? '、' + backdateWord(S.draft.backdate) + 'の分を入れるよ。' : 'を始めるよ。')));
 }
 
 // ---------------- 自分で決めた種目の並び順 ----------------
@@ -279,6 +312,7 @@ function resetOrder() {
 function startFree() {
   if (S.draft && !confirm('途中のトレーニングの記録を破棄して、新しく始めますか？')) return;
   S.draft = { id: newId(), startedAt: new Date().toISOString(), type: '個別', title: '自分のメニュー', items: [] };
+  applyBackdate(S.draft);
   saveDraft();
   renderSession();
 }
@@ -306,7 +340,7 @@ function renderSession() {
   var isDone = function (it) { return it.sets.every(function (s) { return s.done; }); };
   var doneCount = dr.items.filter(isDone).length;
   var head = !n ? '種目を追加しよう' : cur < 0 ? '全' + n + '種目おわり！' : (doneCount + 1) + '種目め / 全' + n + '種目';
-  var html = '<div class="sess-head"><div><span class="kicker">' + esc(dr.title) + '</span><h1>' + head + '</h1></div>' +
+  var html = '<div class="sess-head"><div><span class="kicker">' + esc(dr.title) + (dr.backdate ? '・<b class="late">' + backdateLabel(dr.backdate) + 'の分</b>' : '') + '</span><h1>' + head + '</h1></div>' +
     '<div class="row nowrap"><button class="btn ghost" data-act="home">ホーム</button>' +
     '<button class="btn sub btn-pill" data-act="finish">おわる</button></div></div>';
   if (n) {
@@ -498,14 +532,22 @@ function renderFinish(error, notice) {
   var dr = S.draft;
   var done = dr.items.filter(function (it) { return it.sets.some(function (s) { return s.done; }); });
   var setCount = done.reduce(function (n, it) { return n + it.sets.filter(function (s) { return s.done; }).length; }, 0);
-  var minutes = Math.max(1, Math.round((Date.now() - new Date(dr.startedAt).getTime()) / 60000));
+  var minutes = dr.backdate ? (dr.minutes || '—') : Math.max(1, Math.round((Date.now() - new Date(dr.startedAt).getTime()) / 60000));
   var labels = ['', 'とても楽', '楽', '少し楽', 'ややきつい', 'きつい', '', 'かなりきつい', '', 'とてもきつい', '限界'];
   var tile = function (num, unit) { return '<div class="stat"><b>' + num + '</b><span>' + unit + '</span></div>'; };
   var html = '<div class="fin-head"><span class="kicker">' + esc(dr.title) + '</span><h1>おつかれさま！</h1>' +
     '<div class="stats">' + tile(done.length, '種目') + tile(setCount, 'セット') + tile(minutes, '分') + '</div>' +
     '<p class="muted small">' + (done.length ? '✓を付けたセットだけが保存されます。' : '✓が付いたセットがまだありません。「トレーニングに戻る」で✓を付けてね。') + '</p></div>';
+  // いつのトレーニングか（v26：記録し忘れた日の分は3日前まで）
+  var bd = dr.backdate || 0;
+  html += '<section class="sec"><h2>いつのトレーニング？</h2><div class="day-pills">';
+  for (var n = 0; n <= MAX_BACKDATE_DAYS; n++) html += '<button class="' + (bd === n ? 'on' : '') + '" data-act="backdate" data-v="' + n + '">' + backdateWord(n) + '<span>' + backdateLabel(n).replace(/（.）/, '') + '</span></button>';
+  html += '</div>';
+  if (bd) html += '<label for="finMinutes">かかった時間（分）<span class="muted small">　わかれば</span></label>' +
+    '<input id="finMinutes" class="input-pill" type="number" inputmode="numeric" min="0" max="600" placeholder="例：60" value="' + esc(dr.minutes || '') + '">';
+  html += '</section>';
   // きつさ（sRPE）：丸いボタン 1〜10。保存は画面の下の「記録を保存する」（dock.js）
-  html += '<section class="sec"><h2>今日のきつさは？</h2><div class="rpe">';
+  html += '<section class="sec"><h2>' + (bd ? 'その日の' : '今日の') + 'きつさは？</h2><div class="rpe">';
   for (var i = 1; i <= 10; i++) html += '<button class="' + (dr.srpe === i ? 'on' : '') + '" data-act="rpe" data-v="' + i + '" aria-label="きつさ' + i + '">' + i + '</button>';
   html += '</div><div class="rpe-scale"><span>1 とても楽</span><span>10 限界</span></div>' +
     (dr.srpe ? '<div class="rpe-pill">' + dr.srpe + (labels[dr.srpe] ? '：' + labels[dr.srpe] : '') + '</div>' : '') + '</section>';
@@ -516,13 +558,29 @@ function renderFinish(error, notice) {
 }
 
 function buildPayload() {
-  var dr = S.draft;
-  return { id: dr.id, startedAt: dr.startedAt, endedAt: new Date().toISOString(), type: dr.type, menuId: dr.menuId,
+  var dr = S.draft, startedAt = dr.startedAt, endedAt = new Date().toISOString(), extra = {};
+  if (dr.backdate) {
+    // 記録し忘れた日の分：その日の、トレーニングを始めた時刻にする（時間は入れた分。入れていなければ60分として送る）
+    var t = new Date(); t.setDate(t.getDate() - dr.backdate);
+    var s0 = new Date(dr.startedAt); t.setHours(s0.getHours(), s0.getMinutes(), 0, 0);
+    var min = Number(dr.minutes) || 0;
+    startedAt = t.toISOString(); endedAt = new Date(t.getTime() + (min || 60) * 60000).toISOString();
+    extra = { backdated: dr.backdate, minutes: min || '', enteredAt: new Date().toISOString() };
+  }
+  var p = { id: dr.id, startedAt: startedAt, endedAt: endedAt, type: dr.type, menuId: dr.menuId,
     day: dr.day, dayName: dr.dayName, srpe: dr.srpe || '', myMenuName: dr.myMenuName || '',
     items: dr.items.map(function (it) {
       return { name: it.name, planned: it.planned, rir: it.rir, method: it.method,
                sets: it.sets.filter(function (s) { return s.done; }).map(function (s) { return { w: s.w, r: s.r }; }) };
     }).filter(function (it) { return it.sets.length; }) };
+  for (var k in extra) p[k] = extra[k];
+  return p;
+}
+
+/** 終了画面の「かかった時間（分）」を記録に取り込む */
+function readFinishMinutes() {
+  var el = document.getElementById('finMinutes');
+  if (el && S.draft) { S.draft.minutes = el.value === '' ? '' : Math.max(0, Math.min(600, Number(el.value) || 0)); saveDraft(); }
 }
 
 function save() {
@@ -647,9 +705,11 @@ function onAct(t) {
     case 'resetOrder': if (confirm('メニューの元の順番に戻しますか？')) resetOrder(); break;
     case 'addItem': addItem(); break;
     case 'finish': renderFinish(); break;
-    case 'rpe': dr.srpe = Number(t.dataset.v); saveDraft(); renderFinish(); break;
+    case 'rpe': readFinishMinutes(); dr.srpe = Number(t.dataset.v); saveDraft(); renderFinish(); break;
+    case 'backdate': readFinishMinutes(); dr.backdate = Number(t.dataset.v); saveDraft(); renderFinish(); break;   // v26：いつのトレーニングか
+    case 'backdatePick': S.backdate = Number(t.dataset.v); renderHome(); break;
     case 'back': renderSession(); break;
-    case 'save': save(); break;
+    case 'save': readFinishMinutes(); save(); break;
     // v20：トレーニング中の画面（つぎにやる種目・終わった種目を直す・順番の入れ替え）
     case 'pickNext': moveToCurrent(i);
       if (VoiceUI.box.querySelector('[data-remain]')) VoiceUI.box.hidden = true;

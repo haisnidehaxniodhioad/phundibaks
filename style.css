@@ -492,3 +492,13 @@ body.report-modal-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .avatar, .avatar * { animation: none !important; transition-duration: .01ms !important; }
 }
+
+/* ---- 記録し忘れた日の分（v26） ---- */
+.day-pills { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.day-pills button { min-height: 56px; border: none; border-radius: 18px; background: var(--color-surface); color: var(--color-text);
+  font: inherit; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
+.day-pills button span { font-size: .75rem; font-weight: 400; color: var(--color-neutral-700); }
+.day-pills button.on { background: var(--color-accent); color: #fff; }
+.day-pills button.on span { color: #e9f8ff; }
+.late { color: var(--color-accent-2-700); }
+.backdate .next-pills .btn { line-height: 1.3; }

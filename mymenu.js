@@ -36,6 +36,7 @@ var MyMenu = {
                   var ex = findExercise(it.name);
                   return makeItem({ name: ex ? ex.name : it.name, category: ex ? ex.category : '', reps: it.reps, sets: it.sets, rest: it.rest }, true);
                 }) };
+    applyBackdate(S.draft);   // 記録し忘れた日の分を選んでいたら、その日の記録にする（v26）
     saveDraft();
     renderSession();
     Avatar.feedback('success');
