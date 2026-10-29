@@ -52,6 +52,7 @@ var VoiceUI = {
           '順番：「RDLから始める」「ベンチを最後にする」（今回だけ。いつもの順番は▲▼で）<br>' +
           'レスト：「あと何秒」「延長」「あと30秒」「スキップ」<br>そのほか：「取り消し」「もう一回言って」「デッドリフト追加」「終わり」'
         : '「今日は何をする？」「デイ2を始める」「記録を見せて」「今週何回やった？」「前回のスクワットは？」「体組成レポートを開いて」「体重見せて」「マイメニューは？」「（保存したメニューの名前）を始める」「新しいメニューを作る」') +
+        '<br>自分のデータ：' + QA.TOPICS.slice(1).map(function (tp) { return '「' + tp.examples[0] + '」'; }).join('') + '（どの画面でも）' +
         '<br>「何ができるの？」と聞くと、その画面で話せることを教えてくれます。' +
         '<br>わからない言い方をされたときは、画面に操作の候補が出ます。選ぶと、次からはその言い方で動きます（チームで共有）。';
       document.getElementById('app').appendChild(help);
@@ -280,6 +281,8 @@ function handleVoice(text) {
   var navLearned = VoiceParser.matchLearned(text, S.home.phrases, S.view);
   if (navLearned && navLearned.exact && NAV_ACTIONS.indexOf(navLearned.exact.action) >= 0) return doNav(text, learnedToCmd(navLearned.exact, text));
   if (S.view === 'finish' && /マイメニュ|メニュ(として|に)保存/.test(VoiceParser.norm(text))) return MyMenu.voiceSaveFromFinish(text);
+  // v31：自分のデータの質問（「体重は？」「スクワットの最高は？」「FFMIは何位？」など）。どの画面でも答える（qa.js）
+  if (QA.handle(text)) return;
   var nav = VoiceParser.parseNav(text, S.home.myMenus);
   if (nav && !(S.view === 'finish' && nav.type === 'closePanel')) return doNav(text, nav);
   if (S.view === 'finish') return voiceInFinish(text, VoiceParser.parse(text, { candidates: voiceCandidates() }));
@@ -800,7 +803,8 @@ function askPrevious(text) {
 
 /** 今の画面で話せることの説明 */
 function helpText() {
-  var common = 'どの画面でも「ホームに戻って」「体組成レポートを開いて」「体重見せて」が使えるよ。';
+  // v31：自分のデータの質問は、どの画面でも答える（qa.js の TOPICS から例を作る）
+  var common = 'どの画面でも「ホームに戻って」「体組成レポートを開いて」「体重見せて」が使えるよ。自分のデータは「体重は？」「スクワットの最高は？」「FFMIは何位？」みたいに聞いてね。「何が聞ける？」でもっと教えるよ。';
   if (S.view === 'session') return '記録は「スクワット60キロ8回」や「できた」、案内は「次は？」「あと何セット？」「何キロでやればいい？」、重さは「重くして」「軽くして」、レストは「休憩する」「あと何秒」「スキップ」、間違えたら「取り消し」、終わったら「終わり」だよ。' + common;
   if (S.view === 'finish') return '「きつさ7」のように数字を言って、「保存」で保存だよ。「マイメニューに保存」も使えるよ。';
   if (S.view === 'body') return '「体重にして」「InBodyにして」で切り替え、「体重の履歴」で履歴、「閉じて」で閉じるよ。' + common;
