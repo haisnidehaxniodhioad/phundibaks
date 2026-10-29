@@ -178,6 +178,7 @@ app.addEventListener('click', function (e) {
 
 MyMenu.onClick = function (t) {
   var i = Number(t.dataset.i), ed = S.edit;
+  if (t.dataset.bd !== undefined && t.dataset.mm === 'start') S.backdate = Number(t.dataset.bd) || 0;   // カレンダーから追加（v27）
   switch (t.dataset.mm) {
     case 'start': MyMenu.start(t.dataset.id); break;
     case 'edit': MyMenu.edit(t.dataset.id); break;

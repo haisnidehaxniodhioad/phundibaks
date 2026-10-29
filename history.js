@@ -5,6 +5,8 @@
  *   カレンダーでトレーニングした日に印が付き、日付をタップするとその日の種目とセットが下に出る。
  *   見られるのは今年度の記録（‹ › で月を切り替え）。データは Apps Script の myHistory（履歴.gs）から取る。
  *   音声：「記録を見せて」で開く、「今週何回やった？」で回数を答える（commands.js）。
+ *   v27：今日から3日前（MAX_BACKDATE_DAYS）までの日は、記録が無くてもタップでき、その日の分を追加できる。
+ *        それより前の日は追加できない（サーバーの 記録.gs でもはじく）。
  */
 var History = {
   data: null,        // 今表示している月のデータ（myHistory の返事）
@@ -34,6 +36,16 @@ var History = {
       return res;
     });
   },
+
+  /** その日が今日から何日前か（今日=0。未来は -1） */
+  daysAgo: function (key) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key); if (!m) return 999;
+    var d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])), t = new Date();
+    t.setHours(0, 0, 0, 0);
+    return Math.round((t - d) / 86400000);
+  },
+  /** その日の分を追加できるか（今日〜3日前） */
+  canAdd: function (key) { var n = History.daysAgo(key); return n >= 0 && n <= MAX_BACKDATE_DAYS; },
 
   /** その月にトレーニングした日 → { 'yyyy-MM-dd': [セッション…] } */
   trainedDays: function () {
@@ -70,13 +82,15 @@ var History = {
       // 丸の色：チームメニューがあった日は青、自分のメニュー・白紙だけの日は赤
       var mineOnly = list && list.every(function (s) { return s.type !== 'チーム'; });
       var cls = 'hist-day' + (list ? ' done' : '') + (mineOnly ? ' mine-only' : '') + (key === today ? ' today' : '') + (key === History.selected ? ' sel' : '') + (key > today ? ' future' : '');
-      html += '<button class="' + cls + '" data-hist-day="' + key + '"' + (list ? '' : ' disabled') + '>' +
+      var addable = History.canAdd(key);   // 記録が無くても、3日前までは押して追加できる
+      if (addable && !list) cls += ' addable';
+      html += '<button class="' + cls + '" data-hist-day="' + key + '"' + (list || addable ? '' : ' disabled') + '>' +
         '<span class="hist-num">' + day + '</span>' +
         (list && list.length > 1 ? '<span class="hist-mark">' + list.map(function (s) { return '<i class="' + History.kindClass(s) + '"></i>'; }).join('') + '</span>' : '') +
         '</button>';
     }
     html += '</div>';
-    html += '<div class="hist-legend muted small"><span><i class="team"></i>チームメニュー</span><span><i class="mine"></i>自分のメニュー・白紙</span></div></div>';
+    html += '<div class="hist-legend muted small"><span><i class="team"></i>チームメニュー</span><span><i class="mine"></i>自分のメニュー・白紙</span><span><i class="add"></i>追加できる日（' + MAX_BACKDATE_DAYS + '日前まで）</span></div></div>';
     // 選んだ日の詳しい記録
     html += History.detailHtml(History.selected, days[History.selected]);
     // 月ごとの回数（今年度）
@@ -89,6 +103,10 @@ var History = {
 
   /** 選んだ日の記録（種目とセット） */
   detailHtml: function (date, list) {
+    if (date && !list && History.canAdd(date)) {   // 記録が無い日（3日前まで）→ 追加だけ出す
+      var m0 = /^(\d{4})-(\d{2})-(\d{2})/.exec(date), wd0 = '日月火水木金土'.charAt(new Date(Number(m0[1]), Number(m0[2]) - 1, Number(m0[3])).getDay());
+      return '<div class="card hist-detail"><h2>' + Number(m0[2]) + '月' + Number(m0[3]) + '日（' + wd0 + '）</h2><p class="muted small">この日の記録はまだありません。</p>' + History.addHtml(date) + '</div>';
+    }
     if (!date || !list) {
       return '<div class="card muted">' + (History.data.sessions.length ? '印の付いた日をタップすると、その日の記録が出ます。' : 'この月のトレーニングの記録はまだありません。') + '</div>';
     }
@@ -106,7 +124,26 @@ var History = {
       }
       html += '</div>';
     });
+    if (History.canAdd(date)) html += History.addHtml(date);
     return html + '</div>';
+  },
+
+  /**
+   * その日の分を追加するボタン（v27）。押すとその日の分としてトレーニングが始まり、終了画面で保存する。
+   * data-bd … 何日前か（app.js の onAct・mymenu.js の MyMenu.onClick が読み取って、その日の記録にする）
+   */
+  addHtml: function (date) {
+    var n = History.daysAgo(date), h = S.home, bd = ' data-bd="' + n + '"';
+    var html = '<div class="hist-add"><b>' + (n === 0 ? '今日' : backdateWord(n)) + 'の分を' + (n === 0 ? '記録する' : '追加する') + '</b><div class="next-pills">';
+    h.days.forEach(function (d) {
+      html += '<button class="btn sub btn-pill" data-act="startDay" data-day="' + d.day + '"' + bd + '>Day' + d.day + (d.dayName ? '（' + esc(d.dayName) + '）' : '') + '</button>';
+    });
+    MyMenu.list().forEach(function (m) {
+      html += '<button class="btn sub btn-pill" data-mm="start" data-id="' + esc(m.id) + '"' + bd + '>' + esc(m.name) + '</button>';
+    });
+    html += '<button class="btn sub btn-pill" data-act="startFree"' + bd + '>白紙から</button></div>' +
+      '<p class="muted small">選んだメニューで始まります。セットに ✓ を付けて、最後に「おわる」→「記録を保存する」で、この日の記録になります。</p></div>';
+    return html;
   },
 
   /** セット内容を短く（「60kg×8 ×3セット」「60kg×8, 57.5kg×7」） */
