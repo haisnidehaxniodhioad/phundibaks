@@ -8,7 +8,7 @@
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v22 2026-10-28';
+var APP_VERSION = 'v23 2026-10-29';
 var S = { token: null, home: null, draft: null, view: 'loading' };
 var app = document.getElementById('app');
 
@@ -202,9 +202,10 @@ function menuText(title, items) {
  */
 function announceStart(intro) {
   var remaining = remainingItems();
-  var say = intro + '今日の種目は、' + remaining.map(function (r) { return r.name; }).join('、') + 'の' + remaining.length + '種目です。' +
-    (remaining.length > 1 ? 'どの種目から始めますか？画面で選ぶか、「' + remaining[0].name + 'から」のように話してね。'
-                          : '最初は' + Speech.exerciseText(S.draft.items[0], latestOf(S.draft.items[0].name)));
+  var names = remaining.map(function (r) { return r.name; }).join('、');
+  var say = remaining.length <= 1 ? intro + '最初は' + Speech.exerciseText(S.draft.items[0], latestOf(S.draft.items[0].name))
+    : Speech.brief() ? intro + '今日は、' + names + 'の' + remaining.length + '種目。どれからやる？'   // 短め（画面にボタンが出る）
+    : intro + '今日の種目は、' + names + 'の' + remaining.length + '種目です。どの種目から始めますか？画面で選ぶか、「' + remaining[0].name + 'から」のように話してね。';
   if (remaining.length > 1 && window.showRemaining) showRemaining(remaining, 'start');
   return say;
 }
@@ -449,17 +450,18 @@ function afterSetDone(i, prefix) {
       // 種目が1つ終わるたびに、残りの種目を伝えて、次にやる種目を選んでもらう（順番は選手が決める）
       var remaining = remainingItems();
       var names = remaining.map(function (r) { return r.name; });
-      Speech.speak(prefix + it.name + '、おつかれさまでした。' +
-        (names.length > 1 ? '残りは、' + names.join('、') + 'の' + names.length + '種目です。次はどれにしますか？'
-                          : '残りは' + names[0] + 'だけです。'));
+      Speech.speak(prefix + (Speech.brief()
+        ? it.name + '、終わり！' + (names.length > 1 ? '残りは、' + names.join('、') + '。次はどれにする？' : 'あとは' + names[0] + 'だけ！')
+        : it.name + '、おつかれさまでした。' + (names.length > 1 ? '残りは、' + names.join('、') + 'の' + names.length + '種目です。次はどれにしますか？'
+                                                                : '残りは' + names[0] + 'だけです。')));
       if (window.showRemaining) showRemaining(remaining, names.length > 1 ? 'next' : 'last');
     } else {
       Timer.stop();
-      Speech.speak(prefix + 'すべての種目が終わりました。終了して保存を押してください。');
+      Speech.speak(prefix + (Speech.brief() ? '全部終わり！おつかれさま。「おわる」で保存してね。' : 'すべての種目が終わりました。右上の「おわる」を押して、保存してください。'));
     }
   } else {
     if (it.rest) Timer.start(it.rest, '次のセットです。');
-    if (prefix) Speech.speak(prefix + (it.rest ? 'レスト' + it.rest + '秒です。' : ''));
+    if (prefix) Speech.speak(prefix + (it.rest ? 'レスト' + it.rest + (Speech.brief() ? '秒。' : '秒です。') : ''));
   }
 }
 
@@ -624,9 +626,9 @@ function onAct(t) {
     case 'avatarSettings': if (window.Avatar && typeof Avatar.openAppearancePicker === 'function') Avatar.openAppearancePicker(); else alert('トレーナー設定を読み込めませんでした。ページを再読み込みしてください。'); break;
     case 'home': if (S.view === 'session') S.reorder = false;
       Timer.stop(); Speech.stop(); Body.closeHistory(); renderHome(); break;
-    case 'speakItem': Speech.speak(Speech.exerciseText(dr.items[i], latestOf(dr.items[i].name))); break;
+    case 'speakItem': Speech.speak(Speech.exerciseText(dr.items[i], latestOf(dr.items[i].name), true)); break;   // 🔊 は短めの設定でも全部読む
     case 'speakCurrent': var c = currentIndex();
-      Speech.speak(c < 0 ? 'すべての種目が終わっています。' : Speech.exerciseText(dr.items[c], latestOf(dr.items[c].name))); break;
+      Speech.speak(c < 0 ? 'すべての種目が終わっています。' : Speech.exerciseText(dr.items[c], latestOf(dr.items[c].name), true)); break;
     case 'speakNext': var cur = currentIndex(), nx = cur < 0 ? -1 : cur + 1;
       Speech.speak(nx > 0 && nx < dr.items.length ? '次は' + Speech.exerciseText(dr.items[nx], latestOf(dr.items[nx].name)) :
         (cur >= 0 ? '今の' + dr.items[cur].name + 'が最後の種目です。' : 'すべての種目が終わっています。')); break;

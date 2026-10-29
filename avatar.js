@@ -284,25 +284,33 @@ var Avatar = {
     panel.setAttribute('aria-label', 'トレーナーの見た目を選択');
 
     panel.innerHTML =
-      '<div class="avatar-picker-title">コーチの設定</div>' +
+      '<div class="avatar-picker-head"><span class="avatar-picker-title">コーチの設定</span><button type="button" class="btn ghost avatar-picker-close">閉じる</button></div>' +
       '<div class="avatar-picker-row"><span class="avatar-picker-label">名前</span><span class="avatar-picker-name"></span></div>' +
       '<div class="avatar-picker-row"><span class="avatar-picker-label">種類</span>' +
         '<span class="avatar-picker-genders"><button type="button" class="btn sub avatar-picker-option" data-gender="male">男性</button>' +
         '<button type="button" class="btn sub avatar-picker-option" data-gender="female">女性</button></span></div>' +
       '<div class="avatar-picker-row"><span class="avatar-picker-label">声の速さ</span><span class="avatar-picker-rates">' +
         Speech.RATES.map(function (r) { return '<button type="button" class="btn sub avatar-picker-option" data-rate="' + r.key + '">' + r.label + '</button>'; }).join('') + '</span></div>' +
+      '<div class="avatar-picker-row"><span class="avatar-picker-label">話し方</span><span class="avatar-picker-genders">' +
+        Speech.LENGTHS.map(function (l) { return '<button type="button" class="btn sub avatar-picker-option" data-length="' + l.key + '">' + l.label + '</button>'; }).join('') + '</span></div>' +
+      '<div class="avatar-picker-row"><span class="avatar-picker-label">声</span><select class="avatar-picker-voice" aria-label="声"></select></div>' +
       '<button type="button" class="btn sub avatar-picker-try" data-try="1">🔊 声を試す</button>' +
-      '<div class="avatar-picker-description">種類・声の速さはこの端末に保存されます。声は男性・女性で変わります（スマホに入っている声によって聞こえ方は違います）。名前は「設定」シートの「キャラクターの名前」で変えられます。</div>' +
-      '<button type="button" class="btn ghost avatar-picker-close">閉じる</button>';
+      '<details class="avatar-picker-description"><summary>声が機械っぽいときは</summary>スマホに自然な声を入れると良くなります。iPhone：「設定」→「アクセシビリティ」→「読み上げコンテンツ」→「声」→「日本語」で、「Kyoko（拡張）」「Otoya（拡張）」などをダウンロードし、ここの「声」で選んでください（iOSの版によって名前が少し違うことがあります）。Android：「設定」→「テキスト読み上げ」で Google の音声データ（日本語）を入れてください。<br>種類・声の速さ・話し方・声はこの端末に保存されます。声は男性・女性で変わります（スマホに入っている声によって聞こえ方は違います）。名前は「設定」シートの「キャラクターの名前」で変えられます。</details>';
 
     panel.addEventListener('click', function (e) {
       var t = e.target.closest('button');
       if (!t) return;
       if (t.dataset.gender) { self.setGender(t.dataset.gender); self.trySpeak(); }
       else if (t.dataset.rate) { Speech.setRate(t.dataset.rate); self.trySpeak(); }
+      else if (t.dataset.length) Speech.setLength(t.dataset.length);
       else if (t.dataset.try) { self.trySpeak(); return; }
       else if (t.classList.contains('avatar-picker-close')) { panel.hidden = true; return; }
       self.refreshPicker(panel);
+    });
+    // 声の一覧から選ぶ（「おすすめ」は、自然な声・その性別の声を自動で選ぶ）
+    panel.querySelector('.avatar-picker-voice').addEventListener('change', function (e) {
+      Speech.setVoiceName(self.currentGender, e.target.value);
+      self.trySpeak();
     });
     document.body.appendChild(panel);
     this.refreshPicker(panel);
@@ -323,6 +331,17 @@ var Avatar = {
     Array.prototype.forEach.call(panel.querySelectorAll('[data-rate]'), function (b) {
       b.setAttribute('aria-pressed', String(b.dataset.rate === Speech.rateKey));
     });
+    Array.prototype.forEach.call(panel.querySelectorAll('[data-length]'), function (b) {
+      b.setAttribute('aria-pressed', String(b.dataset.length === Speech.lengthKey));
+    });
+    // 声の一覧（この端末に入っている日本語の声）。自然な声には「★」を付ける
+    Speech.loadVoices();
+    var sel = panel.querySelector('.avatar-picker-voice'), chosen = Speech.chosenName(this.currentGender);
+    var auto = Speech.bestVoice(this.currentGender === 'male');
+    sel.innerHTML = '<option value="">おすすめ' + (auto ? '（' + esc(auto.name) + '）' : '') + '</option>' +
+      Speech.voices.map(function (v) {
+        return '<option value="' + esc(v.name) + '"' + (v.name === chosen ? ' selected' : '') + '>' + (Speech.GOOD_VOICE.test(v.name) ? '★ ' : '') + esc(v.name) + '</option>';
+      }).join('');
   },
 
   /** ホームを開いたときのひとこと（既存仕様を維持） */

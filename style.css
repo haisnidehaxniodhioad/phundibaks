@@ -279,13 +279,18 @@ details > summary { cursor: pointer; }
 .avatar-picker .btn { min-height: 42px; }
 .avatar-picker-option { width: 100%; min-height: 44px; text-align: center; border-radius: 999px; }
 .avatar-picker-option[aria-pressed="true"] { background: var(--color-accent); color: #fff; box-shadow: none; }
-.avatar-picker-close { align-self: flex-end; }
+.avatar-picker-head { display: flex; align-items: center; justify-content: space-between; }
+.avatar-picker-close { min-height: 40px !important; }
+.avatar-picker-description summary { color: var(--color-accent-700); font-weight: 600; padding: 4px 0; }
+.avatar-picker-rates { grid-template-columns: repeat(4, 1fr) !important; }
+.avatar-picker-rates .avatar-picker-option { font-size: .78rem !important; padding: 2px !important; }
 .avatar-picker-row { display: flex; align-items: center; gap: 10px; }
 .avatar-picker-label { width: 4.6em; flex: none; font-size: .85rem; font-weight: 700; color: var(--color-neutral-700); }
 .avatar-picker-name { font-weight: 700; }
 .avatar-picker-genders { display: flex; gap: 8px; flex: 1; }
 .avatar-picker-genders .avatar-picker-option { flex: 1; }
 .avatar-picker-rates { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; flex: 1; }
+.avatar-picker-voice { flex: 1; min-width: 0; padding: 10px 14px; border-radius: 999px; font-size: .9rem; }
 .avatar-picker-rates .avatar-picker-option { min-height: 40px; font-size: .88rem; padding: 4px; }
 
 /* ---- トレーニング記録のカレンダー（history.js） ---- */

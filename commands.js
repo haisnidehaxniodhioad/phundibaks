@@ -606,7 +606,7 @@ function voiceInSession(text, cmd) {
     case 'current':
       return reply(text, cur < 0 ? 'すべての種目が終わっています。' :
         dr.items[cur].name + '、' + (dr.items[cur].sets.filter(function (s) { return s.done; }).length + 1) + 'セット目です。' +
-        Speech.exerciseText(dr.items[cur], latestOf(dr.items[cur].name)));
+        Speech.exerciseText(dr.items[cur], latestOf(dr.items[cur].name), true));   // 「今の種目」は全部読む
     case 'previous':
       var name = cmd.exercise || (cur >= 0 ? dr.items[cur].name : '');
       var last = name ? latestOf(name) : null;
@@ -677,7 +677,9 @@ function voiceRecord(text, cmd) {
   if (window.Avatar && typeof Avatar.feedback === 'function') Avatar.feedback('success', 1900);
   saveDraft();
   renderSession();
-  var said = Talk.nice() + it.name + '、' + (s.w !== '' && s.w !== null ? s.w + 'キロ' : '') + s.r + '回、' + (j + 1) + 'セット目を記録したよ。';
+  var wr = (s.w !== '' && s.w !== null ? s.w + 'キロ' : '') + s.r + '回';
+  var said = Speech.brief() ? Talk.nice() + (j + 1) + 'セット目、' + wr + '。'   // 短め（v23）
+                            : Talk.nice() + it.name + '、' + wr + '、' + (j + 1) + 'セット目を記録したよ。';
   VoiceUI.show(text, said);
   afterSetDone(i, said);
 }

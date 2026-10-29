@@ -35,21 +35,83 @@ var Speech = {
    *   女性の声の名前の例：Kyoko（iPhone）、Haruka・Ayumi・Nanami（Windows）、Google 日本語（Android など）
    * 高さ（pitch）は 1 がふつう。男性は低め、女性は少し高めにする。
    */
-  MALE_VOICE: /otoya|ichiro|keita|daichi|takumi|hattori|male|男性/i,
-  FEMALE_VOICE: /kyoko|haruka|ayumi|nanami|sayaka|mizuki|o-ren|female|女性|google/i,
+  MALE_VOICE: /otoya|ichiro|keita|daichi|takumi|hattori|hiroshi|male|男性/i,
+  FEMALE_VOICE: /kyoko|haruka|ayumi|nanami|sayaka|mizuki|o-ren|aoi|female|女性|google/i,
+  // 自然に聞こえる声の印（iPhone の「拡張」「プレミアム」、Edge の「Natural」「Online」など）
+  GOOD_VOICE: /enhanced|premium|拡張|プレミアム|natural|neural|online/i,
   voices: [],
+  voiceKey: 'trainingVoiceName_',   // 選んだ声の名前（男性・女性それぞれ、この端末に保存）
   loadVoices: function () {
     if (!this.supported) return;
     this.voices = window.speechSynthesis.getVoices().filter(function (v) { return /^ja/i.test(v.lang); });
+  },
+  /** 男性・女性に合う声に点数を付けて、いちばん良い声を選ぶ（自然な声・その性別の名前ほど高い） */
+  bestVoice: function (male) {
+    var self = this, re = male ? this.MALE_VOICE : this.FEMALE_VOICE, best = null, bestScore = -1;
+    this.voices.forEach(function (v) {
+      if (male && /female|女性/i.test(v.name)) return;
+      var score = (re.test(v.name) ? 3 : 0) + (self.GOOD_VOICE.test(v.name) ? 2 : 0) + (v.localService === false ? 1 : 0);
+      if (!re.test(v.name)) score -= 2;   // 性別がわからない声は、ほかに無いときだけ使う
+      if (score > bestScore) { best = v; bestScore = score; }
+    });
+    return bestScore >= 1 ? best : null;
+  },
+  /** 選んで保存してある声（「おすすめ」のときは空） */
+  chosenName: function (gender) {
+    try { return localStorage.getItem(this.voiceKey + gender) || ''; } catch (e) { return ''; }
+  },
+  setVoiceName: function (gender, name) {
+    try { if (name) localStorage.setItem(this.voiceKey + gender, name); else localStorage.removeItem(this.voiceKey + gender); } catch (e) {}
   },
   /** 今のトレーナー（男性・女性）に合う声と高さ */
   voiceSetting: function () {
     var male = !(window.Avatar && Avatar.currentGender === 'female');
     if (!this.voices.length) this.loadVoices();
-    var re = male ? this.MALE_VOICE : this.FEMALE_VOICE;
-    var hit = this.voices.filter(function (v) { return re.test(v.name) && !(male && /female|女性/i.test(v.name)); })[0] || null;
-    // 男性の声が見つかったときは高さを少しだけ下げる。見つからないときは、ふつうの声を低くして男性らしくする
-    return { voice: hit, pitch: male ? (hit ? 0.95 : 0.7) : (hit ? 1.05 : 1.15) };
+    var name = this.chosenName(male ? 'male' : 'female');
+    var picked = name ? this.voices.filter(function (v) { return v.name === name; })[0] : null;
+    var hit = picked || this.bestVoice(male);
+    var matches = hit && (male ? this.MALE_VOICE : this.FEMALE_VOICE).test(hit.name);
+    // その性別の声が見つかったときは高さを少しだけ変える。見つからないときは、ふつうの声の高さで男女の差をつける
+    return { voice: hit, pitch: male ? (matches ? 0.95 : 0.7) : (matches ? 1.05 : 1.15) };
+  },
+
+  /**
+   * 話す長さ（トレーナー設定で選ぶ。この端末に保存）。
+   *   short … 短め（テンポ・余力などの細かい説明は、聞かれたとき・🔊を押したときだけ）
+   *   normal … ふつう（今までどおり、全部読む）
+   */
+  LENGTHS: [{ key: 'short', label: '短め' }, { key: 'normal', label: 'くわしく' }],
+  lengthKey: 'short',
+  lengthStorage: 'trainingVoiceLength',
+  brief: function () { return this.lengthKey === 'short'; },
+  setLength: function (key) {
+    if (key !== 'short' && key !== 'normal') return;
+    this.lengthKey = key;
+    try { localStorage.setItem(this.lengthStorage, key); } catch (e) {}
+  },
+
+  /** 読み替え辞書（readings.js）で、読み間違えやすい言葉を読み方に置き換える。画面の文字は変えない */
+  readable: function (text) {
+    var s = String(text || '');
+    var list = (window.READINGS || []).slice().sort(function (a, b) { return b[0].length - a[0].length; });
+    list.forEach(function (r) { if (r[0]) s = s.split(r[0]).join(r[1]); });
+    return s;
+  },
+
+  /**
+   * 文を「。」「！」「？」で区切って、1文ずつ読む（単調にならないよう、文の終わり方で高さを少し変える）。
+   *   ！で終わる文 … 少し高く・少し速く（励まし・ほめ言葉が明るく聞こえる）
+   *   ？で終わる文 … 少しだけ高く
+   * 短すぎる文（4文字未満）は次の文とつなげる。
+   */
+  sentences: function (text) {
+    // かぎかっこの中の「？」「！」では区切らない（「次は？」のような例を、文の途中で切らないため）。かぎかっこは読まないので最後に消す
+    var parts = text.replace(/([。！？!?])(?![」』])\s*/g, '$1\n').split('\n')
+      .map(function (x) { return x.replace(/[」』]\s*[「『]/g, '、').replace(/[「」『』]/g, '').trim(); }).filter(Boolean), out = [];
+    parts.forEach(function (p) {
+      if (out.length && out[out.length - 1].length < 4) out[out.length - 1] += p; else out.push(p);
+    });
+    return out;
   },
 
   /**
@@ -61,26 +123,31 @@ var Speech = {
     if (fromTap) this.unlocked = true;   // タップから直接の読み上げで、以降の自動読み上げも使えるようになる
     var wait = Date.now() - this.micEndedAt < 1000 ? 450 : 0;
     var run = function () {
-      var u = new SpeechSynthesisUtterance(text);
-      u.lang = 'ja-JP';
-      var vs = Speech.voiceSetting();
-      try { if (vs.voice) u.voice = vs.voice; } catch (e) { /* 声を選べない端末では、ふつうの声のまま */ }
-      u.pitch = vs.pitch;
-      u.rate = Speech.rate();
-      u.volume = 1;
-      u.onstart = function () { Speech.unlocked = true; };
-      // アバターの口を動かす（avatar.js）。読み上げが終わったら止める
-      if (window.Avatar) {
-        Avatar.talk(true, text);
-        u.onend = u.onerror = function () {
-          Avatar.talk(false);
-          if (typeof Avatar.finishFeedbackAfterSpeech === 'function') Avatar.finishFeedbackAfterSpeech();
-        };
-        u.onboundary = function () { Avatar.pulse(); };
-      }
+      var vs = Speech.voiceSetting(), rate = Speech.rate(), list = Speech.sentences(Speech.readable(text));
       window.speechSynthesis.cancel();
       window.speechSynthesis.resume();   // iPhoneで読み上げが「一時停止」のまま止まるのを防ぐ
-      window.speechSynthesis.speak(u);
+      // アバターの口を動かす（avatar.js）。最後の文を読み終わったら止める
+      if (window.Avatar) Avatar.talk(true, text);
+      list.forEach(function (part, k) {
+        var u = new SpeechSynthesisUtterance(part);
+        u.lang = 'ja-JP';
+        try { if (vs.voice) u.voice = vs.voice; } catch (e) { /* 声を選べない端末では、ふつうの声のまま */ }
+        var lift = /[！!]$/.test(part) ? 0.08 : /[？?]$/.test(part) ? 0.04 : 0;
+        u.pitch = Math.min(2, vs.pitch + lift);
+        u.rate = rate * (/[！!]$/.test(part) ? 1.04 : 1);
+        u.volume = 1;
+        u.onstart = function () { Speech.unlocked = true; };
+        if (window.Avatar) {
+          u.onboundary = function () { Avatar.pulse(); };
+          if (k === list.length - 1) {
+            u.onend = u.onerror = function () {
+              Avatar.talk(false);
+              if (typeof Avatar.finishFeedbackAfterSpeech === 'function') Avatar.finishFeedbackAfterSpeech();
+            };
+          }
+        }
+        window.speechSynthesis.speak(u);
+      });
     };
     if (wait) setTimeout(run, wait); else run();
   },
@@ -131,16 +198,19 @@ var Speech = {
   },
 
   /** 種目の内容を読み上げる文章にする */
-  exerciseText: function (item, latest) {
+  exerciseText: function (item, latest, full) {
+    var brief = this.brief() && !full;   // 短めの設定でも、full=true（🔊ボタン・「今の種目」）のときは全部読む
     var s = item.name + '。';
     // メニューの種目は reps/sets、トレーニング中の種目は planned.reps/planned.sets に予定が入っている
     var reps = item.reps || (item.planned && item.planned.reps);
     var sets = item.sets && !Array.isArray(item.sets) ? item.sets : (item.planned && item.planned.sets);
     if (reps && sets) s += reps + '回を' + sets + 'セット。';
-    if (item.rest) s += 'レストは' + item.rest + '秒。';
-    var tempo = this.tempoText(item.tempo);
-    if (tempo) s += tempo + '。';
-    if (item.rir && item.rir !== '-') s += '余力は' + item.rir + '回残します。';
+    if (!brief) {
+      if (item.rest) s += 'レストは' + item.rest + '秒。';
+      var tempo = this.tempoText(item.tempo);
+      if (tempo) s += tempo + '。';
+      if (item.rir && item.rir !== '-') s += '余力は' + item.rir + '回残します。';
+    }
     if (latest && latest.sets) {
       // 前回の1セット目だけを読む（例: 「60kg×8」→「前回は60キロで8回でした」）
       var first = latest.sets.split(',')[0].trim();
@@ -203,6 +273,7 @@ var Sound = {
 
 // 保存しておいた声の速さを読み込む。声の一覧はあとから届くことがあるので、届いたら読み直す
 try { var savedRate = localStorage.getItem(Speech.storageKey); if (savedRate) Speech.setRate(savedRate); } catch (e) {}
+try { var savedLen = localStorage.getItem(Speech.lengthStorage); if (savedLen) Speech.setLength(savedLen); } catch (e) {}
 if (Speech.supported) {
   Speech.loadVoices();
   if ('onvoiceschanged' in window.speechSynthesis) window.speechSynthesis.onvoiceschanged = function () { Speech.loadVoices(); };
