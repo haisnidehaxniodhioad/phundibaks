@@ -39,9 +39,9 @@ var Body = {
 
   renderMine: function () {
     var a = Body.mine, tab = Body.tab || (a.inbody.length || !a.weight.length ? 'inbody' : 'weight');
-    app.innerHTML = '<div class="topbar"><h1>体組成レポート</h1><button class="btn ghost" data-act="home">ホームへ</button></div>' +
+    app.innerHTML = '<div class="group"><div class="topbar"><h1>体組成レポート</h1><button class="btn ghost" data-act="home">ホームへ</button></div>' +
       '<div class="tabs"><button class="tab' + (tab === 'inbody' ? ' on' : '') + '" data-body-tab="inbody">InBody</button>' +
-      '<button class="tab' + (tab === 'weight' ? ' on' : '') + '" data-body-tab="weight">体重</button></div>' +
+      '<button class="tab' + (tab === 'weight' ? ' on' : '') + '" data-body-tab="weight">体重</button></div></div>' +
       (tab === 'inbody' ? Body.physicalHtml(a) : Body.weightReportHtml(a));
   },
 

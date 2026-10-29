@@ -138,6 +138,8 @@ function renderHome(notice, warning) {
   // 自分のメニュー（mymenu.js）。チームのメニューが無い選手は、いちばん上に出す
   if (!h.days.length) html += MyMenu.homeCard();
 
+  // v30：似た内容はカード1枚にまとめる（.group）。今週のスタンプ・今日のおすすめ・もう一度・前回 は「今週のトレーニング」の1枚
+  html += '<div class="group">';
   // 今週のスタンプ（Dayごとの丸。済み＝✓、今日のおすすめ＝輪っか）
   if (h.days.length) {
     var left = h.days.filter(function (d) { return !h.doneDays[d.day]; }).length;
@@ -176,12 +178,12 @@ function renderHome(notice, warning) {
     });
     html += '</details>';
   }
-  if (h.days.length) html += MyMenu.homeCard();
-
   if (h.last) {
     html += '<p class="muted small">前回: ' + esc(h.last.date) + '（' + esc(h.last.type) +
       (h.last.day ? ' Day' + esc(h.last.day) : '') + '）</p>';
   }
+  html += '</div>';
+  if (h.days.length) html += MyMenu.homeCard();
   html += '<p class="ver">' + esc(APP_VERSION) + '</p>';
   app.innerHTML = html;
 }
@@ -321,7 +323,7 @@ function renderSession() {
   var isDone = function (it) { return it.sets.every(function (s) { return s.done; }); };
   var doneCount = dr.items.filter(isDone).length;
   var head = !n ? '種目を追加しよう' : cur < 0 ? '全' + n + '種目おわり！' : (doneCount + 1) + '種目め / 全' + n + '種目';
-  var html = '<div class="sess-head"><div><span class="kicker">' + esc(dr.title) + (dr.backdate ? '・<b class="late">' + backdateLabel(dr.backdate) + 'の分</b>' : '') + '</span><h1>' + head + '</h1></div>' +
+  var html = '<div class="group"><div class="sess-head"><div><span class="kicker">' + esc(dr.title) + (dr.backdate ? '・<b class="late">' + backdateLabel(dr.backdate) + 'の分</b>' : '') + '</span><h1>' + head + '</h1></div>' +
     '<div class="row nowrap"><button class="btn ghost" data-act="home">ホーム</button>' +
     '<button class="btn sub btn-pill" data-act="finish">おわる</button></div></div>';
   if (n) {
@@ -331,12 +333,15 @@ function renderSession() {
   } else {
     html += '<p class="muted">下の欄から種目を追加してください。</p>';
   }
+  html += '</div>';
 
   // 今の種目
   if (cur >= 0) html += exerciseCard(cur, true);
   else if (n) html += '<div class="card soft center"><b>すべての種目が終わったよ！</b><p class="muted small">右上の「おわる」を押して、きつさを入れて保存してね。</p>' +
     '<button class="btn btn-pill block" data-act="finish">おわる（保存へ）</button></div>';
 
+  // v30：つぎにやる種目・終わった種目・種目を追加 は「種目」の1枚にまとめる
+  html += '<div class="group">';
   // つぎにやる種目（押すと、その種目を次にやる）
   var rest = [];
   dr.items.forEach(function (it, i) { if (i !== cur && !isDone(it)) rest.push(i); });
@@ -370,7 +375,7 @@ function renderSession() {
   html += '<div class="card soft"><label for="addName">種目を追加</label><div class="row nowrap">' +
     '<input id="addName" class="input-pill" list="exList" placeholder="例：デッドリフト" style="flex:1">' +
     '<button class="btn btn-pill" data-act="addItem">追加</button></div><datalist id="exList">' +
-    S.home.exercises.map(function (e) { return '<option value="' + esc(e.name) + '">'; }).join('') + '</datalist></div>';
+    S.home.exercises.map(function (e) { return '<option value="' + esc(e.name) + '">'; }).join('') + '</datalist></div></div>';
   app.innerHTML = html;
 }
 
@@ -516,7 +521,7 @@ function renderFinish(error, notice) {
   var minutes = dr.backdate ? (dr.minutes || '—') : Math.max(1, Math.round((Date.now() - new Date(dr.startedAt).getTime()) / 60000));
   var labels = ['', 'とても楽', '楽', '少し楽', 'ややきつい', 'きつい', '', 'かなりきつい', '', 'とてもきつい', '限界'];
   var tile = function (num, unit) { return '<div class="stat"><b>' + num + '</b><span>' + unit + '</span></div>'; };
-  var html = '<div class="fin-head"><span class="kicker">' + esc(dr.title) + (dr.backdate ? '・<b class="late">' + backdateLabel(dr.backdate) + 'の分</b>' : '') + '</span><h1>おつかれさま！</h1>' +
+  var html = '<div class="group"><div class="fin-head"><span class="kicker">' + esc(dr.title) + (dr.backdate ? '・<b class="late">' + backdateLabel(dr.backdate) + 'の分</b>' : '') + '</span><h1>おつかれさま！</h1>' +
     '<div class="stats">' + tile(done.length, '種目') + tile(setCount, 'セット') + tile(minutes, '分') + '</div>' +
     '<p class="muted small">' + (done.length ? '✓を付けたセットだけが保存されます。' : '✓が付いたセットがまだありません。「トレーニングに戻る」で✓を付けてね。') + '</p></div>';
   // 記録し忘れた日の分（カレンダーの日付から始めたとき）は、かかった時間を入れられる（v28：日付はカレンダーで選ぶので、ここでは選ばない）
@@ -530,7 +535,7 @@ function renderFinish(error, notice) {
     (dr.srpe ? '<div class="rpe-pill">' + dr.srpe + (labels[dr.srpe] ? '：' + labels[dr.srpe] : '') + '</div>' : '') + '</section>';
   html += MyMenu.finishCard(dr, notice);   // 自分のメニューで記録したときは、その内容をメニューとして保存できる
   html += msgHtml('error', error);
-  html += '<button class="btn ghost block" data-act="back">トレーニングに戻る</button>';
+  html += '<button class="btn ghost block" data-act="back">トレーニングに戻る</button></div>';
   app.innerHTML = html;
 }
 

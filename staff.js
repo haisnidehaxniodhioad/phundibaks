@@ -16,10 +16,10 @@ var Staff = {
 
   frame: function (inner) {
     var tabs = [['overview', '実施状況'], ['inbody', 'InBody'], ['weight', '体重']];
-    return '<div class="topbar"><h1>スタッフ画面</h1><button class="btn ghost" data-act="logout">ログアウト</button></div>' +
+    return '<div class="group"><div class="topbar"><h1>スタッフ画面</h1><button class="btn ghost" data-act="logout">ログアウト</button></div>' +
       '<p class="muted small">' + esc(Staff.name) + 'さん　<span class="ver">' + esc(APP_VERSION) + '</span></p><div class="tabs">' +
       tabs.map(function (t) { return '<button class="tab' + (Staff.tab === t[0] ? ' on' : '') + '" data-staff="tab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') +
-      '</div>' + inner;
+      '</div></div>' + inner;
   },
 
   render: function () {

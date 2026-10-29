@@ -61,12 +61,18 @@ var History = {
     var y = Number(d.month.slice(0, 4)), m = Number(d.month.slice(5, 7));
     var monthCount = d.sessions.length, dayCount = Object.keys(days).length;
     // いちばん上：その月に何日やったか（v20：レイアウト案 2a）
-    var html = '<div class="topbar"><span class="kicker">トレーニング記録</span><button class="btn ghost" data-act="home">ホームへ</button></div>' +
+    // v30：見出し・回数のまとめ・今年度の月ごとの回数 は1枚にまとめる（似た内容なので）
+    var html = '<div class="group"><div class="topbar"><span class="kicker">トレーニング記録</span><button class="btn ghost" data-act="home">ホームへ</button></div>' +
       '<div class="hist-summary"><span class="big-num">' + (d.month === d.current ? '今月' : m + '月') + 'は<em> ' + dayCount + '日 </em>' +
       (dayCount ? 'がんばったね' : 'まだ記録がないよ') + '</span>' +
-      '<span class="muted small">' + (monthCount !== dayCount ? 'この月 ' + monthCount + '回・' : '') + '今週 ' + d.weekCount + '回・今年度 ' + d.yearCount + '回</span></div>';
+      '<span class="muted small">' + (monthCount !== dayCount ? 'この月 ' + monthCount + '回・' : '') + '今週 ' + d.weekCount + '回・今年度 ' + d.yearCount + '回</span></div>' +
+      '<div class="hist-months">' + d.months.map(function (mo) {
+        return '<button class="hist-mbtn' + (mo.month === d.month ? ' on' : '') + '" data-hist-month="' + mo.month + '">' +
+          Number(mo.month.slice(5, 7)) + '月<b>' + mo.count + '</b></button>';
+      }).join('') + '</div></div>';
     // 月の切り替え
-    html += '<div class="card"><div class="hist-month">' +
+    // カレンダーと、選んだ日の記録は1枚にまとめる（v30）
+    html += '<div class="group"><div class="hist-month">' +
       '<button class="btn ghost hist-nav" data-hist-month="' + History.shift(d.month, -1) + '"' + (d.month <= d.fyStart ? ' disabled' : '') + ' aria-label="前の月">‹</button>' +
       '<div class="hist-title">' + y + '年' + m + '月</div>' +
       '<button class="btn ghost hist-nav" data-hist-month="' + History.shift(d.month, 1) + '"' + (d.month >= d.current ? ' disabled' : '') + ' aria-label="次の月">›</button></div>';
@@ -91,14 +97,9 @@ var History = {
         '</button>';
     }
     html += '</div>';
-    html += '<div class="hist-legend muted small"><span><i class="team"></i>チームメニュー</span><span><i class="mine"></i>自分のメニュー・白紙</span><span><i class="add"></i>追加できる日（' + MAX_BACKDATE_DAYS + '日前まで）</span></div></div>';
+    html += '<div class="hist-legend muted small"><span><i class="team"></i>チームメニュー</span><span><i class="mine"></i>自分のメニュー・白紙</span><span><i class="add"></i>追加できる日（' + MAX_BACKDATE_DAYS + '日前まで）</span></div>';
     // 選んだ日の詳しい記録
-    html += History.detailHtml(History.selected, days[History.selected]);
-    // 月ごとの回数（今年度）
-    html += '<div class="card"><h2>今年度の月ごとの回数</h2><div class="hist-months">' + d.months.map(function (mo) {
-      return '<button class="hist-mbtn' + (mo.month === d.month ? ' on' : '') + '" data-hist-month="' + mo.month + '">' +
-        Number(mo.month.slice(5, 7)) + '月<b>' + mo.count + '</b></button>';
-    }).join('') + '</div></div>';
+    html += History.detailHtml(History.selected, days[History.selected]) + '</div>';
     app.innerHTML = html;
   },
 

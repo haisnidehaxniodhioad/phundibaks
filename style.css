@@ -565,12 +565,12 @@ body.report-modal-open { overflow: hidden; }
 
 /* ---- 縦じまの上に直接のる文字は、白い（夜は紺の）カードに乗せて読みやすくする ----
  *   :where() を使っているので、ほかの決まり（.btn など）があればそちらが優先される */
-:where(.wrap, .sec, .login) > :where(h1, h2, h3, p, label, details, form, .muted, .kicker, .topbar, .home-top, .sess-head, .fin-head,
+:where(.wrap) > :where(h1, h2, h3, p, label, details, form, .muted, .kicker, .topbar, .home-top, .sess-head, .fin-head,
   .sec-head, .hist-summary, .rpe-scale, .again, .ver, .loading, .stamps, .progress, .stats, .rpe, .row, .chips, .center, .login-hero, .coach-hello, .table-scroll) {
   background: var(--color-paper); border-radius: 18px; padding: 10px 14px; box-shadow: var(--shadow-sm);
 }
-:where(.wrap, .sec, .login) > :where(h1, h2, h3) { width: fit-content; max-width: 100%; padding: 6px 14px; }
-:where(.wrap, .sec) > :where(.coach-hello) { padding: 0; background: none; box-shadow: none; }
+:where(.wrap) > :where(h1, h2, h3) { width: fit-content; max-width: 100%; padding: 6px 14px; }
+:where(.wrap) > :where(.coach-hello) { padding: 0; background: none; box-shadow: none; }
 .sec { margin: 14px 0; }
 /* 表・カードにはすべて影を付けて、縦じまから浮かせる */
 .card, .today-card, .mm-row, .ex-card, .hist-month, .tabs, .mm-finish, .mm-item, .reorder-row, .done-row, .stat, .report-card { box-shadow: var(--shadow-md); }
@@ -675,6 +675,31 @@ body.has-dock .wrap { padding-bottom: calc(var(--dock-h, 120px) + 24px); }
 .report-modal { background: var(--color-paper); color: var(--color-text); }
 .row-ng td { background: var(--color-accent-2-100); }
 /* 縦じまの上に直接ある文字だけのボタン（「白紙から記録する」など）にも面を付ける */
-:where(.wrap, .sec) > .btn.ghost { background: var(--color-paper); box-shadow: var(--shadow-sm); border-radius: 16px; }
+:where(.wrap) > .btn.ghost { background: var(--color-paper); box-shadow: var(--shadow-sm); border-radius: 16px; }
 /* 上の帯の影は下側だけに出す（日付の段とのつなぎ目に線が出ないように） */
 .coach-band, .coach-hello { box-shadow: 0 10px 16px -8px rgba(31,42,90,0.35); }
+
+/* ---- v30b：似た内容はカード1枚（.group）にまとめる ----
+ *   .group の中の見出し・カードは面を付けず、細い線で区切るだけにする */
+.group { background: var(--color-paper); border-radius: var(--round); padding: 16px; margin: 0 0 16px; box-shadow: var(--shadow-md); }
+.group > :where(.sec, section, .card, .today-card, .mm-finish, .hist-month, .tabs, .again, .hist-summary, .topbar, .sess-head, .fin-head, .progress, p, label, h2) {
+  background: transparent; box-shadow: none; }
+.group > .card, .group > .today-card, .group > .sec, .group > .card.soft, .group > .hist-detail { padding: 0; margin: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.group > * + :is(.sec, section, .card, .today-card, .mm-finish, .hist-detail) { border-top: 1.5px solid var(--color-divider); padding-top: 14px; margin-top: 14px; }
+.group > .topbar { margin-bottom: 4px; }
+.group > .tabs { background: var(--color-surface); margin-bottom: 0; }
+.group > .hist-month { background: var(--color-surface); }
+.group .hist-months { margin-top: 12px; }
+.group > .sess-head + .progress { margin-bottom: 0; }
+.group > .fin-head + .sec, .group > .sec + .sec { border-top: 1.5px solid var(--color-divider); padding-top: 14px; margin-top: 14px; }
+/* ログインも1枚 */
+.login { background: var(--color-paper); border-radius: var(--round); padding: 20px; margin-top: 12px; box-shadow: var(--shadow-md); }
+.login > :not(input):not(.btn) { background: transparent !important; box-shadow: none !important; }
+.login > label { padding: 0 !important; }
+.login > .ver, .login > p { padding: 0 !important; }
+/* 版の表示は小さな文字だけ（面は付けない） */
+:where(.wrap) > .ver { background: none; box-shadow: none; padding: 0 4px; text-shadow: 0 0 4px var(--color-bg), 0 0 8px var(--color-bg), 0 0 2px var(--color-bg); }
+/* グループの外の .sec（ホームの「自分のメニュー」など）も、それだけで1枚のカード */
+:where(.wrap) > .sec { background: var(--color-paper); border-radius: var(--round); padding: 16px; box-shadow: var(--shadow-md); }
+.group .hist-mbtn { background: var(--color-surface); }
+.group .hist-mbtn.on { background: var(--color-accent); color: #fff; }

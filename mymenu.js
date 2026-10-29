@@ -62,7 +62,8 @@ var MyMenu = {
       return '<label class="mm-num"><span>' + label + '</span><input type="number" inputmode="numeric" min="0" max="' + max + '" class="' + cls + '" data-i="' + i + '" value="' + esc(v) + '"></label>';
     };
     // 「保存する」は画面の下のバー（dock.js）にある
-    var html = '<div class="topbar"><h1>' + (e.id ? 'メニューを編集' : 'メニューを作る') + '</h1><button class="btn ghost" data-mm="cancel">やめる</button></div>' +
+    // v30：名前と種目は1枚のカードにまとめる
+    var html = '<div class="group"><div class="topbar"><h1>' + (e.id ? 'メニューを編集' : 'メニューを作る') + '</h1><button class="btn ghost" data-mm="cancel">やめる</button></div>' +
       msgHtml('error', error) +
       '<label for="mmName">メニューの名前</label><input id="mmName" class="input-pill" maxlength="30" placeholder="例：上半身A" value="' + esc(e.name) + '">' +
       '<p class="muted small">「' + esc(e.name || '上半身A') + 'を始める」と話しかけると始まります。</p>' +
@@ -76,7 +77,7 @@ var MyMenu = {
       }).join('') +
       '<button class="btn sub btn-pill block" data-mm="add">' + Icon('plus', 18) + '種目を追加</button>' +
       '<datalist id="exList">' + S.home.exercises.map(function (x) { return '<option value="' + esc(x.name) + '">'; }).join('') + '</datalist></section>' +
-      (e.id ? '<button class="btn ghost block danger-text" data-mm="remove">このメニューを消す</button>' : '');
+      (e.id ? '<button class="btn ghost block danger-text" data-mm="remove">このメニューを消す</button>' : '') + '</div>';
     app.innerHTML = html;
   },
 
