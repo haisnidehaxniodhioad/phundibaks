@@ -8,7 +8,7 @@
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v24 2026-10-29';
+var APP_VERSION = 'v25 2026-10-29';
 var S = { token: null, home: null, draft: null, view: 'loading' };
 var app = document.getElementById('app');
 

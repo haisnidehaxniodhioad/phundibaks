@@ -11,10 +11,11 @@ var Speech = {
    * 声の速さ（トレーナー設定で選ぶ。この端末に保存）。数字を大きくすると速くなる（1 がふつうの速さ）。
    */
   RATES: [
-    { key: 'slow', label: 'ゆっくり', rate: 0.9 },
+    // v25：差が大きすぎたので幅を狭めた（iPhone は数字を少し変えただけでも速さが大きく変わる）
+    { key: 'slow', label: 'ゆっくり', rate: 0.92 },
     { key: 'normal', label: 'ふつう', rate: 1.0 },
-    { key: 'fast', label: 'はやい', rate: 1.25 },
-    { key: 'faster', label: 'とてもはやい', rate: 1.5 }
+    { key: 'fast', label: 'やや速い', rate: 1.08 },
+    { key: 'faster', label: '速い', rate: 1.16 }
   ],
   rateKey: 'normal',
   storageKey: 'trainingVoiceRate',
@@ -135,7 +136,7 @@ var Speech = {
         try { if (vs.voice) u.voice = vs.voice; } catch (e) { /* 声を選べない端末では、ふつうの声のまま */ }
         var lift = /[！!]$/.test(part) ? 0.08 : /[？?]$/.test(part) ? 0.04 : 0;
         u.pitch = Math.min(2, vs.pitch + lift);
-        u.rate = rate * (/[！!]$/.test(part) ? 1.04 : 1);
+        u.rate = rate * (/[！!]$/.test(part) ? 1.02 : 1);
         u.volume = 1;
         u.onstart = function () { Speech.unlocked = true; };
         if (window.Avatar) {
