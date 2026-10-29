@@ -8,7 +8,7 @@
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v27 2026-10-29';
+var APP_VERSION = 'v28 2026-10-29';
 // 記録し忘れた日の分を、何日前まで遡って入力できるか（v26）。Apps Script の 設定.gs の MAX_BACKDATE_DAYS と同じ数字にする
 var MAX_BACKDATE_DAYS = 3;
 var S = { token: null, home: null, draft: null, view: 'loading' };
@@ -177,7 +177,6 @@ function renderHome(notice, warning) {
     html += '</details>';
   }
   if (h.days.length) html += MyMenu.homeCard();
-  html += backdateCard();
 
   if (h.last) {
     html += '<p class="muted small">前回: ' + esc(h.last.date) + '（' + esc(h.last.type) +
@@ -185,24 +184,6 @@ function renderHome(notice, warning) {
   }
   html += '<p class="ver">' + esc(APP_VERSION) + '</p>';
   app.innerHTML = html;
-}
-
-/**
- * 記録し忘れた日の分を入れる（v26）。日付を選ぶと、上の「はじめる」や自分のメニューから始めたトレーニングが、その日の記録になる。
- * S.backdate … 選んだ日（何日前か。0 なら今日）
- */
-function backdateCard() {
-  if (S.draft) return '';
-  var html = '<details class="again backdate"' + (S.backdate ? ' open' : '') + '><summary>記録し忘れた日の分を入れる（' + MAX_BACKDATE_DAYS + '日前まで）</summary>';
-  if (S.backdate) {
-    html += '<div class="msg ok">' + backdateLabel(S.backdate) + 'の分を入れます。上の「はじめる」や自分のメニューから始めてね。' +
-      '<button class="btn ghost small" data-act="backdatePick" data-v="0">やめる</button></div>';
-  } else {
-    html += '<div class="next-pills">';
-    for (var n = 1; n <= MAX_BACKDATE_DAYS; n++) html += '<button class="btn sub btn-pill" data-act="backdatePick" data-v="' + n + '">' + backdateWord(n) + '<br><span class="small">' + backdateLabel(n) + '</span></button>';
-    html += '</div>';
-  }
-  return html + '</details>';
 }
 
 /** ホームの出迎えのひとこと */
@@ -535,17 +516,13 @@ function renderFinish(error, notice) {
   var minutes = dr.backdate ? (dr.minutes || '—') : Math.max(1, Math.round((Date.now() - new Date(dr.startedAt).getTime()) / 60000));
   var labels = ['', 'とても楽', '楽', '少し楽', 'ややきつい', 'きつい', '', 'かなりきつい', '', 'とてもきつい', '限界'];
   var tile = function (num, unit) { return '<div class="stat"><b>' + num + '</b><span>' + unit + '</span></div>'; };
-  var html = '<div class="fin-head"><span class="kicker">' + esc(dr.title) + '</span><h1>おつかれさま！</h1>' +
+  var html = '<div class="fin-head"><span class="kicker">' + esc(dr.title) + (dr.backdate ? '・<b class="late">' + backdateLabel(dr.backdate) + 'の分</b>' : '') + '</span><h1>おつかれさま！</h1>' +
     '<div class="stats">' + tile(done.length, '種目') + tile(setCount, 'セット') + tile(minutes, '分') + '</div>' +
     '<p class="muted small">' + (done.length ? '✓を付けたセットだけが保存されます。' : '✓が付いたセットがまだありません。「トレーニングに戻る」で✓を付けてね。') + '</p></div>';
-  // いつのトレーニングか（v26：記録し忘れた日の分は3日前まで）
+  // 記録し忘れた日の分（カレンダーの日付から始めたとき）は、かかった時間を入れられる（v28：日付はカレンダーで選ぶので、ここでは選ばない）
   var bd = dr.backdate || 0;
-  html += '<section class="sec"><h2>いつのトレーニング？</h2><div class="day-pills">';
-  for (var n = 0; n <= MAX_BACKDATE_DAYS; n++) html += '<button class="' + (bd === n ? 'on' : '') + '" data-act="backdate" data-v="' + n + '">' + backdateWord(n) + '<span>' + backdateLabel(n).replace(/（.）/, '') + '</span></button>';
-  html += '</div>';
-  if (bd) html += '<label for="finMinutes">かかった時間（分）<span class="muted small">　わかれば</span></label>' +
-    '<input id="finMinutes" class="input-pill" type="number" inputmode="numeric" min="0" max="600" placeholder="例：60" value="' + esc(dr.minutes || '') + '">';
-  html += '</section>';
+  if (bd) html += '<section class="sec"><label for="finMinutes">かかった時間（分）<span class="muted small">　わかれば</span></label>' +
+    '<input id="finMinutes" class="input-pill" type="number" inputmode="numeric" min="0" max="600" placeholder="例：60" value="' + esc(dr.minutes || '') + '"></section>';
   // きつさ（sRPE）：丸いボタン 1〜10。保存は画面の下の「記録を保存する」（dock.js）
   html += '<section class="sec"><h2>' + (bd ? 'その日の' : '今日の') + 'きつさは？</h2><div class="rpe">';
   for (var i = 1; i <= 10; i++) html += '<button class="' + (dr.srpe === i ? 'on' : '') + '" data-act="rpe" data-v="' + i + '" aria-label="きつさ' + i + '">' + i + '</button>';
@@ -708,8 +685,6 @@ function onAct(t) {
     case 'addItem': addItem(); break;
     case 'finish': renderFinish(); break;
     case 'rpe': readFinishMinutes(); dr.srpe = Number(t.dataset.v); saveDraft(); renderFinish(); break;
-    case 'backdate': readFinishMinutes(); dr.backdate = Number(t.dataset.v); saveDraft(); renderFinish(); break;   // v26：いつのトレーニングか
-    case 'backdatePick': S.backdate = Number(t.dataset.v); renderHome(); break;
     case 'back': renderSession(); break;
     case 'save': readFinishMinutes(); save(); break;
     // v20：トレーニング中の画面（つぎにやる種目・終わった種目を直す・順番の入れ替え）

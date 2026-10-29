@@ -129,20 +129,19 @@ var History = {
   },
 
   /**
-   * その日の分を追加するボタン（v27）。押すとその日の分としてトレーニングが始まり、終了画面で保存する。
+   * その日の分を記録するボタン（v27、v28で見出しをなくした）。押すとその日の分としてトレーニングが始まり、終了画面で保存する。
    * data-bd … 何日前か（app.js の onAct・mymenu.js の MyMenu.onClick が読み取って、その日の記録にする）
    */
   addHtml: function (date) {
     var n = History.daysAgo(date), h = S.home, bd = ' data-bd="' + n + '"';
-    var html = '<div class="hist-add"><b>' + (n === 0 ? '今日' : backdateWord(n)) + 'の分を' + (n === 0 ? '記録する' : '追加する') + '</b><div class="next-pills">';
+    var html = '<div class="hist-add"><div class="next-pills">';
     h.days.forEach(function (d) {
       html += '<button class="btn sub btn-pill" data-act="startDay" data-day="' + d.day + '"' + bd + '>Day' + d.day + (d.dayName ? '（' + esc(d.dayName) + '）' : '') + '</button>';
     });
     MyMenu.list().forEach(function (m) {
       html += '<button class="btn sub btn-pill" data-mm="start" data-id="' + esc(m.id) + '"' + bd + '>' + esc(m.name) + '</button>';
     });
-    html += '<button class="btn sub btn-pill" data-act="startFree"' + bd + '>白紙から</button></div>' +
-      '<p class="muted small">選んだメニューで始まります。セットに ✓ を付けて、最後に「おわる」→「記録を保存する」で、この日の記録になります。</p></div>';
+    html += '<button class="btn sub btn-pill" data-act="startFree"' + bd + '>白紙から</button></div></div>';
     return html;
   },
 
