@@ -8,7 +8,7 @@
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v23 2026-10-29';
+var APP_VERSION = 'v24 2026-10-29';
 var S = { token: null, home: null, draft: null, view: 'loading' };
 var app = document.getElementById('app');
 
@@ -186,14 +186,14 @@ function findDay(dayNo) { return S.home.days.filter(function (d) { return d.day 
 
 function suggestText() {
   var h = S.home, d = findDay(h.suggestion.order[0]);
-  return h.name + 'さん、' + h.suggestion.reason.replace(/Day(\d+)/g, 'デイ$1') + menuText(Speech.dayText(d.day), applySavedOrder(d.items, d.day));
+  return h.name + 'さん、' + h.suggestion.reason.replace(/Day(\d+)/g, 'デイ$1').replace(/です。/g, 'だよ。') + menuText(Speech.dayText(d.day), applySavedOrder(d.items, d.day));
 }
 
 /** メニューの中身を読み上げる文（「デイ2は、スクワット、ベンチプレス、懸垂の3種目です。」） */
 function menuText(title, items) {
   var names = items.map(function (it) { return it.name; });
   if (!names.length) return '';
-  return title + 'は、' + names.join('、') + 'の' + names.length + '種目です。';
+  return title + 'は、' + names.join('、') + 'の' + names.length + '種目だよ。';
 }
 
 /**
@@ -229,7 +229,7 @@ function startDay(dayNo) {
               items: items.map(function (it) { return makeItem(it, true); }) };
   saveDraft();
   renderSession();
-  Speech.speak(announceStart(Speech.dayText(d.day) + 'を始めます。'));
+  Speech.speak(announceStart(Speech.dayText(d.day) + 'を始めるよ。'));
 }
 
 // ---------------- 自分で決めた種目の並び順 ----------------

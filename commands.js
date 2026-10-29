@@ -113,7 +113,7 @@ var VoiceUI = {
   show: function (heard, reply, ng) {
     clearTimeout(this.hideHandle);
     if (ng && window.Avatar && typeof Avatar.feedback === 'function') Avatar.feedback('error', 1800);
-    else if (reply && /どの操作|どの種目|選んでください|始めますか|ですか[。！!]?$/.test(reply) &&
+    else if (reply && /どの操作|どの種目|選んでください|始めますか|始める？|ですか[。！!]?$/.test(reply) &&
              window.Avatar && typeof Avatar.feedback === 'function') Avatar.feedback('confirming', 1600);
     this.box.hidden = false;
     this.box.innerHTML = (heard ? '<div class="heard">🎤 ' + esc(heard) + '</div>' : '') +
@@ -254,7 +254,7 @@ VoiceUI.box.addEventListener('change', function (e) {
 /** 返事を画面に出して、読み上げる */
 function reply(heard, text, ng) {
   if (ng && window.Avatar && typeof Avatar.feedback === 'function') Avatar.feedback('error', 1800);
-  else if (/どの操作|どの種目|選んでください|始めますか/.test(text) &&
+  else if (/どの操作|どの種目|選んでください|始めますか|始める？/.test(text) &&
            window.Avatar && typeof Avatar.feedback === 'function') Avatar.feedback('confirming', 1600);
   VoiceUI.show(heard, text, ng);
   Speech.speak(text);
@@ -360,7 +360,7 @@ function offerDay(text, day, intro) {
   var d = findDay(day);
   Offer.day = day; Offer.until = Date.now() + 90000;
   var say = (intro ? intro : 'Day' + day + (d && d.dayName ? '（' + d.dayName + '）' : '') + 'はどうですか。' + (d ? menuText('Day' + day, applySavedOrder(d.items, d.day)) : '')) +
-            'デイ' + day + 'を始めますか？「はい」で始めます。';
+            'デイ' + day + 'を始める？「はい」で始めるよ。';
   VoiceUI.show(text, say);
   Speech.speak(say.replace(/Day(\d)/g, 'デイ$1'));   // 「Day」は読み上げで「デイ」と読ませる
   // タップでも選べるようにボタンを出す
@@ -387,7 +387,7 @@ function answerOffer(text) {
 function offerNext(text) {
   var order = S.home.suggestion.order, i = order.indexOf(Offer.day);
   var next = order[(i + 1) % order.length];
-  if (!next || next === Offer.day) { Offer.day = null; return reply(text, '今週ほかに残っているDayはありません。'); }
+  if (!next || next === Offer.day) { Offer.day = null; return reply(text, '今週ほかに残っているDayはないよ。'); }
   offerDay(text, next, null);
 }
 
@@ -422,7 +422,7 @@ function answerSession(text) {
 
   // もう一回言って
   if (/(もう(1回|いっかい|1度|いちど)|もっかい)(言|いって|読|よんで|教|おしえて)/.test(t)) {
-    if (VoiceUI.lastReply) reply(text, VoiceUI.lastReply); else reply(text, 'まだ何も読み上げていません。', true);
+    if (VoiceUI.lastReply) reply(text, VoiceUI.lastReply); else reply(text, 'まだ何も話してないよ。', true);
     return true;
   }
 
@@ -431,7 +431,7 @@ function answerSession(text) {
     var sec = (t.match(/(\d+)秒/) || [])[1];
     sec = sec ? Number(sec) : 30;
     Timer.addSeconds(sec);
-    reply(text, 'レストを' + sec + '秒延ばしました。あと' + Timer.left + '秒です。');
+    reply(text, 'オッケー、' + sec + '秒延ばしたよ。あと' + Timer.left + '秒。');
     return true;
   }
 
@@ -494,7 +494,7 @@ function answerSession(text) {
   // 「同じ」「もう1セット」「同じで7回」
   if (SAME_RE.test(t)) {
     var src = lastDoneSet();
-    if (!src) { reply(text, 'まだ記録したセットがありません。「60キロ8回」のように言ってください。', true); return true; }
+    if (!src) { reply(text, 'まだ記録したセットがないよ。「60キロ8回」みたいに言ってね。', true); return true; }
     var n2 = VoiceParser.extractNumbers(norm);
     voiceRecord(text, { type: 'record', exercise: src.name, weight: n2.weight !== null ? n2.weight : (src.w === '' ? null : src.w),
                         reps: n2.reps !== null ? n2.reps : src.r });
@@ -617,9 +617,9 @@ function voiceInSession(text, cmd) {
       return reply(text, last ? name + 'の前回は、' + last.date.slice(5).replace('-', '月') + '日、' +
         last.sets.replace(/kg/g, 'キロ').replace(/×/g, 'で') + '回でした。' : (name || 'この種目') + 'の前回の記録はありません。');
     case 'restLeft':
-      return reply(text, Timer.handle ? 'レストはあと' + Timer.left + '秒です。' : '今はレスト中ではありません。');
+      return reply(text, Timer.handle ? 'レストはあと' + Timer.left + '秒だよ。' : '今はレスト中じゃないよ。');
     case 'skipRest':
-      Timer.stop(); return reply(text, 'レストを終わります。');
+      Timer.stop(); return reply(text, 'オッケー、レスト終わり！');
     case 'undo': return voiceUndo(text);
     case 'add':
       var ex = findExercise(cmd.exercise);
@@ -629,7 +629,7 @@ function voiceInSession(text, cmd) {
       return reply(text, (ex ? ex.name : cmd.exercise) + 'を追加しました。重量と回数を話すと記録します。');
     case 'finish':
       Timer.stop(); renderFinish();
-      return reply(text, '保存の画面です。きつさを1から10で、「きつさ7」のように言うか、選んでください。');
+      return reply(text, 'おつかれさま！今日のきつさを1から10で教えて。「きつさ7」みたいに言ってね。');
     case 'startDay': case 'suggest':
       return reply(text, '今は' + dr.title + 'の途中です。別のDayを始めるときは、ホームに戻ってください。', true);
     default:
@@ -649,7 +649,7 @@ function voiceRecord(text, cmd) {
     }
   } else {
     i = currentIndex();
-    if (i < 0) return reply(text, 'すべての種目が終わっています。どの種目か、種目名も言ってください。', true);
+    if (i < 0) return reply(text, '全部の種目が終わってるよ。どの種目か、名前も言ってね。', true);
   }
   var it = dr.items[i];
   var j = -1;
@@ -687,7 +687,7 @@ function voiceRecord(text, cmd) {
 /** 直前の音声での記録・追加を取り消す */
 function voiceUndo(text) {
   var u = VoiceUI.undo.pop(), dr = S.draft;
-  if (!u) return reply(text, '取り消せる記録がありません。タップで直してください。', true);
+  if (!u) return reply(text, '取り消せる記録がないよ。画面で直してね。', true);
   if (u.addedItem) dr.items.splice(u.i, 1);
   else if (u.addedSet) dr.items[u.i].sets.splice(u.j, 1);
   else {
@@ -695,24 +695,24 @@ function voiceUndo(text) {
     s.w = u.before.w; s.r = u.before.r; s.done = u.before.done; s.via = u.before.via;
   }
   Timer.stop(); saveDraft(); renderSession();
-  reply(text, '直前の記録を取り消しました。');
+  reply(text, 'オッケー、さっきの記録を取り消したよ。');
 }
 
 // ---------------- 終了画面 ----------------
 function voiceInFinish(text, cmd) {
   var n = VoiceParser.normalizeNumbers(text).match(/(\d+)/);
   if (/保存|ほぞん/.test(text)) {
-    if (!S.draft.srpe && !n) return reply(text, '先にきつさを1から10で言ってください。', true);
+    if (!S.draft.srpe && !n) return reply(text, '先にきつさを1から10で教えてね。', true);
     if (n && Number(n[1]) >= 1 && Number(n[1]) <= 10) S.draft.srpe = Number(n[1]);
-    Speech.speak('保存します。');
+    Speech.speak('保存するね。おつかれさま！');
     return save();
   }
   if (n && Number(n[1]) >= 1 && Number(n[1]) <= 10) {
     S.draft.srpe = Number(n[1]); saveDraft(); renderFinish();
-    return reply(text, 'きつさ' + n[1] + 'にしました。「保存」と言うと保存します。');
+    return reply(text, 'きつさ' + n[1] + 'だね。「保存」って言うと保存するよ。');
   }
-  if (cmd.type === 'undo' || /戻る|もどる/.test(text)) { renderSession(); return reply(text, 'トレーニングに戻ります。'); }
-  reply(text, '「きつさ7」のように数字を言うか、「保存」と言ってください。', true);
+  if (cmd.type === 'undo' || /戻る|もどる/.test(text)) { renderSession(); return reply(text, 'トレーニングに戻るね。'); }
+  reply(text, '「きつさ7」みたいに数字を言うか、「保存」って言ってね。', true);
 }
 
 // ---------------- アプリの基本操作（どの画面でも・Phase 3f） ----------------

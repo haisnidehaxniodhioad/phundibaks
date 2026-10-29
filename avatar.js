@@ -295,7 +295,7 @@ var Avatar = {
         Speech.LENGTHS.map(function (l) { return '<button type="button" class="btn sub avatar-picker-option" data-length="' + l.key + '">' + l.label + '</button>'; }).join('') + '</span></div>' +
       '<div class="avatar-picker-row"><span class="avatar-picker-label">声</span><select class="avatar-picker-voice" aria-label="声"></select></div>' +
       '<button type="button" class="btn sub avatar-picker-try" data-try="1">🔊 声を試す</button>' +
-      '<details class="avatar-picker-description"><summary>声が機械っぽいときは</summary>スマホに自然な声を入れると良くなります。iPhone：「設定」→「アクセシビリティ」→「読み上げコンテンツ」→「声」→「日本語」で、「Kyoko（拡張）」「Otoya（拡張）」などをダウンロードし、ここの「声」で選んでください（iOSの版によって名前が少し違うことがあります）。Android：「設定」→「テキスト読み上げ」で Google の音声データ（日本語）を入れてください。<br>種類・声の速さ・話し方・声はこの端末に保存されます。声は男性・女性で変わります（スマホに入っている声によって聞こえ方は違います）。名前は「設定」シートの「キャラクターの名前」で変えられます。</details>';
+      '<details class="avatar-picker-description"><summary>声が機械っぽいときは</summary>iPhone のブラウザ（Safari・Chrome とも）は、スマホにダウンロードした「拡張」の声を使えず、Kyoko だけになることが多いです（Apple の制限）。「話し方：短め」と「声の速さ：ふつう〜ゆっくり」にすると聞き取りやすくなります。Android：「設定」→「テキスト読み上げ」で Google の音声データ（日本語）を入れてください。<br>種類・声の速さ・話し方・声はこの端末に保存されます。声は男性・女性で変わります（スマホに入っている声によって聞こえ方は違います）。名前は「設定」シートの「キャラクターの名前」で変えられます。</details>';
 
     panel.addEventListener('click', function (e) {
       var t = e.target.closest('button');

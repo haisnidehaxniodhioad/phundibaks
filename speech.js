@@ -12,7 +12,7 @@ var Speech = {
    */
   RATES: [
     { key: 'slow', label: 'ゆっくり', rate: 0.9 },
-    { key: 'normal', label: 'ふつう', rate: 1.05 },
+    { key: 'normal', label: 'ふつう', rate: 1.0 },
     { key: 'fast', label: 'はやい', rate: 1.25 },
     { key: 'faster', label: 'とてもはやい', rate: 1.5 }
   ],
@@ -20,7 +20,7 @@ var Speech = {
   storageKey: 'trainingVoiceRate',
   rate: function () {
     var k = this.rateKey, r = this.RATES.filter(function (x) { return x.key === k; })[0];
-    return r ? r.rate : 1.05;
+    return r ? r.rate : 1.0;
   },
   setRate: function (key) {
     if (!this.RATES.some(function (x) { return x.key === key; })) return;
@@ -71,8 +71,9 @@ var Speech = {
     var picked = name ? this.voices.filter(function (v) { return v.name === name; })[0] : null;
     var hit = picked || this.bestVoice(male);
     var matches = hit && (male ? this.MALE_VOICE : this.FEMALE_VOICE).test(hit.name);
-    // その性別の声が見つかったときは高さを少しだけ変える。見つからないときは、ふつうの声の高さで男女の差をつける
-    return { voice: hit, pitch: male ? (matches ? 0.95 : 0.7) : (matches ? 1.05 : 1.15) };
+    // 声の高さを大きく変えると機械っぽさが増すので、その性別の声があれば高さはそのまま（1）にする。
+    // iPhone のブラウザは女性の声（Kyoko）しか使えないことが多い。そのときの男性コーチは、少しだけ低くして差をつける（v24）
+    return { voice: hit, pitch: male ? (matches ? 1 : 0.88) : 1 };
   },
 
   /**
@@ -215,7 +216,7 @@ var Speech = {
       // 前回の1セット目だけを読む（例: 「60kg×8」→「前回は60キロで8回でした」）
       var first = latest.sets.split(',')[0].trim();
       var m = first.match(/^(?:([\d.]+)kg)?×(\d+)$/);
-      if (m) s += '前回は' + (m[1] ? m[1] + 'キロで' : '') + m[2] + '回でした。';
+      if (m) s += '前回は' + (m[1] ? m[1] + 'キロで' : '') + m[2] + '回だったよ。';
     }
     return s;
   }
