@@ -25,7 +25,7 @@ var QA = {
 
   METRIC_WORDS: [   // 体組成の項目の言い方
     { key: 'ffmi', label: 'FFMI', unit: '', re: /ffmi|エフエフエムアイ|えふえふえむあい/ },
-    { key: 'lbm', label: '除脂肪体重', unit: 'キロ', re: /除脂肪|じょしぼう|筋肉量|きんにくりょう/ },
+    { key: 'lbm', label: '除脂肪体重', unit: 'キロ', re: /除脂肪|じょしぼう|女子棒|筋肉量|きんにくりょう/ },
     { key: 'fat', label: '体脂肪率', unit: 'パーセント', re: /体脂肪|たいしぼう|脂肪率/ },
     { key: 'weight', label: '体重', unit: 'キロ', re: /体重|たいじゅう|体の重さ/ }
   ],
