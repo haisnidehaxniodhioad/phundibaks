@@ -293,9 +293,11 @@ var Avatar = {
         Speech.RATES.map(function (r) { return '<button type="button" class="btn sub avatar-picker-option" data-rate="' + r.key + '">' + r.label + '</button>'; }).join('') + '</span></div>' +
       '<div class="avatar-picker-row"><span class="avatar-picker-label">話し方</span><span class="avatar-picker-genders">' +
         Speech.LENGTHS.map(function (l) { return '<button type="button" class="btn sub avatar-picker-option" data-length="' + l.key + '">' + l.label + '</button>'; }).join('') + '</span></div>' +
+      '<div class="avatar-picker-row"><span class="avatar-picker-label">画面の色</span><span class="avatar-picker-genders">' +
+        Theme.MODES.map(function (m) { return '<button type="button" class="btn sub avatar-picker-option" data-theme-mode="' + m.key + '">' + m.label + '</button>'; }).join('') + '</span></div>' +
       '<div class="avatar-picker-row"><span class="avatar-picker-label">声</span><select class="avatar-picker-voice" aria-label="声"></select></div>' +
       '<button type="button" class="btn sub avatar-picker-try" data-try="1">🔊 声を試す</button>' +
-      '<details class="avatar-picker-description"><summary>声が機械っぽいときは</summary>iPhone のブラウザ（Safari・Chrome とも）は、スマホにダウンロードした「拡張」の声を使えず、Kyoko だけになることが多いです（Apple の制限）。「話し方：短め」と「声の速さ：ふつう〜ゆっくり」にすると聞き取りやすくなります。Android：「設定」→「テキスト読み上げ」で Google の音声データ（日本語）を入れてください。<br>種類・声の速さ・話し方・声はこの端末に保存されます。声は男性・女性で変わります（スマホに入っている声によって聞こえ方は違います）。名前は「設定」シートの「キャラクターの名前」で変えられます。</details>';
+      '<details class="avatar-picker-description"><summary>声が機械っぽいときは</summary>iPhone のブラウザ（Safari・Chrome とも）は、スマホにダウンロードした「拡張」の声を使えず、Kyoko だけになることが多いです（Apple の制限）。「話し方：短め」と「声の速さ：ふつう〜ゆっくり」にすると聞き取りやすくなります。Android：「設定」→「テキスト読み上げ」で Google の音声データ（日本語）を入れてください。<br>種類・声の速さ・話し方・画面の色・声はこの端末に保存されます。「画面の色：自動」はスマホのダークモードに合わせます。声は男性・女性で変わります（スマホに入っている声によって聞こえ方は違います）。名前は「設定」シートの「キャラクターの名前」で変えられます。</details>';
 
     panel.addEventListener('click', function (e) {
       var t = e.target.closest('button');
@@ -303,6 +305,7 @@ var Avatar = {
       if (t.dataset.gender) { self.setGender(t.dataset.gender); self.trySpeak(); }
       else if (t.dataset.rate) { Speech.setRate(t.dataset.rate); self.trySpeak(); }
       else if (t.dataset.length) Speech.setLength(t.dataset.length);
+      else if (t.dataset.themeMode) Theme.set(t.dataset.themeMode);   // 画面の色（自動＝スマホのダークモードに合わせる／昼／夜）
       else if (t.dataset.try) { self.trySpeak(); return; }
       else if (t.classList.contains('avatar-picker-close')) { panel.hidden = true; return; }
       self.refreshPicker(panel);
@@ -333,6 +336,9 @@ var Avatar = {
     });
     Array.prototype.forEach.call(panel.querySelectorAll('[data-length]'), function (b) {
       b.setAttribute('aria-pressed', String(b.dataset.length === Speech.lengthKey));
+    });
+    Array.prototype.forEach.call(panel.querySelectorAll('[data-theme-mode]'), function (b) {
+      b.setAttribute('aria-pressed', String(b.dataset.themeMode === Theme.get()));
     });
     // 声の一覧（この端末に入っている日本語の声）。自然な声には「★」を付ける
     Speech.loadVoices();

@@ -35,6 +35,9 @@ var Export = {
   /** 印刷（PDF保存）する。pagesHtml は1ページ分ずつのHTMLの配列 */
   print: function (title, pagesHtml) {
     Body.closeHistory();
+    // PDFはいつも昼の色（白い紙）で作る。夜の色にしていても、印刷の間だけ昼にして、終わったら戻す（v30）
+    var root = document.documentElement, oldTheme = root.getAttribute('data-theme');
+    root.setAttribute('data-theme', 'light');
     var area = document.getElementById('printArea');
     if (!area) { area = document.createElement('div'); area.id = 'printArea'; document.body.appendChild(area); }
     area.innerHTML = pagesHtml.map(function (h) { return '<section class="print-page">' + h + '</section>'; }).join('');
@@ -45,7 +48,10 @@ var Export = {
     var oldTitle = document.title;
     document.title = title;   // PDFのファイル名の候補になる
     document.body.classList.add('printing');
-    var done = function () { document.body.classList.remove('printing'); area.innerHTML = ''; document.title = oldTitle; };
+    var done = function () {
+      document.body.classList.remove('printing'); area.innerHTML = ''; document.title = oldTitle;
+      if (oldTheme) root.setAttribute('data-theme', oldTheme); else root.removeAttribute('data-theme');
+    };
     window.addEventListener('afterprint', function once() { window.removeEventListener('afterprint', once); done(); });
     setTimeout(function () { window.print(); }, 300);   // 描画が終わるのを少し待つ
   },

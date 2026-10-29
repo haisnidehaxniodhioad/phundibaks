@@ -1,9 +1,9 @@
 /**
- * dock.js ― 画面の下に固定するバー（v20・Claude Design のレイアウト案 2a「やわらか」）
+ * dock.js ― 画面の上の帯（コーチ）と、下に固定するバー（v30・Claude Design のB案「チームカラー」）
  *
- *   バーは2段になっている。
- *     上の段：コーチ（アバター）と吹き出し。吹き出しには返事（#voiceBox）か、その画面のひとこと（#coachLine）が出る。
- *     下の段：画面によって中身が変わる。
+ *   画面の上の帯（#dockCoach）：コーチ（アバター）と吹き出し。吹き出しには返事（#voiceBox）か、その画面のひとこと（#coachLine）が出る。
+ *     返事は帯の下に重ねて出す（画面の内容を押し下げない）。
+ *   画面の下のバー（#dockBar）：画面によって中身が変わる。
  *       ホーム・記録・体組成 … タブ（ホーム／記録／話す／からだ／コーチ）。真ん中の「話す」がマイク
  *       トレーニング中       … レストタイマー（#timer）とマイク
  *       終了画面             … 「記録を保存する」とマイク
@@ -53,7 +53,7 @@ var Dock = {
     document.body.classList.toggle('has-dock', mode !== 'none');
     this.el.className = 'dock mode-' + mode + ' view-' + v;
 
-    // アバターの場所：ホーム・ログインは画面の上（大きく）、ほかはバーの左
+    // アバターの場所：ホーム・ログインは画面の中の一番上（大きく）、ほかは上の帯の左
     var top = document.getElementById('coachTop');
     if (top) Avatar.mount(top, 'big');
     else Avatar.mount(document.getElementById('dockAvatarSlot'), 'dock');
@@ -104,7 +104,7 @@ var Dock = {
     return !S.draft.items.some(function (it) { return it.sets.some(function (s) { return s.done; }); });
   },
 
-  /** 吹き出しの段：返事があれば返事、なければその画面のひとこと。ホームはコーチが上にいるので、返事があるときだけ出す */
+  /** 上の帯：返事があれば返事、なければその画面のひとこと。ホームはコーチが画面の中にいるので、返事があるときだけ（吹き出しだけ）出す */
   syncCoach: function () {
     var boxShown = !VoiceUI.box.hidden;
     var home = S.view === 'home';
