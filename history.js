@@ -11,6 +11,7 @@
 var History = {
   data: null,        // 今表示している月のデータ（myHistory の返事）
   selected: '',      // 下に詳しく出している日（'yyyy-MM-dd'）
+  addOpen: '',       // 記録がある日で「メニューを追加」を押して、メニューのボタンを出している日
   WEEK: ['月', '火', '水', '木', '金', '土', '日'],   // カレンダーは月曜はじまり
 
   /** 記録の画面を開く。after: 表示し終わったあとにすること（音声で開いたときの読み上げなど） */
@@ -124,7 +125,11 @@ var History = {
       }
       html += '</div>';
     });
-    if (History.canAdd(date)) html += History.addHtml(date);
+    // 記録がある日は「メニューを追加」のボタンだけ。押すとメニューのボタンが出る（v29）
+    if (History.canAdd(date)) {
+      html += History.addOpen === date ? History.addHtml(date)
+        : '<button class="btn sub btn-pill block" data-hist-add="' + date + '">' + Icon('plus', 18) + 'メニューを追加</button>';
+    }
     return html + '</div>';
   },
 
@@ -182,9 +187,12 @@ app.addEventListener('click', function (e) {
   if (S.view !== 'history') return;
   var mBtn = e.target.closest('[data-hist-month]');
   if (mBtn && !mBtn.disabled) { History.show(mBtn.dataset.histMonth); return; }
+  var aBtn = e.target.closest('[data-hist-add]');
+  if (aBtn) { History.addOpen = aBtn.dataset.histAdd; History.render(); return; }
   var dBtn = e.target.closest('[data-hist-day]');
   if (dBtn && !dBtn.disabled) {
     History.selected = dBtn.dataset.histDay;
+    History.addOpen = '';
     History.render();
     var det = document.querySelector('.hist-detail');
     if (det && det.scrollIntoView) det.scrollIntoView({ behavior: 'smooth', block: 'start' });
