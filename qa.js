@@ -33,6 +33,13 @@ var QA = {
   // ---------------- 話題ごとの答え方 ----------------
   TOPICS: [
     {
+      name: 'ページの見方・言葉の意味',   // v42：「このページの見方を説明して」「FFMIって何？」（guide.js）
+      examples: ['このページの見方を教えて', 'FFMIって何？'],
+      test: function (q) { return Guide.isAsk(q.t) || !!Guide.term(q.t, true); },
+      need: [],
+      answer: function (q) { return Guide.isAsk(q.t) ? Guide.athlete() : Guide.term(q.t, true); }
+    },
+    {
       name: '開いているレポートの説明',   // v41：体組成レポートの画面で「このレポートを説明して」
       examples: ['このレポートを説明して'],
       test: function (q) { return S.view === 'body' && /説明|せつめい|要約|まとめ|解説|かいせつ|読み上げ|よみあげ|ざっくり|ポイント/.test(q.t); },
