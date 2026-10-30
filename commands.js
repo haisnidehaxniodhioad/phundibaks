@@ -7,7 +7,8 @@
  *   トレーニング中: 「スクワット60キロ8回」「60キロ8回」「懸垂10回」「次は？」「今の種目」「前回は？」
  *                   「レストあと何秒」「スキップ」「取り消し」「デッドリフト追加」「終わり」
  *   ホーム       : 「今日は何をする？」「デイ2を始める」
- *   終了画面     : 「きつさ7」「保存」
+ *   終了画面     : 「保存」（v33：きつさは無くした）
+ *   コンディション: 「全身3、上半身2、下半身4、動き7」「コメント 〜」「保存」「あとで」（condition.js）
  *   どの画面でも : 「ホームに戻って」「体組成レポートを開いて」「体重見せて」「InBodyにして」「体重の履歴」「閉じて」
  *                  「マイメニューは？」「（保存したメニューの名前）を始める」「新しいメニューを作る」「何ができるの？」（Phase 3f）
  *   返事は、画面の下のバー（dock.js）のアバター（avatar.js）が吹き出しと声で返す。
@@ -35,7 +36,7 @@ var VoiceUI = {
     // 新しいトレーニングを始めたら、取り消し用の履歴を空にする
     var draftId = S.draft ? S.draft.id : null;
     if (draftId !== this.draftId) { this.undo = []; this.draftId = draftId; }
-    var show = VoiceInput.supported() && !!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history'].indexOf(S.view) >= 0;
+    var show = VoiceInput.supported() && !!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition'].indexOf(S.view) >= 0;
     this.btn.hidden = !show;
     // アバターの表示と置き場所は dock.js（画面の下のバー）が決める
     if (S.view === 'home') Avatar.greet();
@@ -281,6 +282,13 @@ function handleVoice(text) {
   var navLearned = VoiceParser.matchLearned(text, S.home.phrases, S.view);
   if (navLearned && navLearned.exact && NAV_ACTIONS.indexOf(navLearned.exact.action) >= 0) return doNav(text, learnedToCmd(navLearned.exact, text));
   if (S.view === 'finish' && /マイメニュ|メニュ(として|に)保存/.test(VoiceParser.norm(text))) return MyMenu.voiceSaveFromFinish(text);
+  // v33：コンディションの記録（「コンディションを記録」はどの画面でも。入力の画面では数字・コメント・保存）（condition.js）
+  if (Condition.voice(text)) return;
+  if (S.view === 'afterSave' || S.view === 'condition') {
+    if (QA.handle(text)) return;
+    if (smallTalk(text)) return;
+    return reply(text, S.view === 'afterSave' ? '「記録する」か「あとで」って言ってね。' : '「全身3、上半身2、下半身4、動き7」みたいに話してね。保存は「保存」だよ。', true);
+  }
   // v31：自分のデータの質問（「体重は？」「スクワットの最高は？」「FFMIは何位？」など）。どの画面でも答える（qa.js）
   if (QA.handle(text)) return;
   var nav = VoiceParser.parseNav(text, S.home.myMenus);
@@ -632,7 +640,7 @@ function voiceInSession(text, cmd) {
       return reply(text, (ex ? ex.name : cmd.exercise) + 'を追加しました。重量と回数を話すと記録します。');
     case 'finish':
       Timer.stop(); renderFinish();
-      return reply(text, 'おつかれさま！今日のきつさを1から10で教えて。「きつさ7」みたいに言ってね。');
+      return reply(text, 'おつかれさま！「保存」って言うと保存するよ。');
     case 'startDay': case 'suggest':
       return reply(text, '今は' + dr.title + 'の途中です。別のDayを始めるときは、ホームに戻ってください。', true);
     default:
@@ -703,19 +711,13 @@ function voiceUndo(text) {
 
 // ---------------- 終了画面 ----------------
 function voiceInFinish(text, cmd) {
-  var n = VoiceParser.normalizeNumbers(text).match(/(\d+)/);
   if (/保存|ほぞん/.test(text)) {
-    if (!S.draft.srpe && !n) return reply(text, '先にきつさを1から10で教えてね。', true);
-    if (n && Number(n[1]) >= 1 && Number(n[1]) <= 10) S.draft.srpe = Number(n[1]);
+    if (Dock.saveDisabled()) return reply(text, '✓が付いたセットがまだないよ。「トレーニングに戻る」で✓を付けてね。', true);
     Speech.speak('保存するね。おつかれさま！');
     return save();
   }
-  if (n && Number(n[1]) >= 1 && Number(n[1]) <= 10) {
-    S.draft.srpe = Number(n[1]); saveDraft(); renderFinish();
-    return reply(text, 'きつさ' + n[1] + 'だね。「保存」って言うと保存するよ。');
-  }
   if (cmd.type === 'undo' || /戻る|もどる/.test(text)) { renderSession(); return reply(text, 'トレーニングに戻るね。'); }
-  reply(text, '「きつさ7」みたいに数字を言うか、「保存」って言ってね。', true);
+  reply(text, '「保存」って言うと保存するよ。トレーニングに戻るときは「戻る」だよ。', true);
 }
 
 // ---------------- アプリの基本操作（どの画面でも・Phase 3f） ----------------
@@ -804,9 +806,10 @@ function askPrevious(text) {
 /** 今の画面で話せることの説明 */
 function helpText() {
   // v31：自分のデータの質問は、どの画面でも答える（qa.js の TOPICS から例を作る）
-  var common = 'どの画面でも「ホームに戻って」「体組成レポートを開いて」「体重見せて」が使えるよ。自分のデータは「体重は？」「スクワットの最高は？」「FFMIは何位？」みたいに聞いてね。「何が聞ける？」でもっと教えるよ。';
+  var common = 'どの画面でも「ホームに戻って」「体組成レポートを開いて」「体重見せて」「コンディションを記録」が使えるよ。自分のデータは「体重は？」「スクワットの最高は？」「FFMIは何位？」みたいに聞いてね。「何が聞ける？」でもっと教えるよ。';
   if (S.view === 'session') return '記録は「スクワット60キロ8回」や「できた」、案内は「次は？」「あと何セット？」「何キロでやればいい？」、重さは「重くして」「軽くして」、レストは「休憩する」「あと何秒」「スキップ」、間違えたら「取り消し」、終わったら「終わり」だよ。' + common;
-  if (S.view === 'finish') return '「きつさ7」のように数字を言って、「保存」で保存だよ。「マイメニューに保存」も使えるよ。';
+  if (S.view === 'finish') return '「保存」で保存だよ。保存したら、コンディションの記録に進めるよ。「マイメニューに保存」も使えるよ。';
+  if (S.view === 'condition') return '「全身3、上半身2、下半身4、動き7」のように数字を言って、「コメント 〜」でコメント、「保存」で保存、「あとで」でやめるよ。';
   if (S.view === 'body') return '「体重にして」「InBodyにして」で切り替え、「体重の履歴」で履歴、「閉じて」で閉じるよ。' + common;
   if (S.view === 'history') return '「今週何回やった？」「今月は何回？」で回数、「前回のスクワットは？」で前回の記録を答えるよ。日付をタップすると、その日の記録が見られるよ。' + common;
   return '「今日は何をする？」でおすすめ、「デイ2を始める」で開始、「マイメニューは？」で保存したメニュー、「新しいメニューを作る」でメニュー作りができるよ。「記録を見せて」でトレーニング記録、「今週何回やった？」で回数も答えるよ。' + common;

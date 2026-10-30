@@ -22,7 +22,9 @@ var Dock = {
   // その画面で吹き出しに出しておく、ひとこと（話しかけていないとき）
   HINTS: {
     session: '「60キロ8回」のように話しても記録できるよ。',
-    finish: 'よくがんばったね！きつさを数字で教えて。',
+    finish: 'よくがんばったね！「保存」で記録を保存するよ。',
+    afterSave: '「記録する」か「あとで」って話しかけてもいいよ。',
+    condition: '「全身3、上半身2、下半身4、動き7」みたいに話しても入れられるよ。',
     history: '「先月」って話しかけると、前の月が見られるよ。',
     body: '「体重にして」と話しかけると、体重のレポートになるよ。',
     mymenu: '数字をタップすると変えられるよ。'
@@ -47,7 +49,7 @@ var Dock = {
   /** 今の画面に合わせて、バーの中身・アバターの場所を変える */
   update: function () {
     var v = S.view;
-    var athlete = !!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history'].indexOf(v) >= 0;
+    var athlete = !!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition'].indexOf(v) >= 0;
     var mode = !athlete ? 'none' : (v === 'home' || v === 'history' || v === 'body') ? 'tabs' : v;
     this.el.hidden = mode === 'none';
     document.body.classList.toggle('has-dock', mode !== 'none');
@@ -89,6 +91,10 @@ var Dock = {
     } else if (mode === 'finish') {
       html = '<div class="dock-row"><button class="btn btn-primary btn-pill dock-main" data-act="save"' + (this.saveDisabled() ? ' disabled' : '') + '>' +
         Icon('save', 22) + '記録を保存する</button><span data-slot="mic"></span></div>';
+    } else if (mode === 'condition') {   // v33：コンディションの入力
+      html = '<div class="dock-row"><button class="btn btn-primary btn-pill dock-main" data-act="condSave">' + Icon('check', 22) + 'コンディションを保存</button><span data-slot="mic"></span></div>';
+    } else if (mode === 'afterSave') {   // v33：トレーニングを保存したあと
+      html = '<div class="dock-row"><div class="dock-hint">声でも選べるよ</div><span data-slot="mic"></span></div>';
     } else if (mode === 'mymenu') {
       html = '<div class="dock-row"><button class="btn btn-primary btn-pill dock-main" data-mm="save">' + Icon('check', 22) + '保存する</button><span data-slot="mic"></span></div>';
     }

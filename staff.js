@@ -50,7 +50,7 @@ var Staff = {
       '<p class="small">表示 ' + list.length + '人 ／ <b class="ng-text">未実施 ' + notDone + '人</b></p>' +
       '<div class="row"><button class="btn sub" data-staff="xOverviewXlsx">Excelで保存</button><button class="btn sub" data-staff="xOverviewPdf">PDFで保存</button></div></div>';
     Staff.overviewList = list;
-    html += '<div class="card"><div class="table-scroll"><table class="tbl"><tr><th>選手</th><th>Day</th><th>回数</th><th>上/下/全</th><th>sRPE</th><th>負荷</th><th>最終</th></tr>' +
+    html += '<div class="card"><div class="table-scroll"><table class="tbl"><tr><th>選手</th><th>Day</th><th>回数</th><th>上/下/全</th><th>疲労 全/上/下</th><th>動き</th><th>最終</th></tr>' +
       list.map(function (a) {
         var warn = a.sessions && !a.sets['下半身'] ? ' title="下半身のセットがありません"' : '';
         return '<tr class="' + (a.sessions ? '' : 'row-ng') + '"><td><button class="link" data-staff="athlete" data-v="' + esc(a.id) + '">' + esc(a.name) + '</button>' +
@@ -58,10 +58,11 @@ var Staff = {
           '<td>' + (a.menuDays ? a.daysDone + '/' + a.menuDays : '-') + '</td>' +
           '<td>' + a.sessions + (a.freeSessions ? '<span class="muted small">（自' + a.freeSessions + '）</span>' : '') + '</td>' +
           '<td' + warn + '>' + a.sets['上半身'] + '/' + (a.sessions && !a.sets['下半身'] ? '<b class="ng-text">0</b>' : a.sets['下半身']) + '/' + a.sets['全身'] + '</td>' +
-          '<td>' + (a.srpeAvg === '' ? '-' : a.srpeAvg) + '</td><td>' + (a.load || '-') + '</td>' +
+          '<td' + (a.cond && Math.max(a.cond.whole, a.cond.upper, a.cond.lower) >= 8 ? ' class="ng-text"' : '') + '>' + (a.cond ? a.cond.whole + '/' + a.cond.upper + '/' + a.cond.lower : '-') + '</td>' +
+          '<td>' + (a.cond ? a.cond.perf : '-') + '</td>' +
           '<td class="small">' + esc(a.lastDate ? a.lastDate.slice(5).replace('-', '/') : '-') + '</td></tr>';
       }).join('') + '</table></div>' +
-      '<p class="muted small">Day＝チームメニューの実施Day数／全Day数。回数＝その週のトレーニング回数（自＝自分のメニュー）。上/下/全＝部位ごとのセット数。負荷＝sRPE×時間(分)の合計。</p></div>';
+      '<p class="muted small">Day＝チームメニューの実施Day数／全Day数。回数＝その週のトレーニング回数（自＝自分のメニュー）。上/下/全＝部位ごとのセット数。疲労・動き＝その週でいちばん新しいコンディション（疲労は1 疲れていない〜10 とても疲れている、8以上は赤。動きは1 とても悪い〜10 とても良い）。</p></div>';
     if (o.unregistered.length) {
       html += '<div class="card"><h2>種目マスタに無い種目</h2><p class="muted small">種目マスタに追加するか、既存の種目の「呼び方の候補」に入れると、部位の集計に入ります。</p>' +
         o.unregistered.map(function (u) { return '<span class="chip">' + esc(u.name) + '（' + u.count + '）</span>'; }).join(' ') + '</div>';
@@ -81,11 +82,17 @@ var Staff = {
       var d = r[0], b = (Staff.body.athletes || []).filter(function (a) { return a.id === id; })[0] || { weight: [], inbody: [] };
       var html = '<button class="btn ghost" data-staff="back">← 一覧へ</button><div class="card"><h2>' + esc(d.athlete.name) + '</h2>' +
         '<p class="muted small">' + esc([d.athlete.id, d.athlete.grade, d.athlete.team, d.athlete.menuId].filter(String).join('・')) + '</p></div>';
+      // コンディション（直近4週間。v33）
+      var cs = d.conditions || [];
+      html += '<h2>コンディション（直近4週間）</h2><div class="card">' + (cs.length ? '<div class="table-scroll"><table class="tbl"><tr><th>日付</th><th>全身</th><th>上半身</th><th>下半身</th><th>動き</th><th>コメント</th></tr>' +
+        cs.map(function (c) {
+          return '<tr><td>' + esc(c.date.slice(5).replace('-', '/')) + '</td><td>' + c.whole + '</td><td>' + c.upper + '</td><td>' + c.lower + '</td><td>' + c.perf + '</td><td class="small" style="white-space:normal">' + esc(c.comment) + '</td></tr>';
+        }).join('') + '</table></div>' : '<p class="muted">記録はまだありません。</p>') + '</div>';
       html += '<h2>トレーニング記録（直近' + d.sessions.length + '回）</h2>';
       if (!d.sessions.length) html += '<div class="card"><p class="muted">記録はまだありません。</p></div>';
       d.sessions.forEach(function (s) {
         html += '<details class="card"><summary><b>' + esc(s.date) + '</b> ' + esc(s.type === 'チーム' ? 'Day' + s.day : '自分のメニュー' + (s.myMenu ? '「' + s.myMenu + '」' : '')) +
-          (s.part ? '（' + esc(s.part) + '）' : '') + ' <span class="muted small">sRPE ' + esc(s.srpe || '-') + '・' + esc(s.minutes) + '分</span></summary>' +
+          (s.part ? '（' + esc(s.part) + '）' : '') + ' <span class="muted small">' + esc(s.minutes) + '分</span></summary>' +
           '<table class="tbl">' + s.records.map(function (r) {
             return '<tr><td>' + esc(r.name) + (r.kind !== 'メニュー通り' ? '<span class="badge off">' + esc(r.kind) + '</span>' : '') + '</td><td class="small">' + esc(r.sets) + '</td></tr>';
           }).join('') + '</table></details>';

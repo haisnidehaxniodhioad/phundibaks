@@ -104,10 +104,17 @@ var History = {
   },
 
   /** 選んだ日の記録（種目とセット） */
+  /** その日のコンディション（v33）。記録が無ければ、3日前までなら「記録する」ボタン */
+  condHtml: function (date) {
+    var c = History.data && History.data.conditions && History.data.conditions[date];
+    if (c) return '<h2 style="margin-top:18px">コンディション</h2>' + Condition.tableHtml(c);
+    return History.canAdd(date) ? '<button class="btn ghost block" data-act="condOpenDate" data-date="' + date + '">この日のコンディションを記録する</button>' : '';
+  },
+
   detailHtml: function (date, list) {
     if (date && !list && History.canAdd(date)) {   // 記録が無い日（3日前まで）→ 追加だけ出す
       var m0 = /^(\d{4})-(\d{2})-(\d{2})/.exec(date), wd0 = '日月火水木金土'.charAt(new Date(Number(m0[1]), Number(m0[2]) - 1, Number(m0[3])).getDay());
-      return '<div class="card hist-detail"><h2>' + Number(m0[2]) + '月' + Number(m0[3]) + '日（' + wd0 + '）</h2><p class="muted small">この日の記録はまだありません。</p>' + History.addHtml(date) + '</div>';
+      return '<div class="card hist-detail"><h2>' + Number(m0[2]) + '月' + Number(m0[3]) + '日（' + wd0 + '）</h2><p class="muted small">この日の記録はまだありません。</p>' + History.addHtml(date) + History.condHtml(date) + '</div>';
     }
     if (!date || !list) {
       return '<div class="card muted">' + (History.data.sessions.length ? '印の付いた日をタップすると、その日の記録が出ます。' : 'この月のトレーニングの記録はまだありません。') + '</div>';
@@ -117,7 +124,7 @@ var History = {
     list.forEach(function (s) {
       html += '<div class="hist-session"><div class="hist-stitle"><span class="hist-badge ' + History.kindClass(s) + '">' + esc(History.kindLabel(s)) + '</span>' +
         '<b>' + esc(History.title(s)) + '</b></div>' +
-        '<div class="muted small">' + esc(s.time) + ' 開始' + (s.minutes !== '' ? '・' + s.minutes + '分' : '') + (s.srpe !== '' ? '・きつさ ' + s.srpe : '') + (s.part ? '・' + esc(s.part) : '') + '</div>';
+        '<div class="muted small">' + esc(s.time) + ' 開始' + (s.minutes !== '' ? '・' + s.minutes + '分' : '') + (s.part ? '・' + esc(s.part) : '') + '</div>';
       if (!s.items.length) html += '<p class="muted small">種目の記録はありません。</p>';
       else {
         html += '<table class="hist-table"><tbody>' + s.items.map(function (it) {
@@ -126,6 +133,7 @@ var History = {
       }
       html += '</div>';
     });
+    html += History.condHtml(date);   // その日のコンディション（v33）
     // 記録がある日は「メニューを追加」のボタンだけ。押すとメニューのボタンが出る（v29）
     if (History.canAdd(date)) {
       html += History.addOpen === date ? History.addHtml(date)

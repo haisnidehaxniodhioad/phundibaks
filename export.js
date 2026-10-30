@@ -190,20 +190,21 @@ var Export = {
   // ---------------- 実施状況 ----------------
   overviewExcel: function (o, list) {
     Export.excel('weekly_' + o.weekStart + '.xlsx', [
-      { name: '実施状況', rows: [['選手ID', '名前', '学年', 'チーム', '実施Day数', '全Day数', '回数', 'うち自分のメニュー', '上半身セット', '下半身セット', '全身セット', 'その他セット', 'sRPE平均', '負荷(sRPE×分)', '時間(分)', 'メニュー外の種目数', '最終実施日']]
+      { name: '実施状況', rows: [['選手ID', '名前', '学年', 'チーム', '実施Day数', '全Day数', '回数', 'うち自分のメニュー', '上半身セット', '下半身セット', '全身セット', 'その他セット', '全身疲労', '上半身疲労', '下半身疲労', 'パフォーマンス', 'コンディションの日付', 'コメント', 'コンディション入力日数', '時間(分)', 'メニュー外の種目数', '最終実施日']]
           .concat(list.map(function (a) {
-            return [a.id, a.name, a.grade, a.team, a.daysDone, a.menuDays, a.sessions, a.freeSessions, a.sets['上半身'], a.sets['下半身'], a.sets['全身'], a.sets['その他'], a.srpeAvg, a.load, a.minutes, a.offMenu, a.lastDate];
+            return [a.id, a.name, a.grade, a.team, a.daysDone, a.menuDays, a.sessions, a.freeSessions, a.sets['上半身'], a.sets['下半身'], a.sets['全身'], a.sets['その他'],
+              a.cond ? a.cond.whole : '', a.cond ? a.cond.upper : '', a.cond ? a.cond.lower : '', a.cond ? a.cond.perf : '', a.cond ? a.cond.date : '', a.cond ? a.cond.comment : '', a.condCount || 0, a.minutes, a.offMenu, a.lastDate];
           })) }
     ]);
   },
 
   overviewPdf: function (o, list) {
     var html = Export.head('実施状況　' + o.weekStart + '〜' + o.weekEnd, '表示 ' + list.length + '人') +
-      '<table class="tbl print-tbl"><tr><th>名前</th><th>学年</th><th>Day</th><th>回数</th><th>上/下/全</th><th>sRPE</th><th>負荷</th><th>最終</th></tr>' +
+      '<table class="tbl print-tbl"><tr><th>名前</th><th>学年</th><th>Day</th><th>回数</th><th>上/下/全</th><th>疲労 全/上/下</th><th>動き</th><th>最終</th></tr>' +
       list.map(function (a) {
         return '<tr class="' + (a.sessions ? '' : 'row-ng') + '"><td>' + esc(a.name) + '</td><td>' + esc(a.grade) + '</td><td>' + (a.menuDays ? a.daysDone + '/' + a.menuDays : '-') +
-          '</td><td>' + a.sessions + '</td><td>' + a.sets['上半身'] + '/' + a.sets['下半身'] + '/' + a.sets['全身'] + '</td><td>' + (a.srpeAvg === '' ? '-' : a.srpeAvg) +
-          '</td><td>' + (a.load || '-') + '</td><td>' + esc(a.lastDate || '-') + '</td></tr>';
+          '</td><td>' + a.sessions + '</td><td>' + a.sets['上半身'] + '/' + a.sets['下半身'] + '/' + a.sets['全身'] + '</td><td>' + (a.cond ? a.cond.whole + '/' + a.cond.upper + '/' + a.cond.lower : '-') +
+          '</td><td>' + (a.cond ? a.cond.perf : '-') + '</td><td>' + esc(a.lastDate || '-') + '</td></tr>';
       }).join('') + '</table>';
     Export.print('実施状況_' + o.weekStart, [html]);
   }

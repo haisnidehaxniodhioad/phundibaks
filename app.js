@@ -1,6 +1,6 @@
 /**
  * app.js ― 画面の組み立てと操作
- * 画面は4つ: ログイン → ホーム → トレーニング中 → 終了（きつさの入力と保存）
+ * 画面は4つ: ログイン → ホーム → トレーニング中 → 終了（保存）。保存のあとはコンディションの記録へ（condition.js・v33）
  * ほかに、体組成レポート（body.js）、自分のメニューの作成（mymenu.js）、スタッフ画面（staff.js）がある。
  * 状態はすべて S にまとめ、変わるたびに該当する画面を描き直す。
  * v20：見た目を Claude Design のレイアウト案 2a（やわらか）に変更。画面の下のバー（タブ・タイマー・保存ボタン）は dock.js、
@@ -8,7 +8,7 @@
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v32 2026-10-30';
+var APP_VERSION = 'v33 2026-10-30';
 // 記録し忘れた日の分を、何日前まで遡って入力できるか（v26）。Apps Script の 設定.gs の MAX_BACKDATE_DAYS と同じ数字にする
 var MAX_BACKDATE_DAYS = 3;
 var S = { token: null, home: null, draft: null, view: 'loading' };
@@ -187,6 +187,7 @@ function renderHome(notice, warning) {
       (h.last.day ? ' Day' + esc(h.last.day) : '') + '）</p>';
   }
   html += '</div>';
+  html += Condition.homeHtml();   // 今日のコンディション（v33）
   if (h.days.length) html += MyMenu.homeCard();
   html += '<p class="ver">' + esc(APP_VERSION) + '</p>';
   app.innerHTML = html;
@@ -341,7 +342,7 @@ function renderSession() {
 
   // 今の種目
   if (cur >= 0) html += exerciseCard(cur, true);
-  else if (n) html += '<div class="card soft center"><b>すべての種目が終わったよ！</b><p class="muted small">右上の「おわる」を押して、きつさを入れて保存してね。</p>' +
+  else if (n) html += '<div class="card soft center"><b>すべての種目が終わったよ！</b><p class="muted small">右上の「おわる」を押して、保存してね。</p>' +
     '<button class="btn btn-pill block" data-act="finish">おわる（保存へ）</button></div>';
 
   // v30：つぎにやる種目・終わった種目・種目を追加 は「種目」の1枚にまとめる
@@ -524,7 +525,6 @@ function renderFinish(error, notice) {
   var done = dr.items.filter(function (it) { return it.sets.some(function (s) { return s.done; }); });
   var setCount = done.reduce(function (n, it) { return n + it.sets.filter(function (s) { return s.done; }).length; }, 0);
   var minutes = dr.backdate ? (dr.minutes || '—') : Math.max(1, Math.round((Date.now() - new Date(dr.startedAt).getTime()) / 60000));
-  var labels = ['', 'とても楽', '楽', '少し楽', 'ややきつい', 'きつい', '', 'かなりきつい', '', 'とてもきつい', '限界'];
   var tile = function (num, unit) { return '<div class="stat"><b>' + num + '</b><span>' + unit + '</span></div>'; };
   var html = '<div class="group"><div class="fin-head"><span class="kicker">' + esc(dr.title) + (dr.backdate ? '・<b class="late">' + backdateLabel(dr.backdate) + 'の分</b>' : '') + '</span><h1>おつかれさま！</h1>' +
     '<div class="stats">' + tile(done.length, '種目') + tile(setCount, 'セット') + tile(minutes, '分') + '</div>' +
@@ -533,11 +533,8 @@ function renderFinish(error, notice) {
   var bd = dr.backdate || 0;
   if (bd) html += '<section class="sec"><label for="finMinutes">かかった時間（分）<span class="muted small">　わかれば</span></label>' +
     '<input id="finMinutes" class="input-pill" type="number" inputmode="numeric" min="0" max="600" placeholder="例：60" value="' + esc(dr.minutes || '') + '"></section>';
-  // きつさ（sRPE）：丸いボタン 1〜10。保存は画面の下の「記録を保存する」（dock.js）
-  html += '<section class="sec"><h2>' + (bd ? 'その日の' : '今日の') + 'きつさは？</h2><div class="rpe">';
-  for (var i = 1; i <= 10; i++) html += '<button class="' + (dr.srpe === i ? 'on' : '') + '" data-act="rpe" data-v="' + i + '" aria-label="きつさ' + i + '">' + i + '</button>';
-  html += '</div><div class="rpe-scale"><span>1 とても楽</span><span>10 限界</span></div>' +
-    (dr.srpe ? '<div class="rpe-pill">' + dr.srpe + (labels[dr.srpe] ? '：' + labels[dr.srpe] : '') + '</div>' : '') + '</section>';
+  // v33：きつさ（sRPE）の入力はなくした。保存は画面の下の「記録を保存する」（dock.js）。保存のあとはコンディションの記録へ進める
+  html += '<p class="muted small">保存すると、続けてコンディション（疲れ具合・動きやすさ）を記録できるよ。</p>';
   html += MyMenu.finishCard(dr, notice);   // 自分のメニューで記録したときは、その内容をメニューとして保存できる
   html += msgHtml('error', error);
   html += '<button class="btn ghost block" data-act="back">トレーニングに戻る</button></div>';
@@ -555,7 +552,7 @@ function buildPayload() {
     extra = { backdated: dr.backdate, minutes: min || '', enteredAt: new Date().toISOString() };
   }
   var p = { id: dr.id, startedAt: startedAt, endedAt: endedAt, type: dr.type, menuId: dr.menuId,
-    day: dr.day, dayName: dr.dayName, srpe: dr.srpe || '', myMenuName: dr.myMenuName || '',
+    day: dr.day, dayName: dr.dayName, srpe: '', myMenuName: dr.myMenuName || '',
     items: dr.items.map(function (it) {
       return { name: it.name, planned: it.planned, rir: it.rir, method: it.method,
                sets: it.sets.filter(function (s) { return s.done; }).map(function (s) { return { w: s.w, r: s.r }; }) };
@@ -577,7 +574,10 @@ function save() {
   Store.set('pending', pending);           // 先に端末に残してから送る（送信に失敗しても消えない）
   S.draft = null; saveDraft(); Timer.stop();
   app.innerHTML = '<div class="loading">保存中…</div>';
-  sendPending().then(function (msg) { loadHome(msg); })
+  // その記録の日付（記録し忘れた日の分なら、その日。コンディションもその日の分として記録する）
+  var trainingDate = payload.backdated ? Body.addDays(Body.today(), -payload.backdated) : Body.today();
+  // v33：保存できたら、コンディションを記録するか「あとで」にするかを選ぶ画面へ（condition.js）
+  sendPending().then(function (msg) { Condition.askAfterSave(msg, trainingDate); })
     .catch(function (err) {
       if (err.needLogin) { Store.remove('token'); S.token = null; renderLogin(err.message + '（記録は端末に残っています）'); return; }
       loadHome(null);
@@ -695,7 +695,12 @@ function onAct(t) {
     case 'resetOrder': if (confirm('メニューの元の順番に戻しますか？')) resetOrder(); break;
     case 'addItem': addItem(); break;
     case 'finish': renderFinish(); break;
-    case 'rpe': readFinishMinutes(); dr.srpe = Number(t.dataset.v); saveDraft(); renderFinish(); break;
+    // v33：コンディション（condition.js）
+    case 'condOpen': Condition.open(S.view === 'afterSave' ? S.condDate : null); break;
+    case 'condLater': Condition.later(); break;
+    case 'condOpenDate': Condition.open(t.dataset.date); break;
+    case 'condPick': Condition.readComment(); S.cond[t.dataset.k] = Number(t.dataset.v); Condition.render(); break;
+    case 'condSave': Condition.save(); break;
     case 'back': renderSession(); break;
     case 'save': readFinishMinutes(); save(); break;
     // v20：トレーニング中の画面（つぎにやる種目・終わった種目を直す・順番の入れ替え）

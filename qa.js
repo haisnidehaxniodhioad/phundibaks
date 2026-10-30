@@ -40,7 +40,7 @@ var QA = {
       answer: function () {
         // 読み上げが長くならないよう、main: true の話題の例だけを言う（全部の例は「話し方の例」に出ている）
         return '自分のデータなら、' + QA.TOPICS.filter(function (tp) { return tp.main; }).map(function (tp) { return '「' + tp.examples[0] + '」'; }).join('') +
-          'みたいに聞いてね。体組成の数値や変化、自己ベスト、伸び、チームでの順位、回数やセット数に答えるよ。';
+          'みたいに聞いてね。体組成の数値や変化、自己ベスト、伸び、チームでの順位、回数やセット数、コンディションに答えるよ。';
       }
     },
     {
@@ -194,17 +194,36 @@ var QA = {
       }
     },
     {
-      name: 'セット数・総挙上量・きつさ・時間', main: true,
-      examples: ['今月何セットやった？', '今月の総挙上量は？', '今月のきつさの平均は？'],
+      name: 'コンディション', main: true,
+      examples: ['今日の疲労度は？', '最近の疲れ具合は？', '動きやすさの平均は？'],
+      test: function (q) { return /疲労|ひろう|疲れ具合|つかれぐあい|コンディション|体調|動きやす|うごきやす|パフォマンスの質/.test(q.t) && !q.exercise && !q.metric && q.ask; },
+      need: ['stats'],
+      answer: function (q, d) {
+        var c = d.stats.conditions || {}, t = q.t, L = c.latest;
+        var f = function (a, k) { return a && a[k] !== '' && a[k] !== undefined ? a[k] : '-'; };
+        if (/平均|最近|今週|この1週間|このいっしゅうかん|今月|ずっと/.test(t)) {
+          var a = /今月/.test(t) ? c.month : c.week, label = /今月/.test(t) ? '今月' : '最近1週間';
+          if (!a || !a.n) return label + 'はまだコンディションの記録がないよ。「コンディションを記録」で入れられるよ。';
+          return label + '（' + a.n + '日分）の平均は、全身の疲労' + f(a, 'whole') + '、上半身' + f(a, 'upper') + '、下半身' + f(a, 'lower') + '、動きやすさ' + f(a, 'perf') + 'だよ。';
+        }
+        if (!L) return 'まだコンディションの記録がないよ。「コンディションを記録」で入れられるよ。';
+        var when = L.date === d.stats.today ? '今日' : QA.md(L.date);
+        if (/動きやす|うごきやす|パフォマンス/.test(t)) return when + 'の動きやすさは' + L.perf + 'だよ（10がとても良い）。';
+        return when + 'のコンディションは、全身の疲労' + L.whole + '、上半身' + L.upper + '、下半身' + L.lower + '、動きやすさ' + L.perf + 'だよ。' +
+          (Math.max(L.whole, L.upper, L.lower) >= 8 ? 'かなり疲れているから、無理しないでね。' : '') + (L.comment ? 'メモは「' + L.comment + '」。' : '');
+      }
+    },
+    {
+      name: 'セット数・総挙上量・時間', main: true,
+      examples: ['今月何セットやった？', '今月の総挙上量は？'],
       test: function (q) {
-        return /(何|なん)セット|セット数|総挙上|挙上量|ボリューム|総重量|合計(の)?重量|持ち上げた|きつさ(の)?平均|rpe|合計(の)?時間|(何|なん)(分|時間)(やった|トレ)|トレニング時間/.test(q.t) && !q.exercise && S.view !== 'session';
+        return /(何|なん)セット|セット数|総挙上|挙上量|ボリューム|総重量|合計(の)?重量|持ち上げた|合計(の)?時間|(何|なん)(分|時間)(やった|トレ)|トレニング時間/.test(q.t) && !q.exercise && S.view !== 'session';
       },
       need: ['stats'],
       answer: function (q, d) {
         var c = d.stats.training.counts, t = q.t;
         if (/総挙上|挙上量|ボリューム|総重量|合計(の)?重量|持ち上げた/.test(t))
           return '今月の総挙上量（重さ×回数の合計）は' + c.volumeMonth.toLocaleString() + 'キロだよ。' + (c.volumeMonth ? Talk.nice() : '');
-        if (/きつさ|rpe/.test(t)) return c.srpeMonth !== null ? '今月のきつさの平均は' + c.srpeMonth + 'だよ（10が限界）。' : '今月はまだ、きつさの記録がないよ。';
         if (/時間|分/.test(t)) return '今月のトレーニングは、合計' + c.minutesMonth + '分だよ。';
         return /今年|年度/.test(t) ? '今年度は' + c.setsYear + 'セットやったよ。' : '今月は' + c.setsMonth + 'セットやったよ。今年度は全部で' + c.setsYear + 'セットだよ。';
       }
