@@ -24,6 +24,7 @@ var Staff = {
 
   render: function () {
     S.view = 'staff';
+    Staff.page = Staff.tab;   // 今の画面（overview / inbody / weight / athlete）。音声の操作で使う（v35）
     if (Staff.tab === 'overview') return Staff.renderOverview();
     return StaffBody.render(Staff.tab === 'weight' ? 'weight' : 'inbody');
   },
@@ -77,8 +78,10 @@ var Staff = {
 
   // ---------------- 選手詳細 ----------------
   showAthlete: function (id) {
+    Staff.page = 'athlete';
     app.innerHTML = Staff.frame('<div class="loading">読み込み中…</div>');
-    Promise.all([Api.call('staffAthlete', { token: S.token, athleteId: id }), Staff.loadBody()]).then(function (r) {
+    return Promise.all([Api.call('staffAthlete', { token: S.token, athleteId: id }), Staff.loadBody()]).then(function (r) {
+      Staff.detail = r[0];   // 開いている選手のデータ（音声の質問で使う。v35）
       var d = r[0], b = (Staff.body.athletes || []).filter(function (a) { return a.id === id; })[0] || { weight: [], inbody: [] };
       var html = '<button class="btn ghost" data-staff="back">← 一覧へ</button><div class="card"><h2>' + esc(d.athlete.name) + '</h2>' +
         '<p class="muted small">' + esc([d.athlete.id, d.athlete.grade, d.athlete.team, d.athlete.menuId].filter(String).join('・')) + '</p></div>';

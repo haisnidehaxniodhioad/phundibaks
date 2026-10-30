@@ -27,7 +27,8 @@ var Dock = {
     condition: '「全身3、上半身2、下半身4、動き7」みたいに話しても入れられるよ。',
     history: '「先月」って話しかけると、前の月が見られるよ。',
     body: '「体重にして」と話しかけると、体重のレポートになるよ。',
-    mymenu: '数字をタップすると変えられるよ。'
+    mymenu: '数字をタップすると変えられるよ。',
+    staff: '「今週やってないのは誰？」「（選手の名前）を開いて」のように話しかけてください。'
   },
 
   init: function () {
@@ -50,7 +51,8 @@ var Dock = {
   update: function () {
     var v = S.view;
     var athlete = !!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition'].indexOf(v) >= 0;
-    var mode = !athlete ? 'none' : (v === 'home' || v === 'history' || v === 'body') ? 'tabs' : v;
+    var staff = v === 'staff' && !!S.token;   // v35：スタッフ画面にも上の帯（コーチ）とマイクを出す
+    var mode = staff ? 'staff' : !athlete ? 'none' : (v === 'home' || v === 'history' || v === 'body') ? 'tabs' : v;
     this.el.hidden = mode === 'none';
     document.body.classList.toggle('has-dock', mode !== 'none');
     this.el.className = 'dock mode-' + mode + ' view-' + v;
@@ -59,7 +61,7 @@ var Dock = {
     var top = document.getElementById('coachTop');
     if (top) Avatar.mount(top, 'big');
     else Avatar.mount(document.getElementById('dockAvatarSlot'), 'dock');
-    Avatar.show(athlete || !!top);
+    Avatar.show(athlete || staff || !!top);
 
     // ひとこと
     this.line.textContent = this.HINTS[v] || '';
@@ -95,6 +97,8 @@ var Dock = {
       html = '<div class="dock-row"><button class="btn btn-primary btn-pill dock-main" data-act="condSave">' + Icon('check', 22) + 'コンディションを保存</button><span data-slot="mic"></span></div>';
     } else if (mode === 'afterSave') {   // v33：トレーニングを保存したあと
       html = '<div class="dock-row"><div class="dock-hint">声でも選べるよ</div><span data-slot="mic"></span></div>';
+    } else if (mode === 'staff') {   // v35：スタッフ画面
+      html = '<div class="dock-row"><div class="dock-hint">操作も質問も、話しかけてできます</div><span data-slot="mic"></span></div>';
     } else if (mode === 'mymenu') {
       html = '<div class="dock-row"><button class="btn btn-primary btn-pill dock-main" data-mm="save">' + Icon('check', 22) + '保存する</button><span data-slot="mic"></span></div>';
     }

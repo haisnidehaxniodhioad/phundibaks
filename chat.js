@@ -279,7 +279,7 @@ var Chat = {
     var k = Chat.kind(text);
     if (!k) return false;
     var say = Talk.pick(Chat.TALK[k])
-      .replace(/\{name\}/g, S.home ? S.home.name : '')
+      .replace(/\{name\}/g, S.home ? S.home.name : (window.Staff && Staff.name) || '')   // スタッフのときはスタッフの名前（v35）
       .replace(/\{me\}/g, Avatar.me())
       .replace(/\{coach\}/g, Avatar.name());
     if (k === 'praise' || k === 'compliment' || k === 'good') Avatar.feedback('success', 1600);

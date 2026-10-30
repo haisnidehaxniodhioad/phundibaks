@@ -36,7 +36,8 @@ var VoiceUI = {
     // 新しいトレーニングを始めたら、取り消し用の履歴を空にする
     var draftId = S.draft ? S.draft.id : null;
     if (draftId !== this.draftId) { this.undo = []; this.draftId = draftId; }
-    var show = VoiceInput.supported() && !!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition'].indexOf(S.view) >= 0;
+    var show = VoiceInput.supported() && (!!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition'].indexOf(S.view) >= 0 ||
+                                         S.view === 'staff' && !!S.token);   // v35：スタッフ画面でも話しかけられる（staff_voice.js）
     this.btn.hidden = !show;
     // アバターの表示と置き場所は dock.js（画面の下のバー）が決める
     if (S.view === 'home') Avatar.greet();
@@ -44,6 +45,7 @@ var VoiceUI = {
     if (picker && ['home', 'history', 'body'].indexOf(S.view) < 0) picker.hidden = true;   // タブの無い画面では見た目の選択を閉じる
     document.body.classList.toggle('has-mic', show);
     if (!show) { this.box.hidden = true; return; }
+    if (S.view === 'staff') { StaffVoice.helpCard(); return; }   // v35：スタッフ画面の「話し方の例」（staff_voice.js）
     if ((S.view === 'session' || S.view === 'home' || S.view === 'body' || S.view === 'history') && !document.getElementById('voiceHelp')) {
       var help = document.createElement('details');
       help.id = 'voiceHelp';
@@ -278,6 +280,8 @@ function voiceCandidates() {
 function handleVoice(text) {
   // v22：「えっと」「〜してください」などを取り除いてから読み取る（chat.js）
   text = Chat.clean(text);
+  // v35：スタッフ画面は、スタッフ用の操作と質問へ（staff_voice.js・staff_qa.js）
+  if (S.view === 'staff') return StaffVoice.handle(text);
   // ★ アプリの基本操作（どの画面でも。Phase 3f）: 覚えた言い方 → 決まった言い方 の順
   var navLearned = VoiceParser.matchLearned(text, S.home.phrases, S.view);
   if (navLearned && navLearned.exact && NAV_ACTIONS.indexOf(navLearned.exact.action) >= 0) return doNav(text, learnedToCmd(navLearned.exact, text));
