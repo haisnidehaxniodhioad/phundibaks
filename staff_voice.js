@@ -1,7 +1,7 @@
 /**
  * staff_voice.js ― スタッフ画面の会話（話しかけて操作する・データを聞く）（v35）
  *
- *   スタッフ画面では、マイク（画面の下）かコーチを押して話しかける。commands.js の handleVoice から
+ *   スタッフ画面では、マイク（画面の下）かAIアシスタント（上の絵。v36 で「コーチ」から呼び名を変えた）を押して話しかける。commands.js の handleVoice から
  *   StaffVoice.handle(文) が呼ばれ、次の順番で読み取る。
  *     1. 画面の操作（「先週」「InBodyにして」「山田さんを開いて」「戻って」「1年だけ」「3か月にして」「Excelで保存」など）
  *     2. データの質問（staff_qa.js の StaffQA。「今週やってないのは誰？」「山田さんの体重は？」など）
@@ -115,10 +115,10 @@ var StaffVoice = {
     if (/(読み込み|よみこみ)(直|なお)|更新して|最新(に|の情報に)して|リロ/.test(t)) {
       Staff.overview = null; Staff.body = null; Staff.detail = null; Staff.render(); return done('最新のデータを読み込みます。');
     }
-    // コーチの設定（声・男女）
-    if (/(コチ|声|こえ)(の)?(設定|せってい)|設定を開/.test(t)) {
+    // AIアシスタントの設定（声・男女）
+    if (/(コチ|アシスタント|声|こえ)(の)?(設定|せってい)|設定を開/.test(t)) {
       if (window.Avatar && Avatar.openAppearancePicker) Avatar.openAppearancePicker();
-      return done('コーチの設定を開きました。');
+      return done('AIアシスタントの設定を開きました。');
     }
 
     // 選手を開く（「山田さんを開いて」「山田の記録」「山田」だけでも）
@@ -246,7 +246,7 @@ var StaffVoice = {
     help.id = 'voiceHelp';
     help.className = 'card voice-help';
     help.innerHTML = '<summary>🎤 話し方の例（スタッフ）</summary>' +
-      '操作：「先週にして」「今週に戻して」「InBodyにして」「体重のタブ」「FFMIのランキング」「（選手の名前）を開いて」「戻って」「1年だけ」「Aチームだけ」「全員を表示」「Excelで保存」「PDFで保存」「閉じて」<br>' +
+      '操作：「先週にして」「今週に戻して」「InBodyにして」「体重のタブ」「FFMIのランキング」「（選手の名前）を開いて」「戻って」「1年だけ」「Aチームだけ」「全員を表示」「Excelで保存」「PDFで保存」「閉じて」「AIアシスタントの設定」<br>' +
       '選手のページ：「3か月にして」「1週間にして」「前の週」「次の週」<br>' +
       '質問：' + StaffQA.TOPICS.map(function (tp) { return '「' + tp.examples[0] + '」'; }).join('') + '<br>' +
       '選手の名前は選手マスタの名前と比べて探します（名字だけでも、同じ名字がいなければ見つかります）。わからない言い方のときは、画面に候補が出ます。';

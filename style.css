@@ -812,3 +812,6 @@ input:focus, select:focus { background: var(--color-paper); }
 .cc-pt:hover circle:last-of-type { r: 6; }
 .cc-table { margin-top: 12px; }
 .cc-table summary { color: var(--color-accent-700); font-weight: 700; padding: 6px 0; }
+
+/* ---- v36：スタッフ画面では「コーチより」を「AIアシスタントより」にする（dock.js が body に is-staff を付ける） ---- */
+body.is-staff .dock-bubble::before { content: 'AIアシスタントより'; }

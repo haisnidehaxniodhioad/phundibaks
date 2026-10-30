@@ -52,6 +52,13 @@ var Dock = {
     var v = S.view;
     var athlete = !!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition'].indexOf(v) >= 0;
     var staff = v === 'staff' && !!S.token;   // v35：スタッフ画面にも上の帯（コーチ）とマイクを出す
+    // v36：スタッフ画面では「コーチ」ではなく「AIアシスタント」と表示する（style.css の body.is-staff、avatar.js の Avatar.title）
+    if (document.body.classList.contains('is-staff') !== staff) {
+      document.body.classList.toggle('is-staff', staff);
+      Avatar.redraw();
+      var pk = document.getElementById('avatarAppearancePicker');
+      if (pk) pk.remove();   // 設定パネルの見出しを作り直すため
+    }
     var mode = staff ? 'staff' : !athlete ? 'none' : (v === 'home' || v === 'history' || v === 'body') ? 'tabs' : v;
     this.el.hidden = mode === 'none';
     document.body.classList.toggle('has-dock', mode !== 'none');

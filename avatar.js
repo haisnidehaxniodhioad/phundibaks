@@ -37,8 +37,15 @@ var Avatar = {
   storageKey: 'trainingAvatarGender',
 
   name: function () {
+    if (this.isStaff()) return 'AIアシスタント';   // v36：スタッフ画面では「AIアシスタント」と呼ぶ
     return (S.home && S.home.avatarName) || 'コーチ';
   },
+
+  /** スタッフ画面か（スタッフ画面では、名前・設定の見出しを「AIアシスタント」にする。v36） */
+  isStaff: function () { return typeof S !== 'undefined' && S.view === 'staff'; },
+
+  /** 画面に出す呼び名（選手＝コーチ、スタッフ＝AIアシスタント） */
+  title: function () { return this.isStaff() ? 'AIアシスタント' : 'コーチ'; },
 
   getGender: function () {
     return this.currentGender;
@@ -64,8 +71,8 @@ var Avatar = {
     var self = this, g = this.currentGender === 'male' ? '男性' : '女性';
     Array.prototype.forEach.call(this.el.querySelectorAll('img[data-part]'), function (img) { img.src = self.src(img.dataset.part); });
     this.el.dataset.gender = this.currentGender;
-    this.el.setAttribute('aria-label', 'コーチに話しかける（' + g + '）');
-    this.el.setAttribute('title', g + 'のコーチ：タップして話しかける');
+    this.el.setAttribute('aria-label', this.title() + 'に話しかける（' + g + '）');
+    this.el.setAttribute('title', g + 'の' + this.title() + '：タップして話しかける');
     this.applyState();
   },
 
@@ -222,7 +229,7 @@ var Avatar = {
   },
 
   /** 自分の呼び方（男性トレーナーは「ぼく」、女性トレーナーは「わたし」） */
-  me: function () { return this.currentGender === 'female' ? 'わたし' : 'ぼく'; },
+  me: function () { return this.currentGender === 'female' || this.isStaff() ? 'わたし' : 'ぼく'; },
 
   /** 読み上げの区切りごとに口を大きく開ける */
   pulse: function () {
@@ -284,7 +291,7 @@ var Avatar = {
     panel.setAttribute('aria-label', 'トレーナーの見た目を選択');
 
     panel.innerHTML =
-      '<div class="avatar-picker-head"><span class="avatar-picker-title">コーチの設定</span><button type="button" class="btn ghost avatar-picker-close">閉じる</button></div>' +
+      '<div class="avatar-picker-head"><span class="avatar-picker-title">' + this.title() + 'の設定</span><button type="button" class="btn ghost avatar-picker-close">閉じる</button></div>' +
       '<div class="avatar-picker-row"><span class="avatar-picker-label">名前</span><span class="avatar-picker-name"></span></div>' +
       '<div class="avatar-picker-row"><span class="avatar-picker-label">種類</span>' +
         '<span class="avatar-picker-genders"><button type="button" class="btn sub avatar-picker-option" data-gender="male">男性</button>' +
