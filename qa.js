@@ -40,15 +40,28 @@ var QA = {
       answer: function (q) { return Guide.isAsk(q.t) ? Guide.athlete() : Guide.term(q.t, true); }
     },
     {
-      name: '開いているレポートの説明',   // v41：体組成レポートの画面で「このレポートを説明して」
+      name: '開いているレポートの説明',   // v41：体組成レポートの画面で「このレポートを説明して」。v43：ほかの画面から「フィジカルレポートを説明して」でも開いて説明
       examples: ['このレポートを説明して'],
-      test: function (q) { return S.view === 'body' && /説明|せつめい|要約|まとめ|解説|かいせつ|読み上げ|よみあげ|ざっくり|ポイント/.test(q.t); },
+      test: function (q) { return QA.EXPLAIN.test(q.t) && (S.view === 'body' || QA.REPORT.test(q.t)); },
       need: ['body'],
-      answer: function () {
-        var tab = Body.tab || (Body.mine.inbody.length || !Body.mine.weight.length ? 'inbody' : 'weight');
-        return Body.explain({ name: '', inbody: Body.mine.inbody, weight: Body.mine.weight, base: Body.mine.base }, tab)
-            .replace(/いますが、/g, 'いるけど、').replace(/います。/g, 'いるよ。').replace(/です。/g, 'だよ。');
+      answer: function (q) {
+        var say = function () {
+          var tab = Body.tab || (Body.mine.inbody.length || !Body.mine.weight.length ? 'inbody' : 'weight');
+          return QA.casual(Body.explain({ name: '', inbody: Body.mine.inbody, weight: Body.mine.weight, base: Body.mine.base }, tab));
+        };
+        if (S.view === 'body') return say();
+        if (S.view === 'session' || S.view === 'finish') return 'トレーニングが終わってから、体組成レポートで説明するね。';
+        Body.tab = /体重/.test(q.t) && !/フィジカル|インボディ|inbody|体組成/.test(q.t) ? 'weight' : 'inbody';
+        Body.showMine(function () { reply(q.text, say()); });
+        return Talk.ok() + 'レポートを開くね。';
       }
+    },
+    {
+      name: '今の画面のまとめ',   // v43：「この画面をまとめて」（ホーム・記録・トレーニング中など）
+      examples: ['この画面をまとめて'],
+      test: function (q) { return QA.EXPLAIN.test(q.t) && S.view !== 'body' && !QA.REPORT.test(q.t) && !q.metric && !q.exercise; },
+      need: [],
+      answer: function () { return QA.pageSummary(); }
     },
     {
       name: '聞けることの一覧',
@@ -222,6 +235,17 @@ var QA = {
       }
     },
     {
+      name: 'コンディションの推移', main: true,   // v43：「疲労の推移は？」（週平均の移り変わり。スタッフと同じ CondChart.trendText）
+      examples: ['疲労の推移は？'],
+      test: function (q) { return /疲労|ひろう|疲れ|つかれ|コンディション|体調|動きやす|うごきやす|パフォマンス/.test(q.t) && /推移|すいい|変化|へんか|流れ|経過|けいか|移り変わ|グラフ|これまで|変わって/.test(q.t) && !q.exercise && !q.metric; },
+      need: ['stats'],
+      answer: function (q, d) {
+        var c = d.stats.conditions || {};
+        if (!c.list) return 'ごめんね、コンディションの推移はまだ調べられないみたい。スタッフに「Apps Script を v43 にして」と伝えてね。';
+        return QA.casual(CondChart.trendText(c.list, d.stats.weekStart, q.t));
+      }
+    },
+    {
       name: 'コンディション', main: true,
       examples: ['今日の疲労度は？', '最近の疲れ具合は？', '動きやすさの平均は？'],
       test: function (q) { return /疲労|ひろう|疲れ具合|つかれぐあい|コンディション|体調|動きやす|うごきやす|パフォマンスの質/.test(q.t) && !q.exercise && !q.metric && q.ask; },
@@ -328,6 +352,48 @@ var QA = {
   },
   /** 記録を保存したあとなど、次は読み直すようにする */
   reset: function () { this.loadedAt = { stats: 0, body: 0 }; },
+
+  /** ていねいな言い方を、選手向けの話し言葉にする（v43） */
+  casual: function (s) {
+    return String(s).replace(/いますが、/g, 'いるけど、').replace(/います。/g, 'いるよ。').replace(/いました。/g, 'いたよ。')
+      .replace(/ありません。/g, 'ないよ。').replace(/あります。/g, 'あるよ。').replace(/です。/g, 'だよ。').replace(/上がっています/g, '上がってる').replace(/下がっています/g, '下がってる');
+  },
+  EXPLAIN: /説明|せつめい|要約|ようやく|まとめ|解説|かいせつ|読み上げ|よみあげ|ざっくり|ポイント/,
+  REPORT: /フィジカル|体組成|たいそせい|インボディ|inbody|体重レポト|レポト/,
+
+  /** 今の画面のまとめ（ホーム・記録・トレーニング中・終了・コンディション・メニュー作成。v43） */
+  pageSummary: function () {
+    var h = S.home, v = S.view;
+    if (v === 'session' && S.draft) {
+      var dr = S.draft, cur = currentIndex(), done = dr.items.filter(function (it) { return it.sets.every(function (x) { return x.done; }); }).length;
+      var sets = dr.items.reduce(function (a, it) { return a + it.sets.filter(function (x) { return x.done; }).length; }, 0);
+      var min = Math.max(1, Math.round((Date.now() - new Date(dr.startedAt).getTime()) / 60000));
+      return dr.title + 'の途中だよ。全' + dr.items.length + '種目のうち' + done + '種目が終わって、ここまで' + sets + 'セット、始めてから' + min + '分だよ。' +
+        (cur >= 0 ? '今は' + dr.items[cur].name + 'の' + (dr.items[cur].sets.filter(function (x) { return x.done; }).length + 1) + 'セット目だよ。' : '全部終わったから、「終わり」で保存してね。');
+    }
+    if (v === 'finish' && S.draft) {
+      var d2 = S.draft, its = d2.items.filter(function (it) { return it.sets.some(function (x) { return x.done; }); });
+      return d2.title + 'の終わりの画面だよ。' + its.length + '種目、' + its.reduce(function (a, it) { return a + it.sets.filter(function (x) { return x.done; }).length; }, 0) + 'セットを保存できるよ。「保存」で保存してね。';
+    }
+    if (v === 'history' && History.data) {
+      var sel = History.selected, list = History.trainedDays()[sel];
+      return History.summary() + (sel && list ? '今は' + Number(sel.slice(5, 7)) + '月' + Number(sel.slice(8, 10)) + '日を表示していて、' + list.map(function (x) { return History.title(x).replace(/[「」]/g, ''); }).join('と') + 'をやった日だよ。' : '');
+    }
+    if (v === 'condition' && S.cond) {
+      var miss = Condition.missing();
+      return Condition.dateLabel(S.cond.date) + 'のコンディションの入力だよ。' + Condition.ITEMS.filter(function (it) { return S.cond[it.key] >= 1; }).map(function (it) { return it.short + 'は' + S.cond[it.key]; }).join('、') +
+        (miss.length ? (miss.length < 4 ? '。' : '') + 'まだ「' + miss.join('」「') + '」を選んでないよ。' : '。全部選んだから、「保存」で保存できるよ。');
+    }
+    if (v === 'mymenu' && S.edit) return 'メニュー作りの画面だよ。' + (S.edit.name ? '「' + S.edit.name + '」、' : '') + S.edit.items.filter(function (it) { return it.name; }).length + '種目入っているよ。終わったら下の「保存する」を押してね。';
+    // ホーム
+    var left = h.days.filter(function (d) { return !h.doneDays[d.day]; });
+    var c = h.condition;
+    return h.name + 'さんのホームだよ。' + (h.days.length ? '今週は' + h.days.length + 'Dayのうち' + (h.days.length - left.length) + 'Day終わって、' +
+      (left.length ? '残りは' + left.map(function (d) { return 'デイ' + d.day; }).join('と') + '。' + h.suggestion.reason.replace(/です。$/, 'だよ。') : '全部できたね！') : '') +
+      (c ? '今日のコンディションは記録済みで、疲労は全身' + c.whole + '・上半身' + c.upper + '・下半身' + c.lower + '、動きやすさ' + c.perf + 'だよ。' : '今日のコンディションはまだだよ。') +
+      (h.last ? '前回のトレーニングは' + Number(h.last.date.slice(5, 7)) + '月' + Number(h.last.date.slice(8, 10)) + '日だよ。' : '') +
+      (S.draft ? '途中のトレーニングがあるから、「続きから」で再開できるよ。' : '');
+  },
 
   // ---------------- 文を作る小さな部品 ----------------
   series: function (key) {

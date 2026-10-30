@@ -87,6 +87,34 @@ var CondChart = {
   /** 前（古い方）へ進めるか：表示している期間より前に記録があるときだけ */
   hasOlder: function (from) { return CondChart.data.length > 0 && CondChart.data[0].date < from; },
 
+  /**
+   * コンディションの週平均の推移を、声で読める文にする（v43。スタッフの staff_qa.js・選手の qa.js で共通）
+   *   conds: [{ date, whole, upper, lower, perf }] / weekStart: '月' または '日' / t: 聞かれた文（期間・項目の言葉を読む）
+   *   最近4週（「最近2か月の」などと言えばその期間・最大13週）の週ごとの平均を、古い週から順に並べる
+   */
+  trendText: function (conds, weekStart, t) {
+    var range = Body.trendRange(t), c = (conds || []).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    CondChart.weekStart = weekStart === '日' ? '日' : '月';
+    var weeks = range.from ? Math.min(13, Math.max(2, Math.ceil((Date.parse(Body.today()) - Date.parse(range.from)) / (7 * 86400000)))) : 4;
+    var thisWeek = CondChart.weekStartOf(Body.today()), list = [];
+    for (var k = weeks - 1; k >= 0; k--) {
+      var ws = Body.addDays(thisWeek, -7 * k), we = Body.addDays(ws, 6);
+      var inW = c.filter(function (x) { return x.date >= ws && x.date <= we; });
+      list.push({ ws: ws, n: inW.length, whole: CondChart.avg(inW, 'whole'), upper: CondChart.avg(inW, 'upper'), lower: CondChart.avg(inW, 'lower'), perf: CondChart.avg(inW, 'perf') });
+    }
+    var has = list.filter(function (w) { return w.n; });
+    if (!has.length) return '最近' + weeks + '週間のコンディションの記録がありません。';
+    var keys = /動き|パフォマンス/.test(t) ? [['perf', '動きやすさ']] : /上半身/.test(t) ? [['upper', '上半身の疲労']] : /下半身/.test(t) ? [['lower', '下半身の疲労']]
+      : /全身/.test(t) ? [['whole', '全身の疲労']] : /疲労|疲れ/.test(t) ? [['whole', '全身'], ['upper', '上半身'], ['lower', '下半身']]
+      : [['whole', '全身の疲労'], ['upper', '上半身'], ['lower', '下半身'], ['perf', '動きやすさ']];
+    var word = function (a, b) { return has.length < 2 || a === null || b === null ? '' : b - a >= 1 ? '（上がっています）' : a - b >= 1 ? '（下がっています）' : '（ほぼ同じ）'; };
+    var md = function (d) { return Number(d.slice(5, 7)) + '月' + Number(d.slice(8, 10)) + '日'; };
+    return '最近' + weeks + '週間のコンディションの週平均は、' + md(has[0].ws) + 'の週からの順に、' + keys.map(function (k) {
+      var vals = has.map(function (w) { return w[k[0]]; });
+      return k[1] + 'が' + vals.map(function (x) { return x === null ? '-' : x; }).join('、') + word(vals[0], vals[vals.length - 1]);
+    }).join('、') + 'です。記録がある週は' + has.length + '週です。';
+  },
+
   // ---------------- 画面 ----------------
   html: function () { return '<div class="card cond-chart" id="condChartBox">' + CondChart.inner() + '</div>'; },
 
