@@ -2,8 +2,8 @@
  * theme.js ― 画面の色（昼／夜）の切り替え（v30）
  *
  *   ・「自動」… スマホのダークモードに合わせる（最初はこれ）
- *   ・「昼」  … いつも白地に紺の縦じま
- *   ・「夜」  … いつも紺の地に白の縦じま
+ *   ・「昼」  … いつも明るい色（生成りの地に紺の縦じま・白い紙）
+ *   ・「夜」  … いつも暗い色（紺の地に白の縦じま・紺の紙）
  *   選んだものはこの端末に保存する（localStorage の trainingTheme）。
  *   色そのものは style.css の :root（昼）と [data-theme="dark"]（夜）で決めている。
  *   このファイルは画面が出る前に色を決めたいので、index.html の <head> で読み込む。
@@ -36,7 +36,7 @@ var Theme = {
     var m = this.get(), root = document.documentElement;
     if (m === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', m);
     var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', this.isDark() ? '#10163A' : '#FFFFFF');
+    if (meta) meta.setAttribute('content', this.isDark() ? '#0F1433' : '#F1F0EC');
   }
 };
 Theme.apply();

@@ -8,7 +8,7 @@
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v31b 2026-10-29';
+var APP_VERSION = 'v32 2026-10-30';
 // 記録し忘れた日の分を、何日前まで遡って入力できるか（v26）。Apps Script の 設定.gs の MAX_BACKDATE_DAYS と同じ数字にする
 var MAX_BACKDATE_DAYS = 3;
 var S = { token: null, home: null, draft: null, view: 'loading' };
@@ -160,7 +160,11 @@ function renderHome(notice, warning) {
     html += '<section class="today-card"><div class="today-kicker"><span>今日はこれをやろう</span>' +
       '<button class="btn ghost icon-btn" data-act="speakSuggest" aria-label="読み上げる">' + Icon('speaker', 22) + '</button></div>' +
       '<div class="today-title">Day' + d0.day + (d0.dayName ? '　' + esc(d0.dayName) : '') + '</div>' +
-      '<div class="today-items">' + applySavedOrder(d0.items, d0.day).map(function (it) { return esc(it.name); }).join('・') + '</div>' +
+      // v32：種目は横線の表（No.・種目・回数×セット）
+      '<table class="today-items line-table"><thead><tr><th class="no">No.</th><th>種目</th><th class="r">回数×セット</th></tr></thead><tbody>' +
+      applySavedOrder(d0.items, d0.day).map(function (it, k) {
+        return '<tr><td class="no">' + (k + 1) + '</td><td class="name">' + esc(it.name) + '</td><td class="r">' + (it.reps ? esc(it.reps) + ' × ' + esc(it.sets || 1) : '') + '</td></tr>';
+      }).join('') + '</tbody></table>' +
       '<button class="btn btn-pill big block" data-act="startDay" data-day="' + d0.day + '">' + Icon('play', 22) + 'はじめる</button>';
     h.suggestion.order.slice(1).forEach(function (dayNo) {
       var d = findDay(dayNo);
@@ -383,6 +387,7 @@ function renderSession() {
 function exerciseCard(i, current) {
   var dr = S.draft, it = dr.items[i], last = latestOf(it.name);
   var left = it.sets.filter(function (s) { return !s.done; }).length;
+  var nowSet = current ? it.sets.findIndex(function (s) { return !s.done; }) : -1;   // v32：今やるセット（印を付ける）
   var html = '<div class="ex-card' + (current ? ' current' : '') + '">';
   html += '<div class="ex-head"><span class="ex-name">' + esc(it.name) + '</span>' +
     (it.category ? '<span class="tag">' + esc(it.category) + '</span>' : '') +
@@ -398,7 +403,7 @@ function exerciseCard(i, current) {
   html += '<div class="muted small">前回 ' + (last ? esc(last.sets) + '（' + esc(last.date) + '）' : '記録なし') + '</div>';
   html += '<div class="set-list">';
   it.sets.forEach(function (s, j) {
-    html += '<div class="set-row' + (s.done ? ' done' : '') + '"><span class="set-no">' + (j + 1) + '</span>' +
+    html += '<div class="set-row' + (s.done ? ' done' : '') + (j === nowSet ? ' now' : '') + '"><span class="set-no">' + (j + 1) + '</span>' +
       '<button class="step" data-act="wStep" data-i="' + i + '" data-j="' + j + '" data-d="-1" aria-label="重さを下げる">−</button>' +
       '<label class="num"><input type="number" inputmode="decimal" step="0.5" min="0" value="' + esc(s.w) + '" data-act="w" data-i="' + i + '" data-j="' + j + '" aria-label="重量"><span>kg</span></label>' +
       '<button class="step" data-act="wStep" data-i="' + i + '" data-j="' + j + '" data-d="1" aria-label="重さを上げる">＋</button>' +
