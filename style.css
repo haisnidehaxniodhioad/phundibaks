@@ -844,3 +844,13 @@ body.is-staff .dock-bubble::before { content: 'AIアシスタントより'; }
 .dock-row .btn[data-typevoice] { min-height: 44px; padding: 6px 12px; font-size: 0.88rem; flex: none; }
 /* v37：返事の欄が帯の高さに固定され、長い返事が中でスクロールして読みにくかったのを直す（下に伸びるようにする） */
 .coach-band .voice-box { bottom: auto; }
+
+/* ---- v44：部員名簿から取り込む（roster.js） ---- */
+.roster-sum { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 6px; }
+.roster-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 0; border-top: 1px solid var(--border); line-height: 1.45; }
+.roster-item input { margin-top: 4px; flex: none; width: 18px; height: 18px; }
+.roster-all { display: block; margin: 6px 0 2px; }
+.roster-changes { display: block; margin-top: 2px; }
+.roster-changes span { display: block; }
+.roster-apply { position: sticky; bottom: var(--dock-h, 0px); z-index: 5; padding: 8px 12px 10px; margin: 0 -4px; background: var(--color-paper); border-top: 1px solid var(--border); text-align: center; }
+.roster-apply .btn.block { margin-top: 0; }

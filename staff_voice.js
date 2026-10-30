@@ -64,8 +64,8 @@ var StaffVoice = {
   // ---------------- 選手の名前 ----------------
   /** 名前の一覧（実施状況 → 体組成 のどちらかに読み込んであるもの。在籍中の選手） */
   roster: function () {
-    if (Staff.overview) return Staff.overview.athletes.map(function (a) { return { id: a.id, name: String(a.name), grade: a.grade, team: a.team }; });
-    if (Staff.body) return Staff.body.athletes.filter(function (a) { return a.active; }).map(function (a) { return { id: a.id, name: String(a.name), grade: a.grade, team: a.team }; });
+    if (Staff.overview) return Staff.overview.athletes.map(function (a) { return { id: a.id, name: String(a.name), grade: a.grade, team: a.team, kana: String(a.kana || '') }; });
+    if (Staff.body) return Staff.body.athletes.filter(function (a) { return a.active; }).map(function (a) { return { id: a.id, name: String(a.name), grade: a.grade, team: a.team, kana: String(a.kana || '') }; });
     return [];
   },
 
@@ -82,6 +82,9 @@ var StaffVoice = {
       var maxLen = Math.max.apply(null, full.map(function (a) { return VoiceParser.norm(a.name).length; }));
       return full.filter(function (a) { return VoiceParser.norm(a.name).length === maxLen; });
     }
+    // ふりがな（v44：部員名簿から取り込んだ人）。声がひらがなで聞き取られたとき用（姓名そろって3文字以上のときだけ）
+    var kfull = list.filter(function (a) { var k = VoiceParser.norm(a.kana); return k.length >= 3 && raw.indexOf(k) >= 0; });
+    if (kfull.length) return kfull;
     var part = function (k) {
       return list.filter(function (a) {
         var p = String(a.name).trim().split(/[\s　]+/);
@@ -137,6 +140,11 @@ var StaffVoice = {
       return done('AIアシスタントの設定を開きました。');
     }
 
+    // 部員名簿から取り込む（v44。roster.js。反映は画面で確かめてから、ボタンで行う）
+    if (/(部員)?名簿|めいぼ/.test(t) && /取り込|とりこ|読み込|よみこ|開|ひら|追加|ついか|更新|こうしん|比べ|くらべ|反映/.test(t) && !people.length) {
+      Roster.open();
+      return done('部員名簿を読み込みます。1分ほどかかることがあります。読み終わったら、チェックを確かめて「チェックした分を反映する」を押してください。');
+    }
     // 選手のフィジカルレポートを直接開く（「山田のフィジカルレポートを開いて」「山田の体重レポート」「山田のInBody」。v39）
     if (people.length && /フィジカル|レポト|インボディ|inbody|体組成|たいそせい/.test(t) && !/(1位|一位|順位|何位|ランキング|平均|未実施|誰)/.test(t)) {
       if (people.length > 1) return StaffVoice.askWhich(text, people);
@@ -267,7 +275,7 @@ var StaffVoice = {
   },
 
   helpText: function () {
-    return '見方は「このページの見方を説明して」「FFMIって何？」。画面の操作は「（選手の名前）のフィジカルレポートを開いて」「先週にして」「InBodyにして」「体重のタブ」「（選手の名前）を開いて」「戻って」「1年だけ」「全員を表示」「Excelで保存」。' +
+    return '見方は「このページの見方を説明して」「FFMIって何？」。画面の操作は「（選手の名前）のフィジカルレポートを開いて」「先週にして」「InBodyにして」「体重のタブ」「（選手の名前）を開いて」「戻って」「1年だけ」「全員を表示」「Excelで保存」「部員名簿から取り込んで」。' +
       '選手の個人ページでは「3か月にして」「1週間にして」「前の週」「フィジカルレポートを開いて」「体重レポートを開いて」「戻って」。フィジカルレポートのページでは「このフィジカルレポートを説明して」「体重にして」「InBodyにして」「戻って」。' +
       '質問は「今週やってないのは誰？」「何人やった？」「疲れている選手は？」「動きが悪い選手は？」「コンディションを入れていないのは誰？」「下半身をやっていないのは誰？」' +
       '「チームの疲労の平均は？」「FFMIの1位は？」「体重を測っていないのは誰？」「（名前）の体重は？」「（名前）の除脂肪体重の推移は？」「（名前）の疲労の推移は？」「（名前）のコンディションは？」「（名前）の今週は？」「（名前）が最後にやったのはいつ？」などです。';
@@ -281,7 +289,7 @@ var StaffVoice = {
     help.className = 'card voice-help';
     help.innerHTML = '<summary>🎤 話し方の例（スタッフ）</summary>' +
       '見方：「このページの見方を説明して」「FFMIって何？」「基準比って何？」<br>' +
-      '操作：「（選手の名前）のフィジカルレポートを開いて」「（選手の名前）の体重レポート」「先週にして」「今週に戻して」「InBodyにして」「体重のタブ」「FFMIのランキング」「（選手の名前）を開いて」「戻って」「1年だけ」「Aチームだけ」「全員を表示」「Excelで保存」「PDFで保存」「閉じて」「AIアシスタントの設定」<br>' +
+      '操作：「（選手の名前）のフィジカルレポートを開いて」「（選手の名前）の体重レポート」「先週にして」「今週に戻して」「InBodyにして」「体重のタブ」「FFMIのランキング」「（選手の名前）を開いて」「戻って」「1年だけ」「Aチームだけ」「全員を表示」「Excelで保存」「PDFで保存」「閉じて」「AIアシスタントの設定」「部員名簿から取り込んで」<br>' +
       '選手の個人ページ：「3か月にして」「1週間にして」「前の週」「次の週」「フィジカルレポートを開いて」「体重レポートを開いて」「戻って」<br>フィジカルレポート：「このフィジカルレポートを説明して」「体重にして」「InBodyにして」「PDFで保存」「戻って」<br>' +
       '質問：' + StaffQA.TOPICS.map(function (tp) { return '「' + tp.examples[0] + '」'; }).join('') + '<br>' +
       '選手の名前は選手マスタの名前と比べて探します（名字だけでも、同じ名字がいなければ見つかります）。わからない言い方のときは、画面に候補が出ます。';
