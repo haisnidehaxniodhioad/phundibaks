@@ -165,7 +165,7 @@ var StaffQA = {
     // ---- ここから下は、選手の名前が入った質問 ----
     {
       examples: ['（名前）の体重は？', '（名前）のFFMIは何位？'],
-      test: function (q) { return !!q.person && !!q.metric; },
+      test: function (q) { return !!q.person && !!q.metric && !/レポト/.test(q.t); },   // 「〇〇の体重レポートは？」はレポートを開く（v39）
       need: ['body'],
       answer: function (q, d) {
         var m = q.metric, a = d.body.athletes.filter(function (x) { return x.id === q.person.id; })[0];
@@ -222,7 +222,7 @@ var StaffQA = {
     },
     {
       examples: ['（名前）はどう？'],
-      test: function (q) { return !!q.person && q.ask; },
+      test: function (q) { return !!q.person && q.ask && !/レポト|フィジカル|インボディ|inbody|体組成/.test(q.t); },   // 「〇〇のフィジカルレポートは？」はレポートを開く（v39）
       need: ['overview', 'detail'],
       answer: function (q, d) {
         var a = d.overview.athletes.filter(function (x) { return x.id === q.person.id; })[0];

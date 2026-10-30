@@ -6,6 +6,7 @@
  * 体重タブ  : 体重管理表の取り込み、測定日ごとの体重一覧（未測定は赤・前回比・4週前比）、
  *             体重レポートのPDF（学年まとめ）、Excel（一覧・全履歴）
  * InBodyタブの一番下に「基準の設定（全員共通）」（body_base.js・Phase 3e）。
+ * v39：InBody・体重タブで選手の名前を押すと、その選手のフィジカルレポート（InBody／体重）を直接開く（staff.js の Staff.openReport）。
  * 取り込みは、それぞれのタブで対応するファイルだけを受け付ける（違うファイルを選ぶと知らせる）。
  */
 var StaffBody = {
@@ -115,7 +116,7 @@ var StaffBody = {
       '<button class="btn sub" data-sb="xLatestXlsx">📊 表示中の選手のInBody最新値をExcel</button></div></div>';
     html += '<div class="card"><table class="tbl"><tr><th>順位</th><th>選手</th><th>学年</th><th>' + esc(labels[metric]) + '</th><th>測定日</th></tr>' +
       StaffBody.rankRows.map(function (r) {
-        return '<tr><td>' + r.rank + '</td><td><button class="link" data-staff="athlete" data-v="' + esc(r.id) + '">' + esc(r.name) + '</button></td><td>' + esc(r.grade) +
+        return '<tr><td>' + r.rank + '</td><td><button class="link" data-staff="openReport" data-v="' + esc(r.id) + '" data-tab="inbody">' + esc(r.name) + '</button></td><td>' + esc(r.grade) +
           '</td><td><b>' + esc(r.value) + '</b></td><td class="small">' + esc(r.date) + '</td></tr>';
       }).join('') + '</table>' + (rows.length ? '' : '<p class="muted">InBodyの記録がありません。上の「取り込む」から体組成Excelを取り込んでください。</p>') + '</div>';
     return html;
@@ -160,7 +161,7 @@ var StaffBody = {
     html += '<div class="card"><div class="table-scroll"><table class="tbl"><tr><th>選手</th><th>学年</th><th>体重</th><th>前回比</th><th>4週前比</th><th>測定日</th></tr>' +
       rows.map(function (r) {
         var fmt = function (d) { return d === '' ? '-' : (d > 0 ? '▲' : d < 0 ? '▼' : '±') + Math.abs(d); };
-        return '<tr class="' + (r.weight === null ? 'row-ng' : '') + '"><td><button class="link" data-staff="athlete" data-v="' + esc(r.id) + '">' + esc(r.name) + '</button></td><td>' + esc(r.grade) +
+        return '<tr class="' + (r.weight === null ? 'row-ng' : '') + '"><td><button class="link" data-staff="openReport" data-v="' + esc(r.id) + '" data-tab="weight">' + esc(r.name) + '</button></td><td>' + esc(r.grade) +
           '</td><td><b>' + (r.weight === null ? '未測定' : esc(r.weight)) + '</b></td><td>' + fmt(r.diff) + '</td><td>' + fmt(r.diff4w) + '</td><td class="small">' + esc(r.date || '-') + '</td></tr>';
       }).join('') + '</table></div>' + (dates.length ? '' : '<p class="muted">体重の記録がありません。上の「取り込む」から体重管理表を取り込んでください。</p>') + '</div>';
     return html;

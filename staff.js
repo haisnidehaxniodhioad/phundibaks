@@ -173,6 +173,7 @@ var Staff = {
   //   個人ページの「フィジカルレポート」から開く。「← 戻る」（またはブラウザの戻る）で個人ページの同じ位置に戻る
   showReport: function (tab) {
     if (!Staff.current) return;
+    Staff.reportFrom = 'athlete';   // 戻る先は個人ページ
     if (Staff.page !== 'report') {
       Staff.reportReturnScroll = window.scrollY || 0;
       try { history.pushState({ staffReport: Staff.current.id }, ''); } catch (e) {}
@@ -181,6 +182,29 @@ var Staff = {
     Staff.physTab = tab === 'weight' ? 'weight' : 'inbody';
     Staff.renderReport();
     window.scrollTo(0, 0);
+  },
+
+  /**
+   * 一覧（InBody・体重タブ）や声から、選手のフィジカルレポートを直接開く（v39）。戻る先は開く前の画面（タブ・スクロール位置）
+   *   id: 選手ID / tab: 'inbody'（フィジカルレポート）または 'weight'（体重レポート）
+   */
+  openReport: function (id, tab) {
+    if (Staff.page === 'athlete' && Staff.current && Staff.current.id === id) return Staff.showReport(tab);   // 同じ選手の個人ページからなら、個人ページに戻れるように
+    var fromList = Staff.page !== 'athlete' && Staff.page !== 'report';
+    if (fromList) Staff.returnTo = { tab: Staff.tab, scroll: window.scrollY || 0 };
+    try { if (fromList) history.pushState({ staffReport: id }, ''); else history.replaceState({ staffReport: id }, ''); } catch (e) {}
+    Staff.page = 'report';
+    Staff.reportFrom = 'list';
+    Staff.physTab = tab === 'weight' ? 'weight' : 'inbody';
+    app.innerHTML = Staff.athleteFrame('', '<div class="loading">読み込み中…</div>', 'フィジカルレポート');
+    window.scrollTo(0, 0);
+    return Staff.loadBody().then(function (b) {
+      if (Staff.page !== 'report') return;
+      var a = (b.athletes || []).filter(function (x) { return x.id === id; })[0];
+      if (!a) throw new Error('選手が見つかりません。');
+      Staff.current = a;
+      Staff.renderReport();
+    }).catch(Staff.fail);
   },
 
   renderReport: function () {
@@ -221,12 +245,17 @@ var Staff = {
   /** 「← 戻る」：ブラウザの履歴に足してあれば、ブラウザの戻ると同じ動きにする */
   back: function () {
     var st = history.state || {};
-    if (Staff.page === 'report') { if (st.staffReport) history.back(); else Staff.leaveReport(); return; }   // → popstate で leaveReport
+    if (Staff.page === 'report') { if (st.staffReport) history.back(); else Staff.leaveReportPage(); return; }   // → popstate で leaveReportPage
     if (st.staffAthlete) history.back();   // → popstate で leaveAthlete
     else Staff.leaveAthlete();
   },
 
   /** フィジカルレポートから個人ページ（同じスクロール位置）に戻る（通信はしない） */
+  /** フィジカルレポートから戻る：個人ページから開いたなら個人ページへ、一覧（InBody・体重タブ）や声から開いたなら元の一覧へ（v39） */
+  leaveReportPage: function () {
+    if (Staff.reportFrom === 'list') Staff.leaveAthlete(); else Staff.leaveReport();
+  },
+
   leaveReport: function () {
     Body.closeHistory();
     Staff.page = 'athlete';
@@ -252,7 +281,7 @@ var Staff = {
 
   fail: function (err) {
     if (err.needLogin) { Store.remove('token'); S.token = null; renderLogin(err.message); return; }
-    if (Staff.page === 'athlete') { app.innerHTML = Staff.athleteFrame('', msgHtml('error', err.message)); return; }   // 個人ページでは「← 戻る」を残す
+    if (Staff.page === 'athlete' || Staff.page === 'report') { app.innerHTML = Staff.athleteFrame('', msgHtml('error', err.message)); return; }   // 個人ページでは「← 戻る」を残す
     app.innerHTML = Staff.frame(msgHtml('error', err.message) + '<button class="btn block" data-staff="reload">もう一度読み込む</button>');
   }
 };
@@ -275,6 +304,7 @@ app.addEventListener('click', function (e) {
     case 'back': Staff.back(); break;
     case 'phys': Staff.setPhys(v); break;
     case 'report': Staff.showReport(v); break;
+    case 'openReport': Staff.openReport(v, t.dataset.tab); break;   // InBody・体重タブの選手名（v39）
     // ---- PDF・Excelでの保存（export.js）。InBody・体重タブのボタンは staff_body.js ----
     case 'xOverviewXlsx': Export.overviewExcel(Staff.overview, Staff.overviewList); break;
     case 'xOverviewPdf': Export.overviewPdf(Staff.overview, Staff.overviewList); break;
@@ -293,6 +323,6 @@ app.addEventListener('change', function (e) {
 // ブラウザの「戻る」で個人ページから戻ったとき（v37）
 window.addEventListener('popstate', function () {
   if (S.view !== 'staff') return;
-  if (Staff.page === 'report') Staff.leaveReport();
+  if (Staff.page === 'report') Staff.leaveReportPage();
   else if (Staff.page === 'athlete') Staff.leaveAthlete();
 });
