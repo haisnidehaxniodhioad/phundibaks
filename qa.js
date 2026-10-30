@@ -33,6 +33,17 @@ var QA = {
   // ---------------- 話題ごとの答え方 ----------------
   TOPICS: [
     {
+      name: '開いているレポートの説明',   // v41：体組成レポートの画面で「このレポートを説明して」
+      examples: ['このレポートを説明して'],
+      test: function (q) { return S.view === 'body' && /説明|せつめい|要約|まとめ|解説|かいせつ|読み上げ|よみあげ|ざっくり|ポイント/.test(q.t); },
+      need: ['body'],
+      answer: function () {
+        var tab = Body.tab || (Body.mine.inbody.length || !Body.mine.weight.length ? 'inbody' : 'weight');
+        return Body.explain({ name: '', inbody: Body.mine.inbody, weight: Body.mine.weight, base: Body.mine.base }, tab)
+            .replace(/いますが、/g, 'いるけど、').replace(/います。/g, 'いるよ。').replace(/です。/g, 'だよ。');
+      }
+    },
+    {
       name: '聞けることの一覧',
       examples: ['何が聞ける？'],
       test: function (q) { return /(何|なに|なん)(が|を)(聞け|きけ|わか|分か|答え|こたえ)|聞けること|わかること|分かること/.test(q.t); },
@@ -63,7 +74,7 @@ var QA = {
       need: ['body'],
       answer: function (q) {
         var m = q.metric;
-        return Body.trendText(QA.series(m.key), m.label, m.unit, Body.trendRange(q.t)).replace(/います。/g, 'いるよ。').replace(/です。/g, 'だよ。');   // 選手には話し言葉で
+        return Body.trendText(QA.series(m.key), m.label, m.unit, Body.trendRange(q.t)).replace(/いますが、/g, 'いるけど、').replace(/います。/g, 'いるよ。').replace(/です。/g, 'だよ。');   // 選手には話し言葉で
       }
     },
     {

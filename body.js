@@ -101,6 +101,75 @@ var Body = {
   },
   avg: function (arr) { return arr.length ? arr.reduce(function (s, v) { return s + v; }, 0) / arr.length : null; },
 
+  /**
+   * 記録の始め（from）から最新までの変化と、最近3か月の変化を比べた文（v40 の trendText から分けた。v41 のレポートの説明でも使う）
+   *   s: [{ date, value }]（古い順・2件以上）
+   */
+  trendCompare: function (s, unit, from) {
+    var md = function (d) { return Number(d.slice(5, 7)) + '月' + Number(d.slice(8, 10)) + '日'; };
+    var v = function (x) { return Number(x).toFixed(1) + unit; };
+    var eps = unit ? 0.3 : 0.2;
+    var dir = function (d) { return Math.abs(d) < eps ? 0 : d > 0 ? 1 : -1; };
+    var amount = function (d) { return Math.abs(Math.round(d * 10) / 10).toFixed(1) + unit; };
+    var first = s[0], last = s[s.length - 1], diff = last.value - first.value, od = dir(diff);
+    // 最近3か月：3か月前ごろ（それより前でいちばん新しい記録。無ければ3か月の中の最初の記録）から最新まで
+    var cut = Body.addMonths(last.date, -3), before = s.filter(function (p) { return p.date <= cut; });
+    var base = before.length ? before[before.length - 1] : s.filter(function (p) { return p.date > cut; })[0];
+    var useRecent = base && base !== first && base !== last && Body.addMonths(first.date, 4) < last.date;
+    if (!useRecent) return od === 0 ? from + 'から、ほとんど変わっていません。' : from + 'から' + amount(diff) + (od > 0 ? '増えています。' : '減っています。');
+    var rd = dir(last.value - base.value), rtext = '最近3か月（' + md(base.date) + 'の' + v(base.value) + 'から）';
+    var word = function (d) { return d > 0 ? '増えて' : '減って'; };
+    if (od !== 0 && rd !== 0 && od !== rd) return from + 'からは' + amount(diff) + word(od) + 'いますが、' + rtext + 'では' + amount(last.value - base.value) + word(rd) + 'います。';
+    if (od !== 0 && rd === 0) return from + 'からは' + amount(diff) + word(od) + 'いますが、' + rtext + 'はほとんど変わっていません。';
+    if (od === 0 && rd !== 0) return from + 'と比べるとほとんど同じですが、' + rtext + 'では' + amount(last.value - base.value) + word(rd) + 'います。';
+    if (od === 0) return from + 'からも、最近3か月も、ほとんど変わっていません。';
+    return from + 'から' + amount(diff) + word(od) + 'いて、' + rtext + 'でも' + amount(last.value - base.value) + word(rd) + 'います。';
+  },
+
+  /**
+   * 開いているレポートの説明（v41。「このフィジカルレポートを説明して」）
+   *   a: レポートの選手（Staff.current / Body.mine）、tab: 'inbody'（フィジカルレポート）または 'weight'（体重レポート）
+   *   画面に出ている内容（最新の値・前回比・基準比・同日順位・平均など）を、声で聞いてわかる順に並べる。良し悪しの判定はしない
+   */
+  explain: function (a, tab) {
+    var md = function (d) { return Number(d.slice(5, 7)) + '月' + Number(d.slice(8, 10)) + '日'; };
+    var who = a.name ? a.name + 'さんの' : '';
+    var change = function (d, unit) { var r = Math.round(d * 10) / 10; return r === 0 ? '変わらず' : Math.abs(r).toFixed(1) + unit + (r > 0 ? '増' : '減'); };
+    if (tab === 'weight') {
+      var st = Body.weightStats(a.weight || []);
+      if (!st) return who + '体重レポートですが、まだ体重の記録がありません。';
+      var out = who + '体重レポートです。体重の記録は' + st.recs.length + '回あります。最新は' + md(st.last.date) + 'の' + st.last.value.toFixed(1) + 'キロで、' +
+        (st.prev ? '前回の' + md(st.prev.date) + 'より' + change(st.last.value - st.prev.value, 'キロ') + 'です。' : '前回の記録はありません。');
+      out += '直近4週間の平均は' + st.w1.avg.toFixed(1) + 'キロ（' + st.w1.n + '回）' + (st.w0.avg !== null ? 'で、その前の4週間の' + st.w0.avg.toFixed(1) + 'キロより' + change(st.w1.avg - st.w0.avg, 'キロ') + 'です。' : 'です。');
+      if (st.ref4w) out += '4週前の' + md(st.ref4w.date) + 'と比べると' + change(st.last.value - st.ref4w.value, 'キロ') + '。';
+      if (st.ref3m) out += '3か月前の' + md(st.ref3m.date) + 'と比べると' + change(st.last.value - st.ref3m.value, 'キロ') + '。';
+      if (st.recs.length >= 3) out += '体重は、' + Body.trendCompare(st.recs, 'キロ', '記録の始め（' + md(st.recs[0].date) + '）');
+      return out;
+    }
+    var ib = a.inbody || [];
+    if (!ib.length) return who + 'フィジカルレポートですが、まだInBodyの記録がありません。';
+    var L = ib[ib.length - 1], P = ib[ib.length - 2], base = (a.base && a.base.dates) || [];
+    var M = [['weight', '体重', 'キロ'], ['fat', '体脂肪率', 'パーセント'], ['lbm', '除脂肪体重', 'キロ'], ['ffmi', 'FFMI', '']];
+    var out2 = who + 'フィジカルレポートです。InBodyは' + ib.length + '回測っていて、最新は' + md(L.date) + 'の測定です。' +
+      M.filter(function (m) { return Body.num(L[m[0]]) !== null; }).map(function (m) { return m[1] + Body.f1(L[m[0]]) + m[2]; }).join('、') + 'です。';
+    if (P) out2 += '前回の' + md(P.date) + 'と比べると、' + M.filter(function (m) { return Body.num(L[m[0]]) !== null && Body.num(P[m[0]]) !== null; })
+      .map(function (m) { return m[1] + 'は' + change(L[m[0]] - P[m[0]], m[2]); }).join('、') + 'です。';
+    var baseRows = ib.filter(function (r) { return base.indexOf(r.date) >= 0; });
+    if (baseRows.length) {
+      out2 += '基準（' + (a.base.label || '設定された基準日') + '）と比べると、' + M.map(function (m) {
+        var bv = Body.avg(baseRows.map(function (r) { return Body.num(r[m[0]]); }).filter(function (x) { return x !== null; }));
+        return bv === null || Body.num(L[m[0]]) === null ? '' : m[1] + 'は' + change(L[m[0]] - bv, m[2]);
+      }).filter(String).join('、') + 'です。';
+    }
+    if (L.rank) out2 += 'FFMIは、同じ日に測った' + L.rankOf + '人の中で' + L.rank + '位です。';
+    if (ib.length >= 3) {
+      var lbm = Body.series(ib, 'lbm'), fat = Body.series(ib, 'fat');
+      if (lbm.length >= 3) out2 += '除脂肪体重は、' + Body.trendCompare(lbm, 'キロ', '記録の始め');
+      if (fat.length >= 3) out2 += '体脂肪率は、' + Body.trendCompare(fat, 'パーセント', '記録の始め');
+    }
+    return out2;
+  },
+
   // ---------------- 数値の推移を、声で読める短い文にする（v40。スタッフの staff_qa.js・選手の qa.js で使う） ----------------
   /** 「最近3か月」「半年」「今年」「1年」などの言葉から、見る期間の始まりの日（'yyyy-mm-dd'）と説明を返す。言葉が無ければ全期間 */
   trendRange: function (t) {
@@ -133,22 +202,7 @@ var Body = {
     var from = range.label ? range.label + 'の始め' : '記録の始め';
     var out = head + 'は、' + s.length + '回の測定で、' + md(first.date) + 'の' + v(first.value) + 'から、最新の' + md(last.date) + 'は' + v(last.value) + 'です。';
 
-    // 最近3か月：3か月前ごろ（それより前でいちばん新しい記録。無ければ3か月の中の最初の記録）から最新まで
-    var cut = Body.addMonths(last.date, -3), before = s.filter(function (p) { return p.date <= cut; });
-    var base = before.length ? before[before.length - 1] : s.filter(function (p) { return p.date > cut; })[0];
-    var useRecent = base && base !== first && base !== last && Body.addMonths(first.date, 4) < last.date;
-    var od = dir(diff);
-    if (!useRecent) {
-      out += od === 0 ? 'この間、ほとんど変わっていません。' : 'この間に' + amount(diff) + (od > 0 ? '増えています。' : '減っています。');
-    } else {
-      var rd = dir(last.value - base.value), rtext = '最近3か月（' + md(base.date) + 'の' + v(base.value) + 'から）';
-      var word = function (d) { return d > 0 ? '増えて' : '減って'; };
-      if (od !== 0 && rd !== 0 && od !== rd) out += from + 'からは' + amount(diff) + word(od) + 'いますが、' + rtext + 'では' + amount(last.value - base.value) + word(rd) + 'います。';
-      else if (od !== 0 && rd === 0) out += from + 'からは' + amount(diff) + word(od) + 'いますが、' + rtext + 'はほとんど変わっていません。';
-      else if (od === 0 && rd !== 0) out += from + 'と比べるとほとんど同じですが、' + rtext + 'では' + amount(last.value - base.value) + word(rd) + 'います。';
-      else if (od === 0) out += from + 'からも、最近3か月も、ほとんど変わっていません。';
-      else out += from + 'から' + amount(diff) + word(od) + 'いて、' + rtext + 'でも' + amount(last.value - base.value) + word(rd) + 'います。';
-    }
+    out += Body.trendCompare(s, unit, from);
     if (s.length >= 3) {
       var hi = s.reduce(function (a, p) { return p.value > a.value ? p : a; }), lo = s.reduce(function (a, p) { return p.value < a.value ? p : a; });
       out += 'いちばん高いのは' + md(hi.date) + 'の' + v(hi.value) + '、いちばん低いのは' + md(lo.date) + 'の' + v(lo.value) + 'です。';

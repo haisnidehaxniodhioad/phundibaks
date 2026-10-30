@@ -29,6 +29,16 @@ var StaffVoice = {
     if (/^(今|いま)?(何時|なんじ)/.test(t)) return reply(text, '今は' + now.getHours() + '時' + now.getMinutes() + '分です。');
     if (/(今日|きょう)(は)?(何日|なんにち|何曜|なんよう)/.test(t)) return reply(text, '今日は' + (now.getMonth() + 1) + '月' + now.getDate() + '日、' + '日月火水木金土'.charAt(now.getDay()) + '曜日です。');
 
+    // 開いているレポート・個人ページの説明（「このフィジカルレポートを説明して」「このページをまとめて」。v41）
+    if (!forced && /説明|せつめい|要約|ようやく|まとめ|解説|かいせつ|読み上げ|よみあげ|ざっくり|ポイント/.test(t) && !StaffVoice.findAthletes(text).length) {
+      if (Staff.page === 'report' && Staff.current) return reply(text, Body.explain(Staff.current, Staff.physTab));
+      if (Staff.page === 'athlete' && Staff.detail && Staff.current) {
+        var ad = Staff.detail.athlete;
+        return reply(text, ad.name + 'さんの個人ページです。' + StaffQA.athleteBrief(ad.id) + (Staff.detail.sessions.length ? '直近' + Staff.detail.sessions.length + '回のトレーニング記録があります。' : '') +
+          Body.explain(Staff.current, 'inbody').replace(/^.*?フィジカルレポートです。/, 'フィジカルデータは、'));
+      }
+      if (/レポト|フィジカル/.test(t)) return reply(text, '説明するレポートを先に開いてください。「（選手の名前）のフィジカルレポートを開いて」で開けます。', true);
+    }
     // 画面の操作（言い切りの指示）→ データの質問 → 名前だけ → 雑談 の順
     var people = forced || StaffVoice.findAthletes(text);
     var isQuestion = StaffVoice.isQuestion(text, t);
@@ -254,7 +264,7 @@ var StaffVoice = {
 
   helpText: function () {
     return '画面の操作は「（選手の名前）のフィジカルレポートを開いて」「先週にして」「InBodyにして」「体重のタブ」「（選手の名前）を開いて」「戻って」「1年だけ」「全員を表示」「Excelで保存」。' +
-      '選手の個人ページでは「3か月にして」「1週間にして」「前の週」「フィジカルレポートを開いて」「体重レポートを開いて」「戻って」。フィジカルレポートのページでは「体重にして」「InBodyにして」「戻って」。' +
+      '選手の個人ページでは「3か月にして」「1週間にして」「前の週」「フィジカルレポートを開いて」「体重レポートを開いて」「戻って」。フィジカルレポートのページでは「このフィジカルレポートを説明して」「体重にして」「InBodyにして」「戻って」。' +
       '質問は「今週やってないのは誰？」「何人やった？」「疲れている選手は？」「動きが悪い選手は？」「コンディションを入れていないのは誰？」「下半身をやっていないのは誰？」' +
       '「チームの疲労の平均は？」「FFMIの1位は？」「体重を測っていないのは誰？」「（名前）の体重は？」「（名前）の除脂肪体重の推移は？」「（名前）の疲労の推移は？」「（名前）のコンディションは？」「（名前）の今週は？」「（名前）が最後にやったのはいつ？」などです。';
   },
@@ -267,7 +277,7 @@ var StaffVoice = {
     help.className = 'card voice-help';
     help.innerHTML = '<summary>🎤 話し方の例（スタッフ）</summary>' +
       '操作：「（選手の名前）のフィジカルレポートを開いて」「（選手の名前）の体重レポート」「先週にして」「今週に戻して」「InBodyにして」「体重のタブ」「FFMIのランキング」「（選手の名前）を開いて」「戻って」「1年だけ」「Aチームだけ」「全員を表示」「Excelで保存」「PDFで保存」「閉じて」「AIアシスタントの設定」<br>' +
-      '選手の個人ページ：「3か月にして」「1週間にして」「前の週」「次の週」「フィジカルレポートを開いて」「体重レポートを開いて」「戻って」<br>フィジカルレポート：「体重にして」「InBodyにして」「PDFで保存」「戻って」<br>' +
+      '選手の個人ページ：「3か月にして」「1週間にして」「前の週」「次の週」「フィジカルレポートを開いて」「体重レポートを開いて」「戻って」<br>フィジカルレポート：「このフィジカルレポートを説明して」「体重にして」「InBodyにして」「PDFで保存」「戻って」<br>' +
       '質問：' + StaffQA.TOPICS.map(function (tp) { return '「' + tp.examples[0] + '」'; }).join('') + '<br>' +
       '選手の名前は選手マスタの名前と比べて探します（名字だけでも、同じ名字がいなければ見つかります）。わからない言い方のときは、画面に候補が出ます。';
     document.getElementById('app').appendChild(help);
