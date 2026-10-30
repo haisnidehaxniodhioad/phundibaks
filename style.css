@@ -791,3 +791,24 @@ input:focus, select:focus { background: var(--color-paper); }
 .cond-comment:focus { outline: none; border-color: var(--color-accent); background: var(--color-paper); }
 .cond-table td:first-child { color: var(--color-neutral-800); }
 .cond-table b { font-size: 1.15rem; }
+
+/* ---- v34：コンディションの推移のグラフ（condchart.js・スタッフ画面の選手詳細） ----
+ *   疲労の3本の線の色（全身＝青・上半身＝オレンジ・下半身＝緑がかった青）。夜の色は下の2か所。色だけで見分けなくてよいよう、線の右はしに名前も書く */
+:root { --cc-1: #2a78d6; --cc-2: #eb6834; --cc-3: #1baf7a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --cc-1: #3987e5; --cc-2: #d95926; --cc-3: #199e70; } }
+:root[data-theme="dark"] { --cc-1: #3987e5; --cc-2: #d95926; --cc-3: #199e70; }
+.cond-chart .tabs { margin-top: 0; }
+.cond-chart .hist-month { margin-bottom: 4px; }
+.cc-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 14px 0 2px; }
+.cc-legend { display: flex; gap: 14px; font-size: 0.82rem; color: var(--color-neutral-800); }
+.cc-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.cc-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; }
+.cc-svg { max-width: 520px; }
+.cc-svg .axis { font-size: 10.5px; }
+.cc-svg .grid { stroke: var(--line); }
+.cc-svg .axis { fill: var(--color-neutral-700); }
+.cc-svg .center-line { stroke: var(--color-neutral-500); }
+.cc-end { fill: var(--color-neutral-800); font-size: 11px; font-weight: 700; }
+.cc-pt:hover circle:last-of-type { r: 6; }
+.cc-table { margin-top: 12px; }
+.cc-table summary { color: var(--color-accent-700); font-weight: 700; padding: 6px 0; }

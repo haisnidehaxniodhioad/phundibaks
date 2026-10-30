@@ -1,7 +1,7 @@
 /**
  * staff.js ― スタッフ画面（Phase 3、3cでInBodyと体重を別タブに）
  * スタッフIDでログインすると、この画面になる。タブは3つ:
- *   実施状況 … 週ごとの選手一覧（未実施の選手が上）。名前を押すとその選手の記録と、InBody・体重のレポート
+ *   実施状況 … 週ごとの選手一覧（未実施の選手が上）。名前を押すとその選手のコンディションの推移（v34）・記録と、InBody・体重のレポート
  *   InBody   … 体組成Excel（InBody結果）の取り込み、FFMI・除脂肪体重などのランキング、レポートのPDF（staff_body.js）
  *   体重     … 体重管理表の取り込み、測定日ごとの体重一覧（未測定・前回比・4週前比）、体重レポートのPDF（staff_body.js）
  */
@@ -82,12 +82,9 @@ var Staff = {
       var d = r[0], b = (Staff.body.athletes || []).filter(function (a) { return a.id === id; })[0] || { weight: [], inbody: [] };
       var html = '<button class="btn ghost" data-staff="back">← 一覧へ</button><div class="card"><h2>' + esc(d.athlete.name) + '</h2>' +
         '<p class="muted small">' + esc([d.athlete.id, d.athlete.grade, d.athlete.team, d.athlete.menuId].filter(String).join('・')) + '</p></div>';
-      // コンディション（直近4週間。v33）
-      var cs = d.conditions || [];
-      html += '<h2>コンディション（直近4週間）</h2><div class="card">' + (cs.length ? '<div class="table-scroll"><table class="tbl"><tr><th>日付</th><th>全身</th><th>上半身</th><th>下半身</th><th>動き</th><th>コメント</th></tr>' +
-        cs.map(function (c) {
-          return '<tr><td>' + esc(c.date.slice(5).replace('-', '/')) + '</td><td>' + c.whole + '</td><td>' + c.upper + '</td><td>' + c.lower + '</td><td>' + c.perf + '</td><td class="small" style="white-space:normal">' + esc(c.comment) + '</td></tr>';
-        }).join('') + '</table></div>' : '<p class="muted">記録はまだありません。</p>') + '</div>';
+      // コンディションの推移（v34：1週間の毎日の値／3か月の週平均をグラフで。condchart.js）
+      CondChart.set(d.conditions || [], d.weekStart);
+      html += '<h2>コンディションの推移</h2>' + CondChart.html();
       html += '<h2>トレーニング記録（直近' + d.sessions.length + '回）</h2>';
       if (!d.sessions.length) html += '<div class="card"><p class="muted">記録はまだありません。</p></div>';
       d.sessions.forEach(function (s) {
