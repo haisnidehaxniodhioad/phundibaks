@@ -58,7 +58,7 @@ var BodyBase = {
     Api.call('setBodyBase', data).then(function () {
       return Staff.loadBody(true);
     }).then(function () {
-      if (data.target === 'athlete') Staff.showAthlete(data.athleteId); else StaffBody.render('inbody');
+      if (data.target === 'athlete') Staff.refreshReport(data.athleteId); else StaffBody.render('inbody');   // v38：基準日はフィジカルレポートのページで設定する
     }).catch(function (err) {
       if (err.needLogin) return Staff.fail(err);
       alert('保存できませんでした：' + err.message);

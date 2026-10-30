@@ -2,7 +2,8 @@
  * staff.js ― スタッフ画面（Phase 3、3cでInBodyと体重を別タブに）
  * スタッフIDでログインすると、この画面になる。タブは3つ:
  *   実施状況 … 週ごとの選手一覧（未実施の選手が上）
- * 選手の名前を押すと、タブの外の「個人ページ」に移る（v37）。上から トレーニング記録 → コンディション記録 → フィジカルデータ（InBody／体重の切り替え）。
+ * 選手の名前を押すと、タブの外の「個人ページ」に移る（v37）。上から トレーニング記録 → コンディション記録 → フィジカルデータ（最新の値）。
+ * 個人ページの「フィジカルレポート」から、別のページ「フィジカルレポート」（InBody／体重の切り替え）に移る（v38）。
  *   「← 戻る」（またはブラウザの戻る）で、開く前の画面に戻る
  *   InBody   … 体組成Excel（InBody結果）の取り込み、FFMI・除脂肪体重などのランキング、レポートのPDF（staff_body.js）
  *   体重     … 体重管理表の取り込み、測定日ごとの体重一覧（未測定・前回比・4週前比）、体重レポートのPDF（staff_body.js）
@@ -27,7 +28,7 @@ var Staff = {
   render: function () {
     S.view = 'staff';
     // 個人ページの印（ブラウザの履歴）が残っていたら消す（声の操作などで、個人ページから直接ほかの画面に移ったとき。v37）
-    try { if (history.state && history.state.staffAthlete) history.replaceState(null, ''); } catch (e) {}
+    try { if (history.state && (history.state.staffAthlete || history.state.staffReport)) history.replaceState(null, ''); } catch (e) {}
     Staff.page = Staff.tab;   // 今の画面（overview / inbody / weight / athlete）。音声の操作で使う（v35）
     if (Staff.tab === 'overview') return Staff.renderOverview();
     return StaffBody.render(Staff.tab === 'weight' ? 'weight' : 'inbody');
@@ -81,7 +82,7 @@ var Staff = {
   },
 
   // ---------------- 選手の個人ページ（v37：タブの外の独立したページ。「← 戻る」で元の画面へ） ----------------
-  //   上から：トレーニング記録 → コンディション記録 → フィジカルデータ（InBody／体重を切り替え）
+  //   上から：トレーニング記録 → コンディション記録 → フィジカルデータ（最新の値と、フィジカルレポートのページへのボタン）
   //   開くときにブラウザの履歴にも1つ足すので、パソコンやスマホの「戻る」でも元の画面（同じタブ・同じスクロール位置）に戻る。
   physTab: 'inbody',   // フィジカルデータで表示しているほう（'inbody' / 'weight'）
 
@@ -109,9 +110,9 @@ var Staff = {
   },
 
   /** 個人ページの枠（上にタイトルと「← 戻る」。タブは出さない） */
-  athleteFrame: function (title, inner) {
+  athleteFrame: function (title, inner, kicker) {
     return '<div class="group"><div class="topbar ath-top"><button class="btn ghost" data-staff="back">' + Icon('left', 20) + '戻る</button>' +
-      '<span class="kicker">選手の個人ページ</span></div>' + (title || '') + '</div>' + inner;
+      '<span class="kicker">' + (kicker || '選手の個人ページ') + '</span></div>' + (title || '') + '</div>' + inner;
   },
 
   /** 個人ページを描く（読み込んだデータ Staff.detail・Staff.current から。通信はしない） */
@@ -144,9 +145,55 @@ var Staff = {
     // 2. コンディション記録（1週間の毎日／3か月の週平均。condchart.js）
     html += '<section class="sec" id="athCondition"><h2>コンディション記録</h2>' + CondChart.html() + '</section>';
 
-    // 3. フィジカルデータ（InBody／体重を切り替え）
-    html += '<section class="sec" id="athPhysical"><h2>フィジカルデータ</h2><div id="physBox">' + Staff.physHtml() + '</div></section>';
+    // 3. フィジカルデータ（v38：最新の値だけ。くわしいレポートは別のページ「フィジカルレポート」で見る）
+    html += '<section class="sec" id="athPhysical"><h2>フィジカルデータ</h2>' + Staff.physSummary() + '</section>';
     app.innerHTML = Staff.athleteFrame(title, html);
+  },
+
+  /** 個人ページのフィジカルデータ：InBody と体重の最新の値と、フィジカルレポートを開くボタン（v38） */
+  physSummary: function () {
+    var c = Staff.current, ib = c.inbody || [], L = ib[ib.length - 1], P = ib[ib.length - 2];
+    var ws = Body.weightStats(c.weight || []);
+    var d = function (v, p) { var a = Body.num(v), b = p ? Body.num(p) : null; return a !== null && b !== null ? ' <span class="muted small">' + Body.diffText(a - b) + '</span>' : ''; };
+    var row = function (label, v, unit, p) { return '<tr><td>' + label + '</td><td class="r"><b>' + Body.f1(v) + '</b>' + unit + (P ? d(v, p) : '') + '</td></tr>'; };
+    var html = '<table class="line-table"><tbody>';
+    if (L) {
+      html += '<tr><td colspan="2" class="muted small">InBody　' + esc(Body.dLong(L.date)) + ' 測定' + (P ? '（右の▲▼は前回 ' + esc(Body.dShort(P.date)) + ' との差）' : '') + '</td></tr>' +
+        row('体重', L.weight, 'kg', P && P.weight) + row('体脂肪率', L.fat, '%', P && P.fat) + row('除脂肪体重', L.lbm, 'kg', P && P.lbm) +
+        row('FFMI', L.ffmi, '', P && P.ffmi) + (L.rank ? '<tr><td>FFMIの同日順位</td><td class="r"><b>' + L.rank + '位</b> / ' + L.rankOf + '人</td></tr>' : '');
+    } else html += '<tr><td colspan="2" class="muted">InBodyの記録はまだありません。</td></tr>';
+    if (ws) html += '<tr><td>体重（最新）</td><td class="r"><b>' + ws.last.value.toFixed(1) + '</b>kg' + (ws.prev ? ' <span class="muted small">' + Body.diffText(ws.last.value - ws.prev.value) + '</span>' : '') +
+      '<div class="muted small">' + esc(Body.dShort(ws.last.date)) + ' 測定</div></td></tr>';
+    else html += '<tr><td colspan="2" class="muted">体重の記録はまだありません。</td></tr>';
+    return html + '</tbody></table><div class="row"><button class="btn btn-pill" data-staff="report" data-v="inbody">' + Icon('right', 18) + 'フィジカルレポート（InBody）</button>' +
+      '<button class="btn sub btn-pill" data-staff="report" data-v="weight">' + Icon('right', 18) + '体重レポート</button></div>';
+  },
+
+  // ---------------- フィジカルレポート（v38：個人ページとは別のページ。InBody／体重を切り替え） ----------------
+  //   個人ページの「フィジカルレポート」から開く。「← 戻る」（またはブラウザの戻る）で個人ページの同じ位置に戻る
+  showReport: function (tab) {
+    if (!Staff.current) return;
+    if (Staff.page !== 'report') {
+      Staff.reportReturnScroll = window.scrollY || 0;
+      try { history.pushState({ staffReport: Staff.current.id }, ''); } catch (e) {}
+    }
+    Staff.page = 'report';
+    Staff.physTab = tab === 'weight' ? 'weight' : 'inbody';
+    Staff.renderReport();
+    window.scrollTo(0, 0);
+  },
+
+  renderReport: function () {
+    var c = Staff.current;
+    var title = '<h1 class="ath-name">' + esc(c.name) + '</h1><p class="muted small">' + esc(c.caption || [c.grade, c.team ? c.team + 'チーム' : ''].filter(String).join('・')) + '</p>';
+    app.innerHTML = Staff.athleteFrame(title, '<div id="physBox">' + Staff.physHtml() + '</div>', 'フィジカルレポート');
+  },
+
+  /** 基準日を保存したあと：体組成データを読み直してから、フィジカルレポートを描き直す（body_base.js から呼ぶ） */
+  refreshReport: function (id) {
+    var b = (Staff.body.athletes || []).filter(function (a) { return a.id === id; })[0];
+    if (b) Staff.current = b;
+    if (Staff.page === 'report') Staff.renderReport();
   },
 
   /** フィジカルデータ（切り替えのタブ＋表示しているほうのレポートと保存ボタン） */
@@ -173,8 +220,19 @@ var Staff = {
 
   /** 「← 戻る」：ブラウザの履歴に足してあれば、ブラウザの戻ると同じ動きにする */
   back: function () {
-    if (history.state && history.state.staffAthlete) history.back();   // → popstate で leaveAthlete
+    var st = history.state || {};
+    if (Staff.page === 'report') { if (st.staffReport) history.back(); else Staff.leaveReport(); return; }   // → popstate で leaveReport
+    if (st.staffAthlete) history.back();   // → popstate で leaveAthlete
     else Staff.leaveAthlete();
+  },
+
+  /** フィジカルレポートから個人ページ（同じスクロール位置）に戻る（通信はしない） */
+  leaveReport: function () {
+    Body.closeHistory();
+    Staff.page = 'athlete';
+    Staff.renderAthlete();
+    var y = Staff.reportReturnScroll || 0;
+    setTimeout(function () { window.scrollTo(0, y); }, 0);
   },
 
   /** 個人ページから、開く前の画面（タブ・スクロール位置）に戻る */
@@ -216,6 +274,7 @@ app.addEventListener('click', function (e) {
     case 'athlete': Staff.showAthlete(v); break;
     case 'back': Staff.back(); break;
     case 'phys': Staff.setPhys(v); break;
+    case 'report': Staff.showReport(v); break;
     // ---- PDF・Excelでの保存（export.js）。InBody・体重タブのボタンは staff_body.js ----
     case 'xOverviewXlsx': Export.overviewExcel(Staff.overview, Staff.overviewList); break;
     case 'xOverviewPdf': Export.overviewPdf(Staff.overview, Staff.overviewList); break;
@@ -233,5 +292,7 @@ app.addEventListener('change', function (e) {
 
 // ブラウザの「戻る」で個人ページから戻ったとき（v37）
 window.addEventListener('popstate', function () {
-  if (S.view === 'staff' && Staff.page === 'athlete') Staff.leaveAthlete();
+  if (S.view !== 'staff') return;
+  if (Staff.page === 'report') Staff.leaveReport();
+  else if (Staff.page === 'athlete') Staff.leaveAthlete();
 });
