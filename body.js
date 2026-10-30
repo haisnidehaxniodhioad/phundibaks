@@ -101,6 +101,61 @@ var Body = {
   },
   avg: function (arr) { return arr.length ? arr.reduce(function (s, v) { return s + v; }, 0) / arr.length : null; },
 
+  // ---------------- 数値の推移を、声で読める短い文にする（v40。スタッフの staff_qa.js・選手の qa.js で使う） ----------------
+  /** 「最近3か月」「半年」「今年」「1年」などの言葉から、見る期間の始まりの日（'yyyy-mm-dd'）と説明を返す。言葉が無ければ全期間 */
+  trendRange: function (t) {
+    var m = String(t).match(/(\d+)(か月|ヶ月|カ月|かげつ)/), today = Body.today();
+    if (m) return { from: Body.addMonths(today, -Number(m[1])), label: '最近' + m[1] + 'か月' };
+    if (/半年/.test(t)) return { from: Body.addMonths(today, -6), label: '最近半年' };
+    if (/1年|一年|いちねん/.test(t)) return { from: Body.addMonths(today, -12), label: '最近1年' };
+    if (/今年|ことし/.test(t)) return { from: today.slice(0, 4) + '-01-01', label: '今年' };
+    return { from: '', label: '' };
+  },
+
+  /**
+   * 推移の説明文。series = [{ date, value }]（日付の古い順）、label = 項目の名前、unit = 読み上げる単位（'キロ' など）
+   *   ①記録の始め（期間の言葉があればその期間の始め）から最新までの変化、②いちばん高い・低い、
+   *   ③最近3か月の変化（3か月前ごろの値から最新まで）。①と③の向きが違うときは
+   *   「記録の始めからは増えていますが、最近3か月では減っています」のように、両方を伝える（v40）
+   */
+  trendText: function (series, label, unit, range) {
+    range = range || { from: '', label: '' };
+    var s = series.filter(function (p) { return !range.from || p.date >= range.from; });
+    var md = function (d) { return Number(d.slice(5, 7)) + '月' + Number(d.slice(8, 10)) + '日'; };
+    var v = function (x) { return Number(x).toFixed(1) + unit; };
+    var eps = unit ? 0.3 : 0.2;   // これより小さい差は「ほとんど変わらない」とみなす（FFMI は単位なしで小さめ）
+    var dir = function (d) { return Math.abs(d) < eps ? 0 : d > 0 ? 1 : -1; };
+    var amount = function (d) { return Math.abs(Math.round(d * 10) / 10).toFixed(1) + unit; };
+    var head = (range.label ? range.label + 'の' : '') + label;
+    if (!s.length) return head + 'の記録はありません。';
+    if (s.length === 1) return head + 'は、' + md(s[0].date) + 'の' + v(s[0].value) + 'の1回だけなので、推移はまだわかりません。';
+    var first = s[0], last = s[s.length - 1], diff = last.value - first.value;
+    var from = range.label ? range.label + 'の始め' : '記録の始め';
+    var out = head + 'は、' + s.length + '回の測定で、' + md(first.date) + 'の' + v(first.value) + 'から、最新の' + md(last.date) + 'は' + v(last.value) + 'です。';
+
+    // 最近3か月：3か月前ごろ（それより前でいちばん新しい記録。無ければ3か月の中の最初の記録）から最新まで
+    var cut = Body.addMonths(last.date, -3), before = s.filter(function (p) { return p.date <= cut; });
+    var base = before.length ? before[before.length - 1] : s.filter(function (p) { return p.date > cut; })[0];
+    var useRecent = base && base !== first && base !== last && Body.addMonths(first.date, 4) < last.date;
+    var od = dir(diff);
+    if (!useRecent) {
+      out += od === 0 ? 'この間、ほとんど変わっていません。' : 'この間に' + amount(diff) + (od > 0 ? '増えています。' : '減っています。');
+    } else {
+      var rd = dir(last.value - base.value), rtext = '最近3か月（' + md(base.date) + 'の' + v(base.value) + 'から）';
+      var word = function (d) { return d > 0 ? '増えて' : '減って'; };
+      if (od !== 0 && rd !== 0 && od !== rd) out += from + 'からは' + amount(diff) + word(od) + 'いますが、' + rtext + 'では' + amount(last.value - base.value) + word(rd) + 'います。';
+      else if (od !== 0 && rd === 0) out += from + 'からは' + amount(diff) + word(od) + 'いますが、' + rtext + 'はほとんど変わっていません。';
+      else if (od === 0 && rd !== 0) out += from + 'と比べるとほとんど同じですが、' + rtext + 'では' + amount(last.value - base.value) + word(rd) + 'います。';
+      else if (od === 0) out += from + 'からも、最近3か月も、ほとんど変わっていません。';
+      else out += from + 'から' + amount(diff) + word(od) + 'いて、' + rtext + 'でも' + amount(last.value - base.value) + word(rd) + 'います。';
+    }
+    if (s.length >= 3) {
+      var hi = s.reduce(function (a, p) { return p.value > a.value ? p : a; }), lo = s.reduce(function (a, p) { return p.value < a.value ? p : a; });
+      out += 'いちばん高いのは' + md(hi.date) + 'の' + v(hi.value) + '、いちばん低いのは' + md(lo.date) + 'の' + v(lo.value) + 'です。';
+    }
+    return out;
+  },
+
   /** カード内の小さな折れ線（直近12回）。最新の点だけ丸で強調 */
   spark: function (series) {
     var pts = series.slice(-12);

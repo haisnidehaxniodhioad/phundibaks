@@ -57,6 +57,16 @@ var QA = {
       }
     },
     {
+      name: '体組成の推移', main: true,
+      examples: ['除脂肪体重の推移は？'],
+      test: function (q) { return !!q.metric && /推移|すいい|経過|けいか|移り変わ|流れ|これまで|ずっと|グラフ|どう変わ/.test(q.t); },
+      need: ['body'],
+      answer: function (q) {
+        var m = q.metric;
+        return Body.trendText(QA.series(m.key), m.label, m.unit, Body.trendRange(q.t)).replace(/います。/g, 'いるよ。').replace(/です。/g, 'だよ。');   // 選手には話し言葉で
+      }
+    },
+    {
       name: '体組成の変化', main: true,
       examples: ['体脂肪率は前回からどう？', '基準から体重は何キロ増えた？'],
       test: function (q) { return !!q.metric && /前回|前の|この前|変化|増え|ふえ|減っ|へっ|変わ|かわっ|比べ|くらべ|基準|伸び|のび|差/.test(q.t); },

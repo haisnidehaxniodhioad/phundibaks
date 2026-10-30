@@ -26,6 +26,9 @@ var StaffQA = {
     { key: 'fat', label: '体脂肪率', unit: 'パーセント', re: /体脂肪|たいしぼう|脂肪率/ },
     { key: 'weight', label: '体重', unit: 'キロ', re: /体重|たいじゅう/ }
   ],
+  /** 推移を聞いているか（「推移」「変化」「どう変わった」「経過」など） */
+  isTrend: function (t) { return /推移|すいい|変化|へんか|変わ|かわって|経過|けいか|移り変わ|流れ|これまで|ずっと|伸び|のび|増え(て|た)|減っ|グラフ/.test(t); },
+
   metricOf: function (t) { return StaffQA.METRICS.filter(function (m) { return m.re.test(t); })[0] || null; },
 
   TOPICS: [
@@ -163,6 +166,43 @@ var StaffQA = {
       }
     },
     // ---- ここから下は、選手の名前が入った質問 ----
+    {
+      examples: ['（名前）の除脂肪体重の推移は？'],
+      test: function (q) { return !!q.person && !!q.metric && StaffQA.isTrend(q.t) && !/レポト/.test(q.t); },
+      need: ['body'],
+      answer: function (q, d) {
+        var m = q.metric, a = d.body.athletes.filter(function (x) { return x.id === q.person.id; })[0];
+        var s = a ? Body.series(m.key === 'weight' && Body.series(a.weight, 'weight').length ? a.weight : a.inbody, m.key) : [];
+        return q.person.name + 'さんの' + Body.trendText(s, m.label, m.unit, Body.trendRange(q.t));
+      }
+    },
+    {
+      examples: ['（名前）の疲労の推移は？'],
+      test: function (q) { return !!q.person && /コンディション|疲労|疲れ|動き|体調|調子|パフォマンス/.test(q.t) && StaffQA.isTrend(q.t); },
+      need: ['detail'],
+      answer: function (q, d) {
+        // 週ごとの平均（最近4週。期間の言葉があればその期間。最大13週）で、週の移り変わりを伝える
+        var range = Body.trendRange(q.t), c = (d.detail.conditions || []).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+        CondChart.weekStart = d.detail.weekStart === '日' ? '日' : '月';
+        var weeks = range.from ? Math.min(13, Math.max(2, Math.ceil((Date.parse(Body.today()) - Date.parse(range.from)) / (7 * 86400000)))) : 4;
+        var thisWeek = CondChart.weekStartOf(Body.today()), list = [];
+        for (var k = weeks - 1; k >= 0; k--) {
+          var ws = Body.addDays(thisWeek, -7 * k), we = Body.addDays(ws, 6);
+          var inW = c.filter(function (x) { return x.date >= ws && x.date <= we; });
+          list.push({ ws: ws, n: inW.length, whole: CondChart.avg(inW, 'whole'), upper: CondChart.avg(inW, 'upper'), lower: CondChart.avg(inW, 'lower'), perf: CondChart.avg(inW, 'perf') });
+        }
+        var has = list.filter(function (w) { return w.n; });
+        if (!has.length) return q.person.name + 'さんは、最近' + weeks + '週間のコンディションの記録がありません。';
+        var keys = /動き|パフォマンス/.test(q.t) ? [['perf', '動きやすさ']] : /上半身/.test(q.t) ? [['upper', '上半身の疲労']] : /下半身/.test(q.t) ? [['lower', '下半身の疲労']]
+          : /全身/.test(q.t) ? [['whole', '全身の疲労']] : /疲労|疲れ/.test(q.t) ? [['whole', '全身'], ['upper', '上半身'], ['lower', '下半身']]
+          : [['whole', '全身の疲労'], ['upper', '上半身'], ['lower', '下半身'], ['perf', '動きやすさ']];
+        var word = function (a, b) { return has.length < 2 || a === null || b === null ? '' : b - a >= 1 ? '（上がっています）' : a - b >= 1 ? '（下がっています）' : '（ほぼ同じ）'; };
+        return q.person.name + 'さんの最近' + weeks + '週間のコンディションの週平均は、' + StaffQA.md(has[0].ws) + 'の週からの順に、' + keys.map(function (k) {
+          var vals = has.map(function (w) { return w[k[0]]; });
+          return k[1] + 'が' + vals.map(function (x) { return x === null ? '-' : x; }).join('、') + word(vals[0], vals[vals.length - 1]);
+        }).join('、') + 'です。記録がある週は' + has.length + '週です。';
+      }
+    },
     {
       examples: ['（名前）の体重は？', '（名前）のFFMIは何位？'],
       test: function (q) { return !!q.person && !!q.metric && !/レポト/.test(q.t); },   // 「〇〇の体重レポートは？」はレポートを開く（v39）
