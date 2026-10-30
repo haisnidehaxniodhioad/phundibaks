@@ -105,7 +105,8 @@ var Dock = {
     } else if (mode === 'afterSave') {   // v33：トレーニングを保存したあと
       html = '<div class="dock-row"><div class="dock-hint">声でも選べるよ</div><span data-slot="mic"></span></div>';
     } else if (mode === 'staff') {   // v35：スタッフ画面
-      html = '<div class="dock-row"><div class="dock-hint">操作も質問も、話しかけてできます</div><span data-slot="mic"></span></div>';
+      html = '<div class="dock-row"><div class="dock-hint">操作も質問も、話しかけてできます</div>' +
+        '<button class="btn sub btn-pill" data-typevoice="1" aria-label="文字で入力する">⌨ 文字で</button><span data-slot="mic"></span></div>';   // v37：パソコンでは文字でも入れられる
     } else if (mode === 'mymenu') {
       html = '<div class="dock-row"><button class="btn btn-primary btn-pill dock-main" data-mm="save">' + Icon('check', 22) + '保存する</button><span data-slot="mic"></span></div>';
     }

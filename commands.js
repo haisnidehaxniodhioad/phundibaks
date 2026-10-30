@@ -36,8 +36,9 @@ var VoiceUI = {
     // 新しいトレーニングを始めたら、取り消し用の履歴を空にする
     var draftId = S.draft ? S.draft.id : null;
     if (draftId !== this.draftId) { this.undo = []; this.draftId = draftId; }
-    var show = VoiceInput.supported() && (!!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition'].indexOf(S.view) >= 0 ||
-                                         S.view === 'staff' && !!S.token);   // v35：スタッフ画面でも話しかけられる（staff_voice.js）
+    // v37：音声入力が使えないブラウザでもボタンは出す（押すと、文字で入力する欄が出る）
+    var show = (!!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition'].indexOf(S.view) >= 0 ||
+                S.view === 'staff' && !!S.token);   // v35：スタッフ画面でも話しかけられる（staff_voice.js）
     this.btn.hidden = !show;
     // アバターの表示と置き場所は dock.js（画面の下のバー）が決める
     if (S.view === 'home') Avatar.greet();
@@ -64,6 +65,12 @@ var VoiceUI = {
 
   start: function () {
     var self = this;
+    this.typing = false;
+    // v37：音声入力に対応していないブラウザ（Firefox など）では、文字で入力する欄を出す
+    if (!VoiceInput.supported()) {
+      this.typeBox('このブラウザは音声入力に対応していません（パソコンは Chrome・Edge、Mac は Safari・Chrome で使えます）。下の欄に文字で入れても、話したときと同じように動きます。');
+      return;
+    }
     // マイクボタンを押した瞬間（タップ中）に読み上げの準備をしておく。これをしないとiPhoneでは返事が自動で読み上げられない
     if (window.speechSynthesis && window.speechSynthesis.speaking && Speech.unlocked) Speech.stop();   // 読み上げ中なら止める（声をマイクが拾わないように）
     Speech.unlock();
@@ -80,16 +87,43 @@ var VoiceUI = {
       },
       onError: function (code) {
         self.resetBtn();
+        // v37：パソコンで使えないときの理由を、くわしく出す（直し方つき）。声が使えないときは文字で入れる欄も出す
         var msg = {
-          'not-allowed': 'マイクが許可されていません。ブラウザの設定でマイクを許可してください。',
-          'service-not-allowed': '音声入力が使えません。iPhoneは「設定」→「一般」→「キーボード」→「音声入力」をオンにしてください。',
-          'no-speech': '声が聞き取れませんでした。もう一度押して話してください。',
-          'network': '通信の問題で聞き取れませんでした。',
+          'not-allowed': 'マイクが許可されていません。パソコンは、アドレスバーの左の鍵（またはマイク）のマークを押して「マイク」を「許可」にし、ページを再読み込みしてください。iPhoneは「設定」→「Safari」→「マイク」を許可にしてください。',
+          'service-not-allowed': '音声入力が使えません。iPhoneは「設定」→「一般」→「キーボード」→「音声入力」をオンにしてください。パソコンは Chrome か Edge で開いてください。',
+          'audio-capture': 'マイクが見つかりません。パソコンにマイク（イヤホンマイク・ヘッドセットなど）がつながっているか、Windowsは「設定」→「プライバシーとセキュリティ」→「マイク」でブラウザが使えるようになっているか、Macは「システム設定」→「プライバシーとセキュリティ」→「マイク」を確認してください。',
+          'no-speech': '声が聞き取れませんでした。もう一度押して話してください。（パソコンでは、使うマイクがブラウザの設定で合っているかも確認してください）',
+          'network': '聞き取りのサーバーにつながりませんでした。Chrome・Edgeの音声入力はインターネットを使います。学校や会社のネットワークでは止められていることがあります。',
+          'language-not-supported': 'このブラウザでは日本語の音声入力が使えません。Chrome か Edge で開いてください。',
           'unsupported': 'このブラウザは音声入力に対応していません。'
         }[code] || ('音声入力でエラーが起きました（' + code + '）');
-        if (code !== 'aborted') self.show('', msg, true);
+        if (code === 'aborted') return;
+        if (code === 'no-speech') self.show('', msg, true);
+        else self.typeBox(msg + '　下の欄に文字で入れても動きます。', true);
       }
     });
+  },
+
+  /**
+   * 文字で入力する欄（v37）。音声入力が使えないとき・パソコンでキーボードを使いたいときに出す。
+   * 入れた文は、話したときと同じように handleVoice で処理する。いったん出すと、返事のあとも欄を出し続ける（「閉じる」で消える）
+   */
+  typeBox: function (note, ng) {
+    this.typing = true;
+    clearTimeout(this.hideHandle);
+    this.box.hidden = false;
+    this.box.innerHTML = (note ? '<div class="reply' + (ng ? ' ng' : '') + '">' + esc(note) + '</div>' : '') + this.typeForm();
+    if (ng && window.Avatar) Avatar.feedback('error', 1800);
+    this.focusType();
+  },
+  typeForm: function () {
+    return '<form class="type-form" data-typeform="1"><input class="type-input" type="text" enterkeyhint="send" autocomplete="off" placeholder="文字で入力（例：' +
+      (S.view === 'staff' ? '今週やってないのは誰？' : '今日は何をする？') + '）"><button class="btn btn-pill" type="submit">送る</button>' +
+      '<button class="btn ghost" type="button" data-typeclose="1">閉じる</button></form>';
+  },
+  focusType: function () {
+    var el = this.box.querySelector('.type-input');
+    if (el && !/iPhone|iPad|Android/i.test(navigator.userAgent)) el.focus();   // スマホでは勝手にキーボードを出さない
   },
 
   /** 返事の下に「何と判断したか」と「違う」ボタンを付ける */
@@ -123,6 +157,8 @@ var VoiceUI = {
     this.box.innerHTML = (heard ? '<div class="heard">🎤 ' + esc(heard) + '</div>' : '') +
       (reply ? '<div class="av-name">' + esc(Avatar.name()) + '</div><div class="reply' + (ng ? ' ng' : '') + '">' + esc(reply) + '</div>' : '');
     var self = this;
+    // 文字で入力しているときは、入力欄を出したままにする（v37）
+    if (this.typing) { this.box.insertAdjacentHTML('beforeend', this.typeForm()); this.focusType(); return; }
     if (!VoiceInput.active) this.hideHandle = setTimeout(function () { self.box.hidden = true; }, 6000);
   }
 };
@@ -246,6 +282,21 @@ var Chooser = {
     voiceRecord(text, { type: 'record', exercise: name, weight: cmd.weight, reps: cmd.reps });
   }
 };
+
+// 文字で入力（v37）：送る・閉じる、画面の下のバーの「⌨ 文字で」ボタン
+VoiceUI.box.addEventListener('submit', function (e) {
+  var f = e.target.closest('[data-typeform]');
+  if (!f) return;
+  e.preventDefault();
+  var input = f.querySelector('.type-input'), text = input ? input.value.trim() : '';
+  if (!text) return;
+  Speech.unlock();
+  handleVoice(text);
+});
+document.addEventListener('click', function (e) {
+  if (e.target.closest('[data-typeclose]')) { VoiceUI.typing = false; VoiceUI.box.hidden = true; return; }
+  if (e.target.closest('[data-typevoice]')) VoiceUI.typeBox('');
+});
 
 VoiceUI.box.addEventListener('click', function (e) {
   var b = e.target.closest('[data-choose]');

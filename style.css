@@ -815,3 +815,32 @@ input:focus, select:focus { background: var(--color-paper); }
 
 /* ---- v36：スタッフ画面では「コーチより」を「AIアシスタントより」にする（dock.js が body に is-staff を付ける） ---- */
 body.is-staff .dock-bubble::before { content: 'AIアシスタントより'; }
+
+/* ---- v37：選手の個人ページ（スタッフ画面。staff.js の renderAthlete） ---- */
+.ath-top { justify-content: flex-start; gap: 6px; }
+.ath-top .btn.ghost { padding-left: 4px; }
+.ath-name { font-size: 1.5rem; margin: 6px 0 2px; }
+.ath-jump { display: flex; gap: 0; margin-top: 10px; border-top: 1.5px solid var(--rule); border-bottom: 1.5px solid var(--rule); }
+.ath-jump a { flex: 1; text-align: center; padding: 9px 2px; font-size: 0.85rem; font-weight: 700; color: var(--color-accent-700); text-decoration: none; }
+.ath-jump a + a { border-left: 1px solid var(--line); }
+.wrap .sec[id^="ath"] { scroll-margin-top: 90px; }
+.ath-sessions { border-top: 1.5px solid var(--rule); border-bottom: 1.5px solid var(--rule); }
+.ath-session > summary { display: flex; align-items: baseline; gap: 10px; padding: 9px 4px; list-style: none; }
+.ath-session > summary::-webkit-details-marker { display: none; }
+.ath-session > summary::after { content: '＋'; margin-left: auto; color: var(--color-accent-700); font-weight: 700; }
+.ath-session[open] > summary::after { content: '－'; }
+.ath-sessions .ath-session + .ath-session { border-top: 1px solid var(--line); }
+.ath-session .tbl { margin: 0 0 10px; }
+.ath-date { width: 3.2em; flex: none; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ath-title { font-weight: 700; }
+.ath-mymenu { margin-top: 10px; border-bottom: 1px dashed var(--line-strong); }
+.ath-mymenu .mm-staff { margin: 4px 0 10px; }
+#physBox .tabs { margin-top: 0; }
+
+/* ---- v37：文字で入力する欄（音声入力が使えないとき・パソコンのキーボード） ---- */
+.type-form { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+.type-input { flex: 1; min-width: 0; padding: 9px 12px; font-size: 1rem; }
+.type-form .btn { min-height: 42px; padding: 6px 12px; flex: none; }
+.dock-row .btn[data-typevoice] { min-height: 44px; padding: 6px 12px; font-size: 0.88rem; flex: none; }
+/* v37：返事の欄が帯の高さに固定され、長い返事が中でスクロールして読みにくかったのを直す（下に伸びるようにする） */
+.coach-band .voice-box { bottom: auto; }
