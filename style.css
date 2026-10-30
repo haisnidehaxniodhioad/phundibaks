@@ -854,3 +854,4 @@ body.is-staff .dock-bubble::before { content: 'AIアシスタントより'; }
 .roster-changes span { display: block; }
 .roster-apply { position: sticky; bottom: var(--dock-h, 0px); z-index: 5; padding: 8px 12px 10px; margin: 0 -4px; background: var(--color-paper); border-top: 1px solid var(--border); text-align: center; }
 .roster-apply .btn.block { margin-top: 0; }
+.roster-part { margin: 18px 4px 6px; font-size: 1.05rem; }

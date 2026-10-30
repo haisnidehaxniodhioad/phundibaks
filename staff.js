@@ -75,7 +75,7 @@ var Staff = {
         o.unregistered.map(function (u) { return '<span class="chip">' + esc(u.name) + '（' + u.count + '）</span>'; }).join(' ') + '</div>';
     }
     // 選手の管理（v44：部員名簿から選手を追加・更新。roster.js）
-    html += '<div class="card"><h2>選手の管理</h2><p class="muted small">チームのホームページの部員名簿と比べて、新しい選手の追加や、ポジション・ふりがななどの更新ができます。反映する前に確認できます。</p>' +
+    html += '<div class="card"><h2>選手の管理</h2><p class="muted small">チームのホームページの部員名簿と比べて、新しい選手・スタッフ（学生コーチ・トレーナー・アナリスト・指導陣）の追加や、ポジション・ふりがななどの更新ができます。反映する前に確認できます。</p>' +
       '<button class="btn sub block" data-staff="roster">部員名簿から選手を取り込む</button></div>';
     app.innerHTML = Staff.frame(html);
   },
