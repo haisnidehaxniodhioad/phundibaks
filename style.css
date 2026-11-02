@@ -855,3 +855,12 @@ body.is-staff .dock-bubble::before { content: 'AIアシスタントより'; }
 .roster-apply { position: sticky; bottom: var(--dock-h, 0px); z-index: 5; padding: 8px 12px 10px; margin: 0 -4px; background: var(--color-paper); border-top: 1px solid var(--border); text-align: center; }
 .roster-apply .btn.block { margin-top: 0; }
 .roster-part { margin: 18px 4px 6px; font-size: 1.05rem; }
+
+/* ---- v46：選手一覧（staff_list.js）・コンディションの体重 ---- */
+.sl-search { width: 100%; }
+.sl-group { margin: 6px 0 2px; }
+.sl-table .sl-head th { background: var(--color-surface); text-align: left; font-size: 0.95rem; padding-top: 10px; }
+.sl-table tr.sl-off td { opacity: 0.6; }
+.cond-weight { display: flex; align-items: center; gap: 8px; }
+.cond-weight input { width: 9em; padding: 10px 12px; font: inherit; font-size: 1.1rem; border: 1.5px solid transparent; border-radius: 10px; background: var(--color-surface); color: var(--color-text); }
+.cond-weight input:focus { outline: none; border-color: var(--color-accent); background: var(--color-paper); }

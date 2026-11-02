@@ -118,14 +118,15 @@ var QA = {
     },
     {
       name: '体重の平均',
-      examples: ['最近の体重の平均は？'],
+      examples: ['今週の体重の平均は？'],
       test: function (q) { return (!q.metric || q.metric.key === 'weight') && /体重/.test(q.t) && /平均|へいきん/.test(q.t); },
       need: ['body'],
       answer: function (q, d) {
-        var st = Body.weightStats(d.body.weight || []);
+        var st = Body.weightWeekStats(d.body.weight || []);
         if (!st) return 'まだ体重の記録がないよ。';
-        return '直近4週間の体重の平均は' + st.w1.avg.toFixed(1) + 'キロだよ（' + st.w1.n + '回の測定）。' +
-          (st.w0.n ? 'その前の4週間は' + st.w0.avg.toFixed(1) + 'キロだったよ。' : '');
+        var md = function (x) { return Number(x.slice(5, 7)) + '月' + Number(x.slice(8, 10)) + '日'; };
+        return md(st.week.date) + 'からの週の体重の平均は' + st.week.value.toFixed(1) + 'キロだよ（' + st.week.n + '回）。' +
+          (st.prevWeek ? 'その前の' + md(st.prevWeek.date) + 'からの週は' + st.prevWeek.value.toFixed(1) + 'キロだったよ。' : '');
       }
     },
     {
@@ -346,6 +347,7 @@ var QA = {
     if (n === 'stats') return Api.call('myStats', { token: S.token }).then(function (res) { QA.data.stats = res; QA.loadedAt.stats = Date.now(); });
     return Api.call('myBody', { token: S.token }).then(function (res) {
       if (res.chart) Body.chart = res.chart;
+      if (res.weekStart) Body.weekStart = res.weekStart;
       Body.mine = { id: 'me', name: res.name, caption: res.caption || '', weight: res.weight || [], inbody: res.inbody || [], base: res.base };
       QA.data.body = Body.mine; QA.loadedAt.body = Date.now();
     });

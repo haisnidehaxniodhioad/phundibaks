@@ -29,6 +29,7 @@ var Body = {
     app.innerHTML = '<div class="loading">読み込み中…</div>';
     Api.call('myBody', { token: S.token }).then(function (res) {
       if (res.chart) Body.chart = res.chart;
+      if (res.weekStart) Body.weekStart = res.weekStart;   // 体重の週平均の区切り（v46）
       Body.mine = { id: 'me', name: res.name, caption: res.caption || '', weight: res.weight || [], inbody: res.inbody || [], base: res.base };
       Body.renderMine();
       if (after) after();
@@ -50,10 +51,11 @@ var Body = {
     var a = Body.mine;
     if (!a) return '';
     if (tab === 'weight') {
-      var st = Body.weightStats(a.weight);
+      var st = Body.weightWeekStats(a.weight);
       if (!st) return '体重レポートだよ。まだ体重の記録はないみたい。';
-      return '体重レポートだよ。' + Body.dShort(st.last.date).replace('/', '月') + '日の体重は' + st.last.value.toFixed(1) + 'キロ' +
-        (st.prev ? '、前回より' + Body.speakDiff(st.last.value - st.prev.value, 'キロ') : '') + '。直近4週間の平均は' + st.w1.avg.toFixed(1) + 'キロだよ。';
+      return '体重レポートだよ。' + Body.dShort(st.week.date).replace('/', '月') + '日からの週の平均は' + st.week.value.toFixed(1) + 'キロ' +
+        (st.prevWeek ? '、前の週より' + Body.speakDiff(st.week.value - st.prevWeek.value, 'キロ') : '') + '。いちばん新しい体重は' +
+        Body.dShort(st.last.date).replace('/', '月') + '日の' + st.last.value.toFixed(1) + 'キロだよ。';
     }
     var ib = a.inbody, r = ib[ib.length - 1];
     if (!r) return 'InBodyのレポートだよ。まだInBodyの記録はないみたい。';
@@ -136,14 +138,16 @@ var Body = {
     var who = a.name ? a.name + 'さんの' : '';
     var change = function (d, unit) { var r = Math.round(d * 10) / 10; return r === 0 ? '変わらず' : Math.abs(r).toFixed(1) + unit + (r > 0 ? '増' : '減'); };
     if (tab === 'weight') {
-      var st = Body.weightStats(a.weight || []);
+      var st = Body.weightWeekStats(a.weight || []);
       if (!st) return who + '体重レポートですが、まだ体重の記録がありません。';
-      var out = who + '体重レポートです。体重の記録は' + st.recs.length + '回あります。最新は' + md(st.last.date) + 'の' + st.last.value.toFixed(1) + 'キロで、' +
-        (st.prev ? '前回の' + md(st.prev.date) + 'より' + change(st.last.value - st.prev.value, 'キロ') + 'です。' : '前回の記録はありません。');
-      out += '直近4週間の平均は' + st.w1.avg.toFixed(1) + 'キロ（' + st.w1.n + '回）' + (st.w0.avg !== null ? 'で、その前の4週間の' + st.w0.avg.toFixed(1) + 'キロより' + change(st.w1.avg - st.w0.avg, 'キロ') + 'です。' : 'です。');
-      if (st.ref4w) out += '4週前の' + md(st.ref4w.date) + 'と比べると' + change(st.last.value - st.ref4w.value, 'キロ') + '。';
-      if (st.ref3m) out += '3か月前の' + md(st.ref3m.date) + 'と比べると' + change(st.last.value - st.ref3m.value, 'キロ') + '。';
-      if (st.recs.length >= 3) out += '体重は、' + Body.trendCompare(st.recs, 'キロ', '記録の始め（' + md(st.recs[0].date) + '）');
+      var wk = function (w) { return md(w.date) + 'からの週'; };
+      var out = who + '体重レポートです。体重は週ごとの平均で見ています。記録は' + st.recs.length + '回、' + st.weeks.length + '週分あります。' +
+        '最新の' + wk(st.week) + 'の平均は' + st.week.value.toFixed(1) + 'キロ（' + st.week.n + '回）で、' +
+        (st.prevWeek ? '前の' + wk(st.prevWeek) + 'の' + st.prevWeek.value.toFixed(1) + 'キロより' + change(st.week.value - st.prevWeek.value, 'キロ') + 'です。' : '前の週の記録はありません。');
+      if (st.ref4w) out += '4週前の週と比べると' + change(st.week.value - st.ref4w.value, 'キロ') + '。';
+      if (st.ref3m) out += '3か月前の週と比べると' + change(st.week.value - st.ref3m.value, 'キロ') + '。';
+      out += '1回ごとの最新は、' + md(st.last.date) + 'の' + st.last.value.toFixed(1) + 'キロです。';
+      if (st.weeks.length >= 3) out += '週平均は、' + Body.trendCompare(st.weeks, 'キロ', '記録の始め（' + wk(st.weeks[0]) + '）');
       return out;
     }
     var ib = a.inbody || [];
@@ -321,49 +325,121 @@ var Body = {
     };
   },
 
+  // ---------------- 体重の週平均（v46） ----------------
+  /** その日を含む週の始まりの日（Body.weekStart：'月' または '日'。サーバーの設定シート「週の始まり」） */
+  weekOf: function (ds) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ds);
+    var dow = new Date(Date.UTC(+m[1], m[2] - 1, +m[3])).getUTCDay();
+    var start = Body.weekStart === '日' ? 0 : 1;
+    return Body.addDays(ds, -((dow - start + 7) % 7));
+  },
+  /** 体重の記録を週ごとの平均にする：[{ date: 週の始まり, end, value, n, days: [記録] }]（古い順） */
+  weekly: function (recs) {
+    var by = {};
+    recs.forEach(function (p) { var w = Body.weekOf(p.date); (by[w] = by[w] || []).push(p); });
+    return Object.keys(by).sort().map(function (w) {
+      var v = by[w].map(function (p) { return p.value; });
+      return { date: w, end: Body.addDays(w, 6), value: Math.round(Body.avg(v) * 10) / 10, n: v.length, days: by[w], r: { src: '週平均' } };
+    });
+  },
+  /** 週平均の集計（体重レポートのカード・説明で使う） */
+  weightWeekStats: function (w) {
+    var recs = Body.series(w, 'weight');
+    if (!recs.length) return null;
+    var weeks = Body.weekly(recs), W = weeks[weeks.length - 1];
+    var others = weeks.slice(0, -1);
+    return {
+      recs: recs, weeks: weeks, last: recs[recs.length - 1], prev: recs[recs.length - 2] || null,
+      week: W, prevWeek: others[others.length - 1] || null,
+      ref4w: Body.nearest(others, Body.addDays(W.date, -28), 7),       // 4週前の週（前後1週まで）
+      ref3m: Body.nearest(others, Body.addMonths(W.date, -3), 14)      // 3か月前の週（前後2週まで）
+    };
+  },
+  /** 週の書き方（「11/2〜11/8の週」） */
+  weekLabel: function (wk) { return Body.dShort(wk.date) + '〜' + Body.dShort(wk.end); },
+  srcName: function (src) { return src === 'InBody' ? 'InBody' : src === '本人' ? '本人の入力' : '体重管理表'; },
+
   weightReportHtml: function (a, opt) {
     opt = opt || {};
     Body.reg[a.id] = a;
-    var st = Body.weightStats(a.weight || []);
+    var st = Body.weightWeekStats(a.weight || []);
     var html = '<div class="card report-card">' + Body.head('体重レポート', a, st ? st.last.date : '');
-    if (!st) return html + '<p class="muted" style="margin-top:12px;">まだ体重の記録がありません。体重管理表またはInBodyが取り込まれると、ここにレポートが表示されます。</p></div>';
-    var L = st.last, tap = function (hl) { return '<div class="report-metric report-metric-tappable" data-rep="weight" data-aid="' + esc(a.id) + '" data-hl="' + esc(hl || '') + '" role="button" tabindex="0">'; };
+    if (!st) return html + '<p class="muted" style="margin-top:12px;">まだ体重の記録がありません。体重管理表・InBodyが取り込まれるか、コンディションと一緒に体重を入れると、ここにレポートが表示されます。</p></div>';
+    var W = st.week, L = st.last, tap = function (hl) { return '<div class="report-metric report-metric-tappable" data-rep="weight" data-aid="' + esc(a.id) + '" data-hl="' + esc(hl || '') + '" role="button" tabindex="0">'; };
     var hint = '<span class="report-tap-hint">タップで履歴を表示</span>';
     var val = function (v) { return '<div class="report-metric-value">' + v + '<span class="report-unit">kg</span></div>'; };
-    var vsCard = function (ref, label) {
+    var vsWeek = function (ref, label) {
       if (!ref) return '<div class="report-metric-value report-none">-</div><div class="report-metric-sub">' + label + 'の記録なし</div>';
-      return val(Body.diffText(L.value - ref.value).replace(/^(▲|▼|±)/, '<span class="report-mark-sm">$1</span>')) + '<div class="report-metric-sub">' + label + '（' + esc(Body.dShort(ref.date)) + '）の ' + ref.value.toFixed(1) + 'kg と比較</div>';
+      return val(Body.diffText(W.value - ref.value).replace(/^(▲|▼|±)/, '<span class="report-mark-sm">$1</span>')) +
+        '<div class="report-metric-sub">' + label + '（' + esc(Body.weekLabel(ref)) + '）の週平均 ' + ref.value.toFixed(1) + 'kg と比較</div>';
     };
-    html += '<div class="report-section-title">体重の概要</div><div class="report-grid">' +
-      tap('') + '<div class="report-metric-label">最新の体重' + hint + '</div>' + val(L.value.toFixed(1)) +
-        '<div class="report-metric-sub">' + esc(Body.dShort(L.date)) + ' 測定</div>' +
+    html += '<div class="report-section-title">体重の概要（週平均）</div><div class="report-grid">' +
+      tap('') + '<div class="report-metric-label">最新の週平均' + hint + '</div>' + val(W.value.toFixed(1)) +
+        '<div class="report-metric-sub">' + esc(Body.weekLabel(W)) + '（' + W.n + '回の平均）</div>' +
+        Body.diffRow('前週比', st.prevWeek ? '<span class="report-diff">' + Body.diffText(W.value - st.prevWeek.value) + '</span>' +
+          Body.ref('（' + esc(Body.weekLabel(st.prevWeek)) + ' ' + st.prevWeek.value.toFixed(1) + '）') : Body.ref('前の週の記録なし')) +
+        Body.spark(st.weeks) + '</div>' +
+      tap(st.ref4w ? st.ref4w.date : '') + '<div class="report-metric-label">4週前の週平均との差' + hint + '</div>' + vsWeek(st.ref4w, '4週前') + '</div>' +
+      tap(st.ref3m ? st.ref3m.date : '') + '<div class="report-metric-label">3か月前の週平均との差' + hint + '</div>' + vsWeek(st.ref3m, '3か月前') + '</div>' +
+      tap('') + '<div class="report-metric-label">最新の体重（1回の値）' + hint + '</div>' + val(L.value.toFixed(1)) +
+        '<div class="report-metric-sub">' + esc(Body.dShort(L.date)) + '・' + Body.srcName(L.r.src) + '</div>' +
         Body.diffRow('前回比', st.prev ? '<span class="report-diff">' + Body.diffText(L.value - st.prev.value) + '</span>' + Body.ref('（前回 ' + st.prev.value.toFixed(1) + ' / ' + esc(Body.dShort(st.prev.date)) + '）') : Body.ref('前回の記録なし')) +
-        Body.spark(st.recs) + '</div>' +
-      tap('') + '<div class="report-metric-label">直近4週間の平均' + hint + '</div>' + val(st.w1.avg.toFixed(1)) +
-        '<div class="report-metric-sub">' + esc(Body.dShort(Body.addDays(L.date, -27))) + '〜' + esc(Body.dShort(L.date)) + '（' + st.w1.n + '件）</div>' +
-        Body.diffRow('前4週比', st.w0.avg !== null ? '<span class="report-diff">' + Body.diffText(st.w1.avg - st.w0.avg) + '</span>' + Body.ref('（その前の4週 ' + st.w0.avg.toFixed(1) + '）') : Body.ref('その前の4週の記録なし')) + '</div>' +
-      tap(st.ref4w ? st.ref4w.date : '') + '<div class="report-metric-label">4週前との差' + hint + '</div>' + vsCard(st.ref4w, '4週前') + '</div>' +
-      tap(st.ref3m ? st.ref3m.date : '') + '<div class="report-metric-label">3か月前との差' + hint + '</div>' + vsCard(st.ref3m, '3か月前') + '</div></div>';
+        '</div></div>';
 
-    var hasIb = st.recs.some(function (p) { return p.r.src === 'InBody'; });
-    html += '<div class="report-section-title">体重の推移（全' + st.recs.length + '件）</div>' +
-      (hasIb ? '<div class="report-chart-desc muted small"><span style="color:' + Body.COLORS.weight + '">●</span> 体重管理表　<span style="color:' + Body.COLORS.lbm + '">●</span> InBody測定による体重</div>' : '') +
-      Body.weightChart(st.recs, opt.print ? { w: 700, h: 280 } : { w: 420, h: 260 });
+    var size = opt.print ? { w: 700, h: 260 } : { w: 420, h: 240 };
+    html += '<div class="report-section-title">週平均の推移（全' + st.weeks.length + '週）</div>' +
+      '<div class="report-chart-desc muted small">1つの点が1週間（' + (Body.weekStart === '日' ? '日曜' : '月曜') + 'はじまり）の平均です。</div>' +
+      Body.weightChart(st.weeks, Object.assign({ tip: function (p) { return Body.weekLabel(p) + ' 平均 ' + p.value.toFixed(1) + 'kg（' + p.n + '回）'; } }, size));
+    html += '<div class="report-section-title">直近1か月の毎日の体重</div>' + Body.dailyChart(st.recs, Body.addDays(Body.today(), -29), Body.today(), size);
 
     if (opt.print) {
-      var prevOf = {};
-      st.recs.forEach(function (p, i) { prevOf[p.date] = i > 0 ? st.recs[i - 1] : null; });
-      html += '<div class="report-section-title">体重の数値（左ほど新しい日付・全' + st.recs.length + '件）</div>' +
-        Body.pivot(st.recs.slice().reverse(), function (p) { return { latest: p === L }; }, [
-          ['体重(kg)', function (p) { return p.value.toFixed(1); }],
-          ['前回比(kg)', function (p) { var q = prevOf[p.date]; if (!q) return '-'; var d = Math.round((p.value - q.value) * 10) / 10; return d === 0 ? '±0.0' : (d > 0 ? '+' : '−') + Math.abs(d).toFixed(1); }],
-          ['種別', function (p) { return p.r.src === 'InBody' ? 'InBody' : '記録'; }]
+      html += '<div class="report-section-title">週平均の数値（左ほど新しい週・全' + st.weeks.length + '週）</div>' +
+        Body.pivot(st.weeks.slice().reverse(), function (p) { return { latest: p === W }; }, [
+          ['週平均(kg)', function (p) { return p.value.toFixed(1); }],
+          ['回数', function (p) { return String(p.n); }]
         ]);
     }
-    html += '<div class="report-note">体重は、体重管理表とInBody測定の体重をあわせたものです（同じ日は体重管理表を優先）。前回比は直前の記録との差、直近4週間の平均は最終測定日から28日間の記録の平均です。' +
-      '4週前・3か月前との差は、最終測定日からその分さかのぼった日付にいちばん近い記録（4週前は前後7日、3か月前は前後14日まで）との差で、その期間に記録がないときは「-」になります。' +
-      '数値の良し悪しの判定は行わず、変化だけを表示しています。' + (opt.print ? '' : '項目のカードをタップすると、体重の履歴を表示します。') + '</div></div>';
+    html += '<div class="report-note">体重は、体重管理表・InBody測定・選手本人の入力（コンディションと一緒に入れた体重）をあわせたものです（同じ日は体重管理表を優先）。' +
+      '体重は食事や水分で1日の中でも変わるため、週ごとの平均で比べています。前週比は直前の記録のある週との差、4週前・3か月前は、その分さかのぼった週にいちばん近い週（4週前は前後1週、3か月前は前後2週まで）の平均との差で、その期間に記録がないときは「-」になります。' +
+      '数値の良し悪しの判定は行わず、変化だけを表示しています。' + (opt.print ? '' : '項目のカードをタップすると、体重の履歴（1回ごとの記録）を表示します。') + '</div></div>';
     return html;
+  },
+
+  /** 直近の毎日の体重（from〜to の日付を横に並べる。記録のない日はあける。点の色は記録の種類） */
+  dailyChart: function (recs, from, to, o) {
+    var days = [];
+    for (var d = from; d <= to; d = Body.addDays(d, 1)) days.push(d);
+    var pts = recs.filter(function (p) { return p.date >= from && p.date <= to; });
+    if (!pts.length) return '<p class="muted small">この1か月の記録はまだありません。コンディションと一緒に体重を入れると、毎日の流れがここに出ます。</p>';
+    var W = o.w, H = o.h, Lm = 40, R = 14, T = 22, B = 24, n = days.length;
+    var yr = Body.range(pts.map(function (p) { return p.value; }), 3);
+    var idx = function (ds) { return Math.round((Date.parse(ds + 'T00:00:00Z') - Date.parse(from + 'T00:00:00Z')) / 86400000); };
+    var sx = function (i) { return Lm + (W - Lm - R) * i / (n - 1); };
+    var sy = function (v) { return T + (H - T - B) * (1 - (v - yr.min) / (yr.max - yr.min)); };
+    var color = function (src) { return src === 'InBody' ? Body.COLORS.lbm : src === '本人' ? Body.COLORS.fat : Body.COLORS.weight; };
+    var svg = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '">';
+    for (var g = 0; g <= 4; g++) {
+      var v = yr.min + (yr.max - yr.min) * g / 4, y = sy(v).toFixed(1);
+      svg += '<line x1="' + Lm + '" x2="' + (W - R) + '" y1="' + y + '" y2="' + y + '" class="grid"/><text x="' + (Lm - 4) + '" y="' + (+y + 3) + '" class="axis" text-anchor="end">' + (Math.round(v * 10) / 10) + '</text>';
+    }
+    svg += '<text x="' + (Lm - 4) + '" y="' + (T - 10) + '" class="axis" text-anchor="end">kg</text>';
+    // 続けて記録がある日は実線、間があいた所は細い点線でつなぐ
+    for (var i = 1; i < pts.length; i++) {
+      var a = pts[i - 1], b = pts[i], gap = idx(b.date) - idx(a.date) > 1;
+      svg += '<line x1="' + sx(idx(a.date)).toFixed(1) + '" y1="' + sy(a.value).toFixed(1) + '" x2="' + sx(idx(b.date)).toFixed(1) + '" y2="' + sy(b.value).toFixed(1) +
+        '" stroke="' + Body.COLORS.weight + '" stroke-width="' + (gap ? 1.2 : 2) + '"' + (gap ? ' stroke-dasharray="3 3"' : '') + '/>';
+    }
+    pts.forEach(function (p) {
+      svg += '<circle cx="' + sx(idx(p.date)).toFixed(1) + '" cy="' + sy(p.value).toFixed(1) + '" r="3.5" fill="' + color(p.r.src) + '" stroke="#fff" stroke-width="1"><title>' +
+        esc(p.date + ' ' + p.value.toFixed(1) + 'kg（' + Body.srcName(p.r.src) + '）') + '</title></circle>';
+    });
+    svg += Body.xLabels(days, sx, H - 6) + '</svg>';
+    var used = {};
+    pts.forEach(function (p) { used[p.r.src || '体重'] = true; });
+    var legend = '<div class="report-chart-desc muted small">' + ['体重', 'InBody', '本人'].filter(function (k) { return used[k]; }).map(function (k) {
+      return '<span style="color:' + color(k) + '">●</span> ' + Body.srcName(k);
+    }).join('　') + '（' + pts.length + '日分。点線は記録のない日をはさむ所）</div>';
+    return legend + svg;
   },
 
   // ---------------- PDF用の数値の表（測定日を横に並べる） ----------------
@@ -488,8 +564,8 @@ var Body = {
     if (n > 1) svg += '<polyline fill="none" stroke="' + Body.COLORS.weight + '" stroke-width="2" stroke-linejoin="round" points="' + recs.map(function (p, i) { return sx(i).toFixed(1) + ',' + sy(p.value).toFixed(1); }).join(' ') + '"/>';
     var dot = Math.max(2, Math.min(4, 80 / n));
     recs.forEach(function (p, i) {
-      svg += '<circle cx="' + sx(i).toFixed(1) + '" cy="' + sy(p.value).toFixed(1) + '" r="' + dot + '" fill="' + (p.r.src === 'InBody' ? Body.COLORS.lbm : Body.COLORS.weight) + '" stroke="#fff" stroke-width="1"><title>' +
-        esc(p.date + ' ' + p.value.toFixed(1) + 'kg（' + (p.r.src === 'InBody' ? 'InBody' : '体重管理表') + '）') + '</title></circle>';
+      svg += '<circle cx="' + sx(i).toFixed(1) + '" cy="' + sy(p.value).toFixed(1) + '" r="' + dot + '" fill="' + (p.r.src === 'InBody' ? Body.COLORS.lbm : p.r.src === '本人' ? Body.COLORS.fat : Body.COLORS.weight) + '" stroke="#fff" stroke-width="1"><title>' +
+        esc(o.tip ? o.tip(p) : p.date + ' ' + p.value.toFixed(1) + 'kg（' + Body.srcName(p.r.src) + '）') + '</title></circle>';
     });
     return svg + Body.xLabels(recs.map(function (p) { return p.date; }), sx, H - 6) + '</svg>';
   },
@@ -533,7 +609,7 @@ var Body = {
     var body = '<div class="table-scroll"><table class="tbl"><tr><th>測定日</th><th>体重(kg)</th><th>前回比(kg)</th><th>種別</th></tr>' + rows.map(function (p, i) {
       var q = rows[i + 1], tag = i === 0 ? ' <span class="report-base-tag">最新</span>' : p.date === hlDate ? ' <span class="report-base-tag">比較対象</span>' : '';
       return '<tr' + (p.date === hlDate ? ' class="report-row-hl"' : '') + '><td>' + esc(Body.dShort(p.date)) + tag + '</td><td>' + p.value.toFixed(1) + '</td><td>' +
-        (q ? Body.diffText(p.value - q.value) : '-') + '</td><td>' + (p.r.src === 'InBody' ? 'InBody' : '体重管理表') + '</td></tr>';
+        (q ? Body.diffText(p.value - q.value) : '-') + '</td><td>' + Body.srcName(p.r.src) + '</td></tr>';
     }).join('') + '</table></div>';
     Body.modal('体重の履歴', (a.name || '') + ' ・ 新しい順（全' + rows.length + '件）', body);
   }

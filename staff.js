@@ -2,6 +2,7 @@
  * staff.js ― スタッフ画面（Phase 3、3cでInBodyと体重を別タブに）
  * スタッフIDでログインすると、この画面になる。タブは3つ:
  *   実施状況 … 週ごとの選手一覧（未実施の選手が上）
+ *   選手一覧 … 全選手を学年・ポジション・チームで絞り込み、学年別／ポジション別にまとめる（v46。staff_list.js）
  * 選手の名前を押すと、タブの外の「個人ページ」に移る（v37）。上から トレーニング記録 → コンディション記録 → フィジカルデータ（最新の値）。
  * 個人ページの「フィジカルレポート」から、別のページ「フィジカルレポート」（InBody／体重の切り替え）に移る（v38）。
  *   「← 戻る」（またはブラウザの戻る）で、開く前の画面に戻る
@@ -19,7 +20,7 @@ var Staff = {
   },
 
   frame: function (inner) {
-    var tabs = [['overview', '実施状況'], ['inbody', 'InBody'], ['weight', '体重']];
+    var tabs = [['overview', '実施状況'], ['list', '選手一覧'], ['inbody', 'InBody'], ['weight', '体重']];   // 選手一覧は v46（staff_list.js）
     return '<div class="group"><div class="topbar"><h1>スタッフ画面</h1><button class="btn ghost" data-act="logout">ログアウト</button></div>' +
       '<p class="muted small">' + esc(Staff.name) + 'さん　<span class="ver">' + esc(APP_VERSION) + '</span></p><div class="tabs">' +
       tabs.map(function (t) { return '<button class="tab' + (Staff.tab === t[0] ? ' on' : '') + '" data-staff="tab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') +
@@ -32,6 +33,7 @@ var Staff = {
     try { if (history.state && (history.state.staffAthlete || history.state.staffReport || history.state.staffRoster)) history.replaceState(null, ''); } catch (e) {}
     Staff.page = Staff.tab;   // 今の画面（overview / inbody / weight / athlete）。音声の操作で使う（v35）
     if (Staff.tab === 'overview') return Staff.renderOverview();
+    if (Staff.tab === 'list') return StaffList.render();
     return StaffBody.render(Staff.tab === 'weight' ? 'weight' : 'inbody');
   },
 
@@ -166,6 +168,9 @@ var Staff = {
         row('体重', L.weight, 'kg', P && P.weight) + row('体脂肪率', L.fat, '%', P && P.fat) + row('除脂肪体重', L.lbm, 'kg', P && P.lbm) +
         row('FFMI', L.ffmi, '', P && P.ffmi) + (L.rank ? '<tr><td>FFMIの同日順位</td><td class="r"><b>' + L.rank + '位</b> / ' + L.rankOf + '人</td></tr>' : '');
     } else html += '<tr><td colspan="2" class="muted">InBodyの記録はまだありません。</td></tr>';
+    var wk = Body.weightWeekStats(c.weight || []);
+    if (wk) html += '<tr><td>体重（週平均）</td><td class="r"><b>' + wk.week.value.toFixed(1) + '</b>kg' + (wk.prevWeek ? ' <span class="muted small">' + Body.diffText(wk.week.value - wk.prevWeek.value) + '</span>' : '') +
+      '<div class="muted small">' + esc(Body.weekLabel(wk.week)) + '（' + wk.week.n + '回）' + (wk.prevWeek ? '・▲▼は前の週との差' : '') + '</div></td></tr>';
     if (ws) html += '<tr><td>体重（最新）</td><td class="r"><b>' + ws.last.value.toFixed(1) + '</b>kg' + (ws.prev ? ' <span class="muted small">' + Body.diffText(ws.last.value - ws.prev.value) + '</span>' : '') +
       '<div class="muted small">' + esc(Body.dShort(ws.last.date)) + ' 測定</div></td></tr>';
     else html += '<tr><td colspan="2" class="muted">体重の記録はまだありません。</td></tr>';
@@ -281,7 +286,7 @@ var Staff = {
   // ---------------- 体組成データの読み込み（InBody・体重タブで共通） ----------------
   loadBody: function (force) {
     if (Staff.body && !force) return Promise.resolve(Staff.body);
-    return Api.call('staffBody', { token: S.token }).then(function (res) { Staff.body = res; if (res.chart) Body.chart = res.chart; return res; });
+    return Api.call('staffBody', { token: S.token }).then(function (res) { Staff.body = res; if (res.chart) Body.chart = res.chart; if (res.weekStart) Body.weekStart = res.weekStart; return res; });
   },
 
   fail: function (err) {

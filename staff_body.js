@@ -139,7 +139,8 @@ var StaffBody = {
   },
 
   weightView: function () {
-    var dates = uniq([].concat.apply([], Staff.body.athletes.map(function (a) { return a.weight.map(function (r) { return r.date; }); }))).sort().reverse();
+    // 測定日の一覧は、チームで測った日（体重管理表・InBody）だけ。選手本人が毎日入れた体重の日は出さない（v46）
+    var dates = uniq([].concat.apply([], Staff.body.athletes.map(function (a) { return a.weight.filter(function (r) { return r.src !== '本人'; }).map(function (r) { return r.date; }); }))).sort().reverse();
     if (StaffBody.weightDate === null || (StaffBody.weightDate && dates.indexOf(StaffBody.weightDate) < 0)) StaffBody.weightDate = '';
     if (!StaffBody.weightDateSet && dates.length) { StaffBody.weightDate = dates[0]; StaffBody.weightDateSet = true; }   // 最初は最新の測定日
     var rows = StaffBody.weightRows(), sort = StaffBody.weightSort;
