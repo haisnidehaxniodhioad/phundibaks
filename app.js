@@ -8,7 +8,7 @@
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v46 2026-11-02';
+var APP_VERSION = 'v47 2026-11-03';
 // 記録し忘れた日の分を、何日前まで遡って入力できるか（v26）。Apps Script の 設定.gs の MAX_BACKDATE_DAYS と同じ数字にする
 var MAX_BACKDATE_DAYS = 3;
 var S = { token: null, home: null, draft: null, view: 'loading' };
@@ -671,6 +671,7 @@ function onAct(t) {
     case 'startFree': startFree(); break;
     case 'body': Body.showMine(); break;
     case 'records': History.show(); break;
+    case 'mypage': MyPage.show(); break;   // v47：マイページ（mypage.js）
     case 'avatarSettings': if (window.Avatar && typeof Avatar.openAppearancePicker === 'function') Avatar.openAppearancePicker(); else alert('トレーナー設定を読み込めませんでした。ページを再読み込みしてください。'); break;
     case 'home': if (S.view === 'session') S.reorder = false;
       Timer.stop(); Speech.stop(); Body.closeHistory(); renderHome(); break;

@@ -47,15 +47,15 @@ var VoiceUI = {
     document.body.classList.toggle('has-mic', show);
     if (!show) { this.box.hidden = true; return; }
     if (S.view === 'staff') { StaffVoice.helpCard(); return; }   // v35：スタッフ画面の「話し方の例」（staff_voice.js）
-    if ((S.view === 'session' || S.view === 'home' || S.view === 'body' || S.view === 'history') && !document.getElementById('voiceHelp')) {
+    if ((S.view === 'session' || S.view === 'home' || S.view === 'body' || S.view === 'history' || S.view === 'mypage') && !document.getElementById('voiceHelp')) {
       var help = document.createElement('details');
       help.id = 'voiceHelp';
       help.className = 'card voice-help';
-      help.innerHTML = '<summary>🎤 話し方の例</summary>' + (S.view === 'history' ? '「今週何回やった？」「今月は何回？」「前回のスクワットは？」「ホームに戻って」' : S.view === 'body' ? '「体重にして」「InBodyにして」「体重の履歴」「閉じて」「ホームに戻って」' : S.view === 'session'
+      help.innerHTML = '<summary>🎤 話し方の例</summary>' + (S.view === 'history' ? '「今週何回やった？」「今月は何回？」「前回のスクワットは？」「ホームに戻って」' : S.view === 'mypage' ? '「3か月にして」「1週間にして」「前の週」「設定」「プロフィールを見せて」「PINを変えたい」「このページの見方を教えて」「ホームに戻って」' : S.view === 'body' ? '「体重にして」「InBodyにして」「体重の履歴」「閉じて」「ホームに戻って」' : S.view === 'session'
         ? '記録：「スクワット60キロ8回」「60キロ8回」（今の種目）「懸垂10回」「同じ」「同じで7回」<br>案内：「次は？」→「それ先にやる」「その次は？」／「前回は？」→「それでできた」<br>' +
           '順番：「RDLから始める」「ベンチを最後にする」（今回だけ。いつもの順番は▲▼で）<br>' +
           'レスト：「あと何秒」「延長」「あと30秒」「スキップ」<br>そのほか：「取り消し」「もう一回言って」「デッドリフト追加」「終わり」'
-        : '「今日は何をする？」「デイ2を始める」「記録を見せて」「今週何回やった？」「前回のスクワットは？」「体組成レポートを開いて」「体重見せて」「マイメニューは？」「（保存したメニューの名前）を始める」「新しいメニューを作る」<br>コンディション（画面を開かずに）：「コンディションを入れて」→ 聞かれた数字を答える／「疲労5、上半身4、下半身6、動き7、体重72.5」→「はい」で保存／「体重72.5キロ」') +
+        : '「今日は何をする？」「デイ2を始める」「記録を見せて」「今週何回やった？」「前回のスクワットは？」「体組成レポートを開いて」「体重見せて」「マイメニューは？」「（保存したメニューの名前）を始める」「新しいメニューを作る」「マイページを開いて」<br>コンディション（画面を開かずに）：「コンディションを入れて」→ 聞かれた数字を答える／「疲労5、上半身4、下半身6、動き7、体重72.5」→「はい」で保存／「体重72.5キロ」') +
         '<br>自分のデータ：' + QA.TOPICS.filter(function (tp) { return tp.name !== '聞けることの一覧'; }).map(function (tp) { return '「' + tp.examples[0] + '」'; }).join('') + '（どの画面でも）' +
         '<br>「何ができるの？」と聞くと、その画面で話せることを教えてくれます。' +
         '<br>わからない言い方をされたときは、画面に操作の候補が出ます。選ぶと、次からはその言い方で動きます（チームで共有）。';
@@ -339,6 +339,8 @@ function handleVoice(text) {
   if (S.view === 'finish' && /マイメニュ|メニュ(として|に)保存/.test(VoiceParser.norm(text))) return MyMenu.voiceSaveFromFinish(text);
   // v33：コンディションの記録（「コンディションを記録」はどの画面でも。入力の画面では数字・コメント・保存）（condition.js）
   if (Condition.voice(text)) return;
+  // v47：マイページ（「マイページを開いて」「PINを変えたい」、マイページの中でグラフの切り替え）（mypage.js）
+  if (MyPage.voice(text)) return;
   if (S.view === 'afterSave' || S.view === 'condition') {
     if (QA.handle(text)) return;
     if (smallTalk(text)) return;
@@ -349,7 +351,7 @@ function handleVoice(text) {
   var nav = VoiceParser.parseNav(text, S.home.myMenus);
   if (nav && !(S.view === 'finish' && nav.type === 'closePanel')) return doNav(text, nav);
   if (S.view === 'finish') return voiceInFinish(text, VoiceParser.parse(text, { candidates: voiceCandidates() }));
-  if (S.view === 'body' || S.view === 'mymenu' || S.view === 'history') {   // レポート・メニュー作成・記録の画面は、基本操作とちょっとした会話だけ
+  if (S.view === 'body' || S.view === 'mymenu' || S.view === 'history' || S.view === 'mypage') {   // レポート・メニュー作成・記録・マイページの画面は、基本操作とちょっとした会話だけ
     if (smallTalk(text)) return;
     if (S.view === 'history' && askPrevious(text)) return;
     if (Chat.question(text)) return;   // 「今何時？」「今週あと何回？」など（chat.js）

@@ -4,7 +4,8 @@
  *   画面の上の帯（#dockCoach）：コーチ（アバター）と吹き出し。吹き出しには返事（#voiceBox）か、その画面のひとこと（#coachLine）が出る。
  *     返事は帯の下に重ねて出す（画面の内容を押し下げない）。
  *   画面の下のバー（#dockBar）：画面によって中身が変わる。
- *       ホーム・記録・体組成 … タブ（ホーム／記録／話す／からだ／コーチ）。真ん中の「話す」がマイク
+ *       ホーム・記録・体組成・マイページ … タブ（ホーム／記録／話す／からだ／マイページ）。真ん中の「話す」がマイク
+ *         v47：右端は「コーチ」（設定パネル）から「マイページ」（mypage.js）に変えた。コーチの設定はマイページの「設定」から開く
  *       トレーニング中       … レストタイマー（#timer）とマイク
  *       終了画面             … 「記録を保存する」とマイク
  *       メニューの作成・編集 … 「保存する」とマイク
@@ -28,6 +29,7 @@ var Dock = {
     history: '「先月」って話しかけると、前の月が見られるよ。',
     body: '「体重にして」と話しかけると、体重のレポートになるよ。',
     mymenu: '数字をタップすると変えられるよ。',
+    mypage: '「3か月にして」でコンディションのグラフが変わるよ。PINは画面で変えてね。',
     staff: '「今週やってないのは誰？」「（選手の名前）を開いて」のように話しかけてください。'
   },
 
@@ -50,7 +52,7 @@ var Dock = {
   /** 今の画面に合わせて、バーの中身・アバターの場所を変える */
   update: function () {
     var v = S.view;
-    var athlete = !!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition'].indexOf(v) >= 0;
+    var athlete = !!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition', 'mypage'].indexOf(v) >= 0;
     var staff = v === 'staff' && !!S.token;   // v35：スタッフ画面にも上の帯（コーチ）とマイクを出す
     // v36：スタッフ画面では「コーチ」ではなく「AIアシスタント」と表示する（style.css の body.is-staff、avatar.js の Avatar.title）
     if (document.body.classList.contains('is-staff') !== staff) {
@@ -59,7 +61,7 @@ var Dock = {
       var pk = document.getElementById('avatarAppearancePicker');
       if (pk) pk.remove();   // 設定パネルの見出しを作り直すため
     }
-    var mode = staff ? 'staff' : !athlete ? 'none' : (v === 'home' || v === 'history' || v === 'body') ? 'tabs' : v;
+    var mode = staff ? 'staff' : !athlete ? 'none' : (v === 'home' || v === 'history' || v === 'body' || v === 'mypage') ? 'tabs' : v;
     this.el.hidden = mode === 'none';
     document.body.classList.toggle('has-dock', mode !== 'none');
     this.el.className = 'dock mode-' + mode + ' view-' + v;
@@ -94,7 +96,7 @@ var Dock = {
         tab('records', 'calendar', '記録', v === 'history') +
         '<div class="dock-mic"><span data-slot="mic"></span><span class="dock-mic-label">話す</span></div>' +
         tab('body', 'heart', 'からだ', v === 'body') +
-        tab('avatarSettings', 'smiley', 'コーチ', false) + '</nav>';
+        tab('mypage', 'person', 'マイページ', v === 'mypage') + '</nav>';
     } else if (mode === 'session') {
       html = '<div class="dock-row"><span data-slot="timer"></span><div class="dock-hint">終わったら ✓ を押してね</div><span data-slot="mic"></span></div>';
     } else if (mode === 'finish') {

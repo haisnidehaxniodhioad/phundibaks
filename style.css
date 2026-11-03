@@ -864,3 +864,14 @@ body.is-staff .dock-bubble::before { content: 'AIアシスタントより'; }
 .cond-weight { display: flex; align-items: center; gap: 8px; }
 .cond-weight input { width: 9em; padding: 10px 12px; font: inherit; font-size: 1.1rem; border: 1.5px solid transparent; border-radius: 10px; background: var(--color-surface); color: var(--color-text); }
 .cond-weight input:focus { outline: none; border-color: var(--color-accent); background: var(--color-paper); }
+
+/* ---- v47：マイページ（mypage.js） ---- */
+.mp-name { margin: 4px 0 0; font-size: 1.15rem; }
+.mp-h { margin: 0 0 8px; }
+.mp-sub { margin: 14px 0 4px; font-size: 0.98rem; }
+.mp-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 4px 0 8px; }
+.mp-stat { display: flex; flex-direction: column; align-items: center; padding: 8px 4px; border-radius: 10px; background: var(--color-surface); }
+.mp-stat b { font-size: 1.2rem; }
+.mp-pin label { display: block; margin: 8px 0; font-size: 0.9rem; }
+.mp-pin input { display: block; width: 100%; max-width: 12em; margin-top: 4px; padding: 10px 12px; font: inherit; font-size: 1.2rem; letter-spacing: 0.3em; border: 1.5px solid transparent; border-radius: 10px; background: var(--color-surface); color: var(--color-text); }
+.mp-pin input:focus { outline: none; border-color: var(--color-accent); background: var(--color-paper); }
