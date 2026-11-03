@@ -875,3 +875,14 @@ body.is-staff .dock-bubble::before { content: 'AIアシスタントより'; }
 .mp-pin label { display: block; margin: 8px 0; font-size: 0.9rem; }
 .mp-pin input { display: block; width: 100%; max-width: 12em; margin-top: 4px; padding: 10px 12px; font: inherit; font-size: 1.2rem; letter-spacing: 0.3em; border: 1.5px solid transparent; border-radius: 10px; background: var(--color-surface); color: var(--color-text); }
 .mp-pin input:focus { outline: none; border-color: var(--color-accent); background: var(--color-paper); }
+
+/* ---- v48：チーム分け（staff_list.js） ---- */
+.sl-pick, .sl-gpick input { width: 20px; height: 20px; vertical-align: middle; }
+.sl-gpick { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.sl-table tr.sl-picked td { background: var(--color-accent-100); }
+.sl-bar { position: sticky; bottom: var(--dock-h, 0px); z-index: 5; margin: 0 -4px; padding: 8px 12px 10px; background: var(--color-paper); border: 1.5px solid var(--color-accent); border-radius: 12px; box-shadow: 0 -4px 14px rgba(0,0,0,0.12); }
+.sl-bar .row { margin: 4px 0; }
+.sl-bar p { margin: 2px 0 6px; }
+.sl-bar .btn.block { margin-top: 4px; }
+.sl-bar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 4px; }
+.sl-newteam { width: 10em; }

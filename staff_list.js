@@ -5,11 +5,18 @@
  *   名前を押すと、その選手の個人ページ（staff.js の showAthlete）。
  *   データは InBody・体重タブと同じ staffBody（体組成.gs の staffBody_。v46 でポジション・ふりがな・出身校・身長を足した）。
  *   声：「選手一覧」「1年の投手を見せて」「ピッチャーは誰？」「ポジション別にして」「学年別にして」「全員を表示」（StaffList.voice）
+ *   チーム分け（v48）：「チーム分けをする」で選手の左にチェックが出る。何人でも選んで、下の欄でチームと使用メニューを選び「選んだ選手に設定」
+ *     ・グループの見出しのチェックで、そのグループを全部選べる（例：学年別で「1年」を全部 → Bチーム）
+ *     ・使用メニューは「チームのメニュー（自動）」なら、メニューシートの「対象チーム」がそのチームのメニューにする
+ *     ・保存は Apps Script の setTeams（体組成.gs）。選手マスタの「チーム」「使用メニューID」の列だけを書きかえる
  *
  * ★ ポジションの並び順・呼び方を変えるときは POSITIONS を書きかえる
  */
 var StaffList = {
   filter: { grade: '', position: '', team: '', q: '', group: 'grade', inactive: false },
+  edit: false,     // チーム分けの最中か（v48）
+  picked: {},      // 選んだ選手 { 選手ID: true }
+  msg: '',         // 保存したあとのお知らせ
 
   // ポジションの並び（名簿のポジション名）と、声での呼び方
   POSITIONS: [
@@ -33,15 +40,20 @@ var StaffList = {
         (key === 'position' ? '<option value="内野手"' + (f.position === '内野手' ? ' selected' : '') + '>内野手（一塁〜遊撃）</option>' : '') + '</select>';
     };
     var grp = function (k, label) { return '<button class="tab' + (f.group === k ? ' on' : '') + '" data-sl="group" data-v="' + k + '">' + label + '</button>'; };
+    if (StaffList.edit && f.group === 'none') f.group = 'team';
     var html = '<div class="card"><div class="row">' + sel('grade', '学年', grades) + sel('position', 'ポジション', positions) + sel('team', 'チーム', teams) + '</div>' +
       '<div class="row"><input class="sel sl-search" type="search" data-sl="q" placeholder="名前・ふりがなで探す" value="' + esc(f.q) + '"></div>' +
-      '<div class="tabs sl-group">' + grp('grade', '学年別') + grp('position', 'ポジション別') + grp('none', 'まとめない') + '</div>' +
+      '<div class="tabs sl-group">' + grp('grade', '学年別') + grp('position', 'ポジション別') + grp('team', 'チーム別') + (StaffList.edit ? '' : grp('none', 'まとめない')) + '</div>' +
       '<label class="check-line small"><input type="checkbox" data-sl="inactive"' + (f.inactive ? ' checked' : '') + '> 卒業・退部した人も表示</label>' +
-      '<p class="small" id="slCount"></p></div>' +
+      '<p class="small" id="slCount"></p>' +
+      '<button class="btn ' + (StaffList.edit ? 'ghost' : 'sub') + ' block" data-sl="edit">' + (StaffList.edit ? 'チーム分けを終わる' : 'チーム分けをする（選手を選んでまとめて設定）') + '</button></div>' +
+      (StaffList.msg ? '<div class="card">' + StaffList.msg + '</div>' : '') +
       '<div class="card"><div id="slTable"></div>' +
-      '<p class="muted small">名前を押すと、その選手の個人ページを開きます。体重は最新の週平均（なければ最新の記録）です。学年・ポジション・ふりがな・出身校は選手マスタ（部員名簿から取り込めます）。</p></div>';
+      '<p class="muted small">名前を押すと、その選手の個人ページを開きます。体重は最新の週平均（なければ最新の記録）です。学年・ポジション・ふりがな・出身校は選手マスタ（部員名簿から取り込めます）。</p></div>' +
+      (StaffList.edit ? StaffList.barHtml(teams) : '');
     app.innerHTML = Staff.frame(html);
     StaffList.renderTable();
+    StaffList.syncBar();
   },
 
   /** 一覧の表だけ描き直す（名前で探しているときに、入力欄が消えないように） */
@@ -52,17 +64,84 @@ var StaffList = {
     var groups = StaffList.groups(list);
     document.getElementById('slCount').textContent = '表示 ' + list.length + '人' + (StaffList.isFiltered() ? '（絞り込み中）' : '');
     if (!list.length) { box.innerHTML = '<p class="muted">当てはまる選手がいません。</p>'; return; }
-    var cols = '<tr><th>名前</th>' + (f.group === 'grade' ? '' : '<th>学年</th>') + (f.group === 'position' ? '' : '<th>ポジション</th>') + '<th>チーム</th><th>身長</th><th>体重</th><th>出身校</th></tr>';
-    box.innerHTML = '<div class="table-scroll"><table class="tbl sl-table">' + groups.map(function (g) {
-      return (g.label ? '<tr class="sl-head"><th colspan="7">' + esc(g.label) + '（' + g.list.length + '人）</th></tr>' : '') + cols +
+    var ed = StaffList.edit, pk = StaffList.picked;
+    var cols = '<tr>' + (ed ? '<th></th>' : '') + '<th>名前</th>' + (f.group === 'grade' ? '' : '<th>学年</th>') + (f.group === 'position' ? '' : '<th>ポジション</th>') +
+      (f.group === 'team' ? '' : '<th>チーム</th>') + (ed ? '<th>メニュー</th>' : '<th>身長</th><th>体重</th><th>出身校</th>') + '</tr>';
+    box.innerHTML = '<div class="table-scroll"><table class="tbl sl-table">' + groups.map(function (g, gi) {
+      var all = g.list.every(function (a) { return pk[a.id]; });
+      return (g.label ? '<tr class="sl-head"><th colspan="8">' + (ed ? '<label class="sl-gpick"><input type="checkbox" data-sl="gpick" data-g="' + gi + '"' + (all ? ' checked' : '') + '> ' : '') +
+          esc(g.label) + '（' + g.list.length + '人）' + (ed ? '</label>' : '') + '</th></tr>' : '') + cols +
         g.list.map(function (a) {
           var w = StaffList.weight(a);
-          return '<tr class="' + (a.active ? '' : 'sl-off') + '"><td><button class="link" data-staff="athlete" data-v="' + esc(a.id) + '">' + esc(a.name) + '</button>' +
+          return '<tr class="' + (a.active ? '' : 'sl-off') + (ed && pk[a.id] ? ' sl-picked' : '') + '">' +
+            (ed ? '<td><input type="checkbox" class="sl-pick" data-sl="pick" data-id="' + esc(a.id) + '"' + (pk[a.id] ? ' checked' : '') + ' aria-label="' + esc(a.name) + 'を選ぶ"></td>' : '') +
+            '<td><button class="link" data-staff="athlete" data-v="' + esc(a.id) + '">' + esc(a.name) + '</button>' +
             (a.kana ? '<div class="muted small">' + esc(a.kana) + '</div>' : '') + (a.active ? '' : '<div class="muted small">在籍でない</div>') + '</td>' +
             (f.group === 'grade' ? '' : '<td>' + esc(a.grade || '-') + '</td>') + (f.group === 'position' ? '' : '<td>' + esc(a.position || '-') + '</td>') +
-            '<td>' + esc(a.team || '-') + '</td><td>' + (a.height ? esc(a.height) : '-') + '</td><td>' + (w ? w.toFixed(1) : '-') + '</td><td class="small">' + esc(a.school || '-') + '</td></tr>';
+            (f.group === 'team' ? '' : '<td>' + esc(a.team || '-') + '</td>') +
+            (ed ? '<td>' + esc(a.menuId || '-') + '</td>' : '<td>' + (a.height ? esc(a.height) : '-') + '</td><td>' + (w ? w.toFixed(1) : '-') + '</td><td class="small">' + esc(a.school || '-') + '</td>') + '</tr>';
         }).join('');
     }).join('') + '</table></div>';
+    StaffList.shown = groups;
+  },
+
+  // ---------------- チーム分け（v48） ----------------
+  menus: function () { return (Staff.body && Staff.body.menus) || []; },
+  /** 画面の下に出す、まとめて設定する欄 */
+  barHtml: function (teams) {
+    var menuTeams = uniq(StaffList.menus().map(function (m) { return m.team; })).filter(String);
+    var names = uniq(teams.concat(menuTeams)).sort();
+    return '<div class="sl-bar card"><div class="sl-bar-row"><b id="slPicked">0人を選択中</b>' +
+      '<button class="btn ghost small" data-sl="pickShown">表示中を全部選ぶ</button><button class="btn ghost small" data-sl="pickNone">選ぶのをやめる</button></div>' +
+      '<div class="row"><label class="small">チーム <select class="sel" id="slTeam">' +
+      names.map(function (t) { return '<option value="' + esc(t) + '">' + esc(t) + '</option>'; }).join('') +
+      '<option value="__new">新しいチーム…</option><option value="">チームなし</option></select></label>' +
+      '<input class="sel sl-newteam" id="slNewTeam" placeholder="新しいチーム名" maxlength="20" hidden></div>' +
+      '<div class="row"><label class="small">使用メニュー <select class="sel" id="slMenu"><option value="auto">チームのメニュー（自動）</option><option value="keep">変えない</option>' +
+      StaffList.menus().map(function (m) { return '<option value="' + esc(m.id) + '">' + esc(m.id) + (m.team ? '（' + esc(m.team) + 'チーム・' : '（') + m.days + 'Day）</option>'; }).join('') +
+      '<option value="">メニューなし</option></select></label></div>' +
+      '<p class="muted small" id="slMenuNote"></p>' +
+      '<button class="btn block" data-sl="apply" id="slApply">選んだ選手に設定する</button></div>';
+  },
+  /** 選んだ人数・自動のときのメニューを表示する */
+  syncBar: function () {
+    var el = document.getElementById('slPicked');
+    if (!el) return;
+    var n = Object.keys(StaffList.picked).length, ch = StaffList.choice();
+    el.textContent = n + '人を選択中';
+    document.getElementById('slNewTeam').hidden = document.getElementById('slTeam').value !== '__new';
+    document.getElementById('slMenuNote').textContent = ch.note;
+    var b = document.getElementById('slApply');
+    b.disabled = !n || ch.error;
+    b.textContent = n ? '選んだ' + n + '人を「' + (ch.team || 'チームなし') + '」にする' : '選手を選んでください';
+  },
+  /** 選んだチームとメニュー：{ team, menuId（'keep' も）, note, error } */
+  choice: function () {
+    var ts = document.getElementById('slTeam'), ms = document.getElementById('slMenu');
+    var team = ts.value === '__new' ? document.getElementById('slNewTeam').value.trim() : ts.value;
+    var mv = ms.value, out = { team: team, menuId: mv, note: '', error: false };
+    if (ts.value === '__new' && !team) { out.error = true; out.note = '新しいチーム名を入れてください。'; return out; }
+    if (mv === 'auto') {
+      var hit = StaffList.menus().filter(function (m) { return team && m.team === team; });
+      if (hit.length) { out.menuId = hit[0].id; out.note = '使用メニューは ' + hit[0].id + '（メニューシートの「対象チーム」が' + team + '）にします。' + (hit.length > 1 ? '（' + team + 'チームのメニューが' + hit.length + 'つあります。別のものにするときは、使用メニューを選んでください）' : ''); }
+      else { out.menuId = 'keep'; out.note = team ? team + 'チームのメニューがメニューシートに無いので、使用メニューは変えません。' : 'チームなしにするので、使用メニューは変えません。'; }
+    } else if (mv === 'keep') out.note = '使用メニューは今のままにします。';
+    else if (mv === '') out.note = '使用メニューを空にします（チームのメニューが使えなくなり、自分のメニュー・白紙からの記録だけになります）。';
+    else out.note = '使用メニューを ' + mv + ' にします。';
+    return out;
+  },
+  apply: function () {
+    var ids = Object.keys(StaffList.picked), ch = StaffList.choice();
+    if (!ids.length || ch.error) return;
+    var who = StaffList.people(true).filter(function (a) { return StaffList.picked[a.id]; }).map(function (a) { return a.name; });
+    if (!confirm(ids.length + '人（' + who.slice(0, 5).join('、') + (who.length > 5 ? ' ほか' : '') + '）を「' + (ch.team || 'チームなし') + '」にします。\n' + ch.note + '\nよろしいですか？')) return;
+    var b = document.getElementById('slApply'); b.disabled = true; b.textContent = '保存しています…';
+    Api.call('setTeams', { token: S.token, ids: ids, team: ch.team, menuId: ch.menuId }).then(function (res) {
+      StaffList.picked = {};
+      StaffList.msg = msgHtml('ok', res.updated + '人を「' + (res.team || 'チームなし') + '」にしました。' + (res.menuId === null ? '' : '使用メニューは ' + (res.menuId || 'なし') + ' です。'));
+      Staff.body = null; Staff.overview = null;   // 読み直す
+      if (Staff.tab === 'list') StaffList.render();
+    }).catch(function (err) { StaffList.msg = msgHtml('error', err.message); StaffList.render(); });
   },
 
   // ---------------- データ ----------------
@@ -87,9 +166,10 @@ var StaffList = {
     var gnum = function (a) { var m = /(\d)/.exec(a.grade || ''); return m ? Number(m[1]) : 0; };
     var sorted = list.slice().sort(function (a, b) { return (b.active ? 1 : 0) - (a.active ? 1 : 0) || gnum(b) - gnum(a) || byKana(a, b); });
     if (f.group === 'none') return [{ label: '', list: sorted }];
-    var key = f.group === 'position' ? function (a) { return a.position || 'ポジションなし'; } : function (a) { return a.grade || '学年なし'; };
+    var key = f.group === 'position' ? function (a) { return a.position || 'ポジションなし'; } :
+              f.group === 'team' ? function (a) { return a.team ? a.team + 'チーム' : 'チームなし'; } : function (a) { return a.grade || '学年なし'; };
     var keys = uniq(sorted.map(key));
-    keys = f.group === 'position' ? StaffList.posOrder(keys) : StaffList.gradeOrder(keys);
+    keys = f.group === 'position' ? StaffList.posOrder(keys) : f.group === 'team' ? keys.sort(function (a, b) { return (a === 'チームなし') - (b === 'チームなし') || a.localeCompare(b, 'ja'); }) : StaffList.gradeOrder(keys);
     return keys.map(function (k) { return { label: k, list: sorted.filter(function (a) { return key(a) === k; }) }; });
   },
   gradeOrder: function (arr) {
@@ -117,10 +197,17 @@ var StaffList = {
   /** 答えたら true */
   voice: function (text, t, people) {
     if (people && people.length) return false;
+    // チーム分けの画面を開く（v48。設定そのものは、画面で選んでボタンで行う）
+    if (/チ(ム|ーム)分け|チ(ム|ーム)わけ/.test(t) && !/終わ|おわ|やめ/.test(t)) {
+      Staff.tab = 'list'; StaffList.edit = true; StaffList.picked = {}; StaffList.msg = '';
+      Staff.loadBody().then(function () { Staff.render(); Avatar.feedback('success');
+        reply(text, 'チーム分けの画面にしました。選手の左のチェックで選び、下の欄でチームを選んで「設定する」を押してください。見出しのチェックで、学年やポジションごとにまとめて選べます。'); }).catch(Staff.fail);
+      return true;
+    }
     var raw = VoiceParser.norm(text);   // 「一覧」「一塁」が数字に変わる前の文
     var pos = StaffList.posOf(raw), gm = t.match(/(\d)年(生)?/), onList = Staff.page === 'list';
     var openWord = /選手(の)?(一覧|いちらん|リスト)/.test(raw);
-    var groupWord = /学年(別|ごと)|ポジション(別|ごと)|まとめない/.test(t);
+    var groupWord = /学年(別|ごと)|ポジション(別|ごと)|チ(ム|ーム)(別|ごと)|まとめない/.test(t);
     var reset = /全員(を)?(表示|見せ|にして)|絞り込み(を)?(解除|やめ|なし|外)|全部(を)?表示|すべて(を)?表示/.test(t);
     var ask = /一覧|見せ|みせ|表示|誰|だれ|何人|なんにん|教えて|おしえて|だけ|のみ|開|ひら/.test(t);
     if (!(openWord || (onList && (pos || gm || groupWord || reset)) || (pos && ask))) return false;
@@ -131,6 +218,7 @@ var StaffList = {
     if (pos || gm) { f.grade = ''; f.position = ''; f.q = ''; }
     if (/ポジション(別|ごと)/.test(t)) f.group = 'position';
     else if (/学年(別|ごと)/.test(t)) f.group = 'grade';
+    else if (/チ(ム|ーム)(別|ごと)/.test(t)) f.group = 'team';
     else if (/まとめない/.test(t)) f.group = 'none';
     if (pos) { f.position = pos; if (!groupWord) f.group = 'grade'; }
     Staff.tab = 'list';
@@ -159,15 +247,29 @@ app.addEventListener('click', function (e) {
   var t = e.target.closest('[data-sl]');
   if (!t || S.view !== 'staff' || Staff.tab !== 'list' || t.tagName === 'SELECT' || t.tagName === 'INPUT') return;
   if (t.dataset.sl === 'group') { StaffList.filter.group = t.dataset.v; StaffList.render(); }
+  if (t.dataset.sl === 'edit') { StaffList.edit = !StaffList.edit; StaffList.picked = {}; StaffList.msg = ''; StaffList.render(); }
+  if (t.dataset.sl === 'pickShown') { StaffList.filtered().forEach(function (a) { StaffList.picked[a.id] = true; }); StaffList.renderTable(); StaffList.syncBar(); }
+  if (t.dataset.sl === 'pickNone') { StaffList.picked = {}; StaffList.renderTable(); StaffList.syncBar(); }
+  if (t.dataset.sl === 'apply') StaffList.apply();
 });
 app.addEventListener('change', function (e) {
   var t = e.target;
   if (S.view !== 'staff' || Staff.tab !== 'list' || !t.dataset || !t.dataset.sl) return;
   var k = t.dataset.sl;
+  // チーム分け（v48）：チェックは表を描き直すだけ（絞り込みや入力欄はそのまま）
+  if (k === 'pick') { if (t.checked) StaffList.picked[t.dataset.id] = true; else delete StaffList.picked[t.dataset.id]; t.closest('tr').classList.toggle('sl-picked', t.checked); StaffList.renderTable(); StaffList.syncBar(); return; }
+  if (k === 'gpick') { (StaffList.shown[Number(t.dataset.g)] || { list: [] }).list.forEach(function (a) { if (t.checked) StaffList.picked[a.id] = true; else delete StaffList.picked[a.id]; }); StaffList.renderTable(); StaffList.syncBar(); return; }
   if (k === 'inactive') StaffList.filter.inactive = t.checked;
   else if (k === 'q') return;
   else StaffList.filter[k] = t.value;
   StaffList.render();
+});
+// チーム分けの欄（チーム・メニューを選んだとき、新しいチーム名を入れているとき）
+app.addEventListener('change', function (e) {
+  if (S.view === 'staff' && Staff.tab === 'list' && /^sl(Team|Menu)$/.test(e.target.id || '')) StaffList.syncBar();
+});
+app.addEventListener('input', function (e) {
+  if (S.view === 'staff' && Staff.tab === 'list' && e.target.id === 'slNewTeam') StaffList.syncBar();
 });
 app.addEventListener('input', function (e) {
   var t = e.target;
