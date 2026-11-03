@@ -102,19 +102,19 @@ var MyPage = {
       '<button class="btn sub block" data-typevoice="1">⌨ 文字で話しかける</button>' +
       '<h3 class="mp-sub">PINの変更</h3>' + (pinMsg || '') +
       '<form class="mp-pin" data-mp-form="pin" autocomplete="off">' +
-      '<label>今のPIN<input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="pinCur" autocomplete="current-password"></label>' +
-      '<label>新しいPIN（4けたの数字）<input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="pinNew" autocomplete="new-password"></label>' +
-      '<label>新しいPIN（もう一度）<input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="pinNew2" autocomplete="new-password"></label>' +
+      '<label>今のPIN<input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" id="pinCur" autocomplete="current-password"></label>' +
+      '<label>新しいPIN（6けたの数字）<input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" id="pinNew" autocomplete="new-password"></label>' +
+      '<label>新しいPIN（もう一度）<input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" id="pinNew2" autocomplete="new-password"></label>' +
       '<button class="btn block" type="submit">PINを変更する</button></form>' +
-      '<p class="muted small">1111・1234 のようなわかりやすいPINは使えないよ。変えたPINは、次にログインするときから使ってね。忘れたときは、スタッフに聞いてね。</p></div>';
+      '<p class="muted small">111111・123456・121212・生まれた年と月のような、わかりやすいPINは使えないよ。変えたPINは、次にログインするときから使ってね。忘れたときは、スタッフに聞いてね。</p></div>';
   },
 
   changePin: function () {
     var v = function (id) { return (document.getElementById(id) || {}).value || ''; };
     var cur = v('pinCur'), n1 = v('pinNew'), n2 = v('pinNew2');
     var bad = function (m) { MyPage.render(msgHtml('error', m)); MyPage.scrollTo('mpSettings'); };
-    if (!/^\d{1,4}$/.test(cur)) return bad('今のPINを入れてね。');
-    if (!/^\d{4}$/.test(n1)) return bad('新しいPINは4けたの数字で入れてね。');
+    if (!/^\d{1,8}$/.test(cur)) return bad('今のPINを入れてね。');
+    if (!/^\d{6}$/.test(n1)) return bad('新しいPINは6けたの数字で入れてね。');
     if (n1 !== n2) return bad('新しいPINが2回とも同じになっていないよ。');
     var btn = app.querySelector('.mp-pin button'); if (btn) { btn.disabled = true; btn.textContent = '変更しています…'; }
     Api.call('changePin', { token: S.token, current: cur, next: n1 }).then(function (res) {

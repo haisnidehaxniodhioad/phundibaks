@@ -886,3 +886,6 @@ body.is-staff .dock-bubble::before { content: 'AIアシスタントより'; }
 .sl-bar .btn.block { margin-top: 4px; }
 .sl-bar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 4px; }
 .sl-newteam { width: 10em; }
+
+/* ---- v49：ログインのID（英字と数字） ---- */
+.input-id { text-transform: uppercase; letter-spacing: 0.12em; }

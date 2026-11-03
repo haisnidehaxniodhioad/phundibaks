@@ -8,7 +8,7 @@
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v48 2026-11-03';
+var APP_VERSION = 'v49 2026-11-04';
 // 記録し忘れた日の分を、何日前まで遡って入力できるか（v26）。Apps Script の 設定.gs の MAX_BACKDATE_DAYS と同じ数字にする
 var MAX_BACKDATE_DAYS = 3;
 var S = { token: null, home: null, draft: null, view: 'loading' };
@@ -52,8 +52,8 @@ function renderLogin(error) {
     '<div class="login-hero"><span id="coachTop" class="coach-top coach-login"></span>' +
     '<div class="bubble bubble-center"><i>おかえり！IDとPINを入れてね。</i></div>' +
     '<h1>' + esc(window.APP_CONFIG.APP_NAME) + '</h1></div>' +
-    '<label for="lid">ID（選手ID・スタッフID）</label><input id="lid" class="input-pill" inputmode="text" autocomplete="username" placeholder="例：26001">' +
-    '<label for="lpin">PIN（4桁）</label><input id="lpin" class="input-pill input-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="current-password">' +
+    '<label for="lid">ID（英字と数字の6文字）</label><input id="lid" class="input-pill input-id" inputmode="text" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="12" autocomplete="username" placeholder="例：K7M2QX">' +
+    '<label for="lpin">PIN（6けたの数字）</label><input id="lpin" class="input-pill input-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="current-password">' +
     msgHtml('error', error) +
     '<button class="btn btn-pill big block" data-act="login">ログイン</button>' +
     '<p class="muted small center">PINを忘れたときは、スタッフに聞いてね。<br>一度ログインすると、しばらくはこの端末で入力しなくて大丈夫。</p>' +
@@ -61,7 +61,7 @@ function renderLogin(error) {
 }
 
 function doLogin() {
-  var id = document.getElementById('lid').value.trim();
+  var id = document.getElementById('lid').value.normalize('NFKC').replace(/\s/g, '').toUpperCase();   // v49：小文字・全角で入れても大丈夫
   var pin = document.getElementById('lpin').value.trim();
   app.querySelector('[data-act="login"]').disabled = true;
   Api.call('login', { id: id, pin: pin }).then(function (res) {
