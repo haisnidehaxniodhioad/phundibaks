@@ -88,6 +88,9 @@ var MenuImport = {
     MenuImport.msg = ''; MenuImport.result = null;
     app.querySelector('#miFile').insertAdjacentHTML('afterend', '<div class="loading" id="miLoading">読み取り中…</div>');
     MenuImport.readItems(file).then(function (items) {
+      // v53b：文字が入っていないPDF（「Microsoft Print to PDF」で印刷し直したもの・スキャンしたもの）は、文字が画像になっていて読めない
+      if (items.length < 20) throw new Error('このPDFは、文字が画像になっているため読み取れません（「Microsoft Print to PDF」などで印刷し直したPDFや、スキャンしたPDFはこうなります）。' +
+        'Excel のメニュー表から「ファイル」→「エクスポート」（または「名前を付けて保存」で種類を PDF）で作ったPDFか、印刷し直す前の元のPDFを選んでください。');
       var p = MenuImport.parse(items);
       if (!p.rows.length) throw new Error('このPDFからメニューを読み取れませんでした。「Day 1」「エクササイズ名」「テンポ」などの見出しがあるメニュー表か確かめてください（月間スケジュールのPDFは取り込めません）。');
       p.fileName = file.name;
