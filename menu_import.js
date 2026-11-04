@@ -224,6 +224,54 @@ var MenuImport = {
     return uniq(MenuImport.parsed.rows.map(function (r) { return r.name; })).filter(function (n) { return n && !known[VoiceParser.norm(n)]; });
   },
 
+  /**
+   * v54：種目マスタに無い新しい種目の部位（上半身／下半身）を自動で決める
+   *   カテゴリが LB… → 下半身、UB… → 上半身。それ以外（POWER など）は、その種目のある Day の名前（上半身／下半身）、
+   *   Day名でも決まらなければ、その Day の LB・UB の種目の多いほう。それでも決まらなければ下半身
+   */
+  autoPart: function (name) {
+    var p = MenuImport.parsed, key = VoiceParser.norm(name);
+    var rows = p.rows.filter(function (r) { return VoiceParser.norm(r.name) === key; });
+    for (var i = 0; i < rows.length; i++) {
+      var c = String(rows[i].category || '').toUpperCase().normalize('NFKC');
+      if (/^LB/.test(c)) return '下半身';
+      if (/^UB/.test(c)) return '上半身';
+    }
+    for (var j = 0; j < rows.length; j++) {
+      var d = p.days.filter(function (x) { return x.day === rows[j].day; })[0], dn = d ? String(d.name) : '';
+      if (/上/.test(dn) && !/下/.test(dn)) return '上半身';
+      if (/下/.test(dn) && !/上/.test(dn)) return '下半身';
+      var lb = 0, ub = 0;
+      p.rows.forEach(function (r) { if (r.day !== rows[j].day) return; var cc = String(r.category || '').toUpperCase(); if (/^LB/.test(cc)) lb++; if (/^UB/.test(cc)) ub++; });
+      if (ub > lb) return '上半身';
+      if (lb > ub) return '下半身';
+    }
+    return '下半身';
+  },
+  partOf: function (name) {
+    var p = MenuImport.parsed; p.parts = p.parts || {};
+    return p.parts[name] || MenuImport.autoPart(name);
+  },
+  /** 新しい種目の部位を選ぶ欄（種目名を直したら作り直す） */
+  partsHtml: function () {
+    var unk = MenuImport.info ? MenuImport.unknown() : [];
+    if (!unk.length) return '';
+    return '<div class="mi-parts">' + msgHtml('warn', '種目マスタに無い新しい種目が' + unk.length + 'つあります。反映すると、下で選んだ部位（上半身・下半身）で種目マスタに足します。読み間違いの名前なら、下の表で直してください。') +
+      '<table class="tbl mi-part-table"><tr><th>新しい種目</th><th>部位</th></tr>' + unk.map(function (n) {
+        var v = MenuImport.partOf(n), auto = !(MenuImport.parsed.parts || {})[n];
+        return '<tr><td>' + esc(n) + (auto ? '<span class="muted small mi-auto">自動で決めた部位</span>' : '<span class="muted small mi-auto">選び直した部位</span>') + '</td><td><select class="sel" data-mi-part="' + esc(n) + '">' + ['上半身', '下半身'].map(function (x) {
+          return '<option' + (x === v ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></td></tr>';
+      }).join('') + '</table><p class="muted small">自動の決め方：カテゴリが LB なら下半身、UB なら上半身。POWER などは、その Day が上半身の日か下半身の日かで決めます。</p></div>';
+  },
+  markUnknown: function () {
+    var unk = MenuImport.unknown();
+    Array.prototype.forEach.call(document.querySelectorAll('[data-mi-row][data-k="name"]'), function (el) { el.classList.toggle('mi-unk', unk.indexOf(el.value.trim()) >= 0); });
+  },
+  refreshParts: function () {
+    var box = document.getElementById('miParts');
+    if (box) box.innerHTML = MenuImport.partsHtml();
+  },
+
   previewHtml: function () {
     var p = MenuImport.parsed, teams = MenuImport.teams();
     var WD = ['', '月', '火', '水', '木', '金', '土', '日'];
@@ -237,7 +285,7 @@ var MenuImport = {
       '<label class="small">メニューID <input class="sel" id="miId" value="' + esc(p.menuId) + '" maxlength="40"></label>' +
       '<label class="check-line small"><input type="checkbox" id="miSwitch"' + (p.switchTeam ? ' checked' : '') + '> <span id="miSwitchText"></span></label></div>';
     var unk = MenuImport.info ? MenuImport.unknown() : [];
-    if (unk.length) html += msgHtml('warn', '種目マスタに無い種目：' + unk.join('、') + '。このままでも取り込めますが、部位の集計に入りません。種目マスタに足すか、名前を直してください。');
+    html += '<div id="miParts">' + MenuImport.partsHtml() + '</div>';   // v54：新しい種目を上半身・下半身に振り分ける
     html += '<p class="muted small">表の文字は直せます。読み間違いがないか、元のPDFと見くらべてください。種目名を空にすると、その行は取り込みません。</p>';
     p.days.forEach(function (d) {
       html += '<div class="mi-day"><div class="mi-day-head"><b>Day' + d.day + '</b>' +
@@ -279,10 +327,16 @@ var MenuImport = {
       rows: p.rows.filter(function (r) { return String(r.name).trim(); }),
       weekdays: p.days.filter(function (d) { return d.weekday; }).map(function (d) { return { day: d.day, weekday: d.weekday }; }) };
     body.rows.forEach(function (r) { var d = p.days.filter(function (x) { return x.day === r.day; })[0]; r.dayName = d ? d.name : ''; });
+    // v54：種目マスタに無い種目は、選んだ部位で種目マスタに足す
+    body.newExercises = (MenuImport.info ? MenuImport.unknown() : []).map(function (n) {
+      var r = p.rows.filter(function (x) { return x.name === n; })[0];
+      return { name: n, part: MenuImport.partOf(n), category: r ? r.category : '' };
+    });
     if (!body.menuId) { alert('メニューIDを入れてください。'); return; }
     if (!team && body.switchTeam) { alert('チームを選んでください。'); return; }
     if (!overwrite && !confirm('メニューID「' + body.menuId + '」で、' + p.days.length + 'Day・' + body.rows.length + '種目を足します。\n' +
-        (body.switchTeam ? document.getElementById('miSwitchText').textContent : '選手のメニューは切り替えません。') + '\nよろしいですか？')) return;
+        (body.switchTeam ? document.getElementById('miSwitchText').textContent : '選手のメニューは切り替えません。') +
+        (body.newExercises.length ? '\n新しい種目' + body.newExercises.length + 'つを、選んだ部位で種目マスタに足します。' : '') + '\nよろしいですか？')) return;
     var btn = document.getElementById('miApply'); btn.disabled = true; btn.textContent = '反映しています…';
     Api.call('menuImport', body).then(function (res) {
       MenuImport.result = res; MenuImport.parsed = null;
@@ -300,6 +354,7 @@ var MenuImport = {
     var r = MenuImport.result;
     return '<div class="card">' + msgHtml('ok', 'メニュー「' + r.menuId + '」を' + (r.overwritten ? '入れ直しました' : '足しました') + '（' + r.days + 'Day・' + r.rows + '種目）。' +
         (r.switched ? r.switched + '人の選手を、このメニューに切り替えました。' : r.planned ? r.start.slice(5).replace('-', '/') + 'に、選手を自動でこのメニューに切り替えます。' : '')) +
+      (r.added && r.added.length ? '<p class="small">種目マスタに足した種目：' + esc(r.added.map(function (a) { return a.name + '（' + a.part + '）'; }).join('、')) + '</p>' : '') +   // v54
       (r.unknown.length ? '<p class="small">種目マスタに無い種目：' + esc(r.unknown.join('、')) + '（種目マスタに足すと、部位の集計に入ります）</p>' : '') + '</div>';
   },
 
@@ -327,7 +382,12 @@ app.addEventListener('change', function (e) {
   var t = e.target, p = MenuImport.parsed;
   if (t.id === 'miFile') return MenuImport.onFile(t.files && t.files[0]);
   if (!p) return;
-  if (t.dataset.miRow !== undefined) p.rows[Number(t.dataset.miRow)][t.dataset.k] = t.value.trim();
+  if (t.dataset.miRow !== undefined) {
+    p.rows[Number(t.dataset.miRow)][t.dataset.k] = t.value.trim();
+    if (t.dataset.k === 'name' || t.dataset.k === 'category') { MenuImport.refreshParts(); MenuImport.markUnknown(); }   // v54：新しい種目の一覧を作り直す
+  }
+  if (t.dataset.miPart !== undefined) { p.parts = p.parts || {}; p.parts[t.dataset.miPart] = t.value; MenuImport.refreshParts(); }   // v54
+  if (t.dataset.miDay !== undefined && t.dataset.k === 'name') setTimeout(MenuImport.refreshParts, 0);   // Day名で自動の部位が変わる
   if (t.dataset.miDay !== undefined) p.days.filter(function (d) { return d.day === Number(t.dataset.miDay); })[0][t.dataset.k] = t.value;
   if (t.id === 'miTeam' || t.id === 'miStart') {
     var team = MenuImport.team(), start = document.getElementById('miStart').value;

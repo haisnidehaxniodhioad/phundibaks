@@ -950,3 +950,8 @@ a.btn { text-decoration: none; justify-content: center; align-items: center; }
 .adm-devs .chip { margin-left: 6px; padding: 2px 8px; font-size: 0.78rem; }
 .adm-devs li .ic { margin-top: 2px; }
 .adm-dev-btn { margin-top: 6px; }
+
+/* ===== v54：メニュー取り込みの新しい種目の部位 ===== */
+.mi-part-table td { vertical-align: middle; }
+.mi-part-table select { min-width: 6.5em; }
+.mi-auto { display: block; }
