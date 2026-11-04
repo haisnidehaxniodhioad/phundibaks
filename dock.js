@@ -53,7 +53,7 @@ var Dock = {
   /** 今の画面に合わせて、バーの中身・アバターの場所を変える */
   update: function () {
     var v = S.view;
-    var athlete = !!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition', 'mypage', 'guide'].indexOf(v) >= 0;
+    var athlete = !!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition', 'mypage', 'guide', 'column'].indexOf(v) >= 0;
     var staff = v === 'staff' && !!S.token;   // v35：スタッフ画面にも上の帯（コーチ）とマイクを出す
     // v36：スタッフ画面では「コーチ」ではなく「AIアシスタント」と表示する（style.css の body.is-staff、avatar.js の Avatar.title）
     if (document.body.classList.contains('is-staff') !== staff) {
@@ -62,7 +62,7 @@ var Dock = {
       var pk = document.getElementById('avatarAppearancePicker');
       if (pk) pk.remove();   // 設定パネルの見出しを作り直すため
     }
-    var mode = staff ? 'staff' : !athlete ? 'none' : (v === 'home' || v === 'history' || v === 'body' || v === 'mypage' || v === 'guide') ? 'tabs' : v;
+    var mode = staff ? 'staff' : !athlete ? 'none' : (v === 'home' || v === 'history' || v === 'body' || v === 'mypage' || v === 'guide' || v === 'column') ? 'tabs' : v;
     this.el.hidden = mode === 'none';
     document.body.classList.toggle('has-dock', mode !== 'none');
     this.el.className = 'dock mode-' + mode + ' view-' + v;
@@ -97,7 +97,7 @@ var Dock = {
         tab('records', 'calendar', '記録', v === 'history') +
         '<div class="dock-mic"><span data-slot="mic"></span><span class="dock-mic-label">話す</span></div>' +
         tab('body', 'heart', 'からだ', v === 'body') +
-        tab('mypage', 'person', 'マイページ', v === 'mypage' || v === 'guide') + '</nav>';
+        tab('mypage', 'person', 'マイページ', v === 'mypage' || v === 'guide' || v === 'column') + '</nav>';
     } else if (mode === 'session') {
       html = '<div class="dock-row"><span data-slot="timer"></span><div class="dock-hint">終わったら ✓ を押してね</div><span data-slot="mic"></span></div>';
     } else if (mode === 'finish') {

@@ -456,3 +456,421 @@ app.addEventListener('click', function (e) {
     Api.call('menuPlanCancel', { token: S.token, row: Number(t.dataset.v) }).then(MenuImport.loadInfo).catch(function (err) { alert(err.message); });
   }
 });
+
+/**
+ * ============================================================================
+ * ここから v56：コラムの管理（スタッフ画面の中の1ページ。Staff.page = 'columns'）
+ * ============================================================================
+ *   開き方：実施状況のいちばん下「コラムの管理」（役職が 管理者・トレーナー の人だけ出る）。声「コラムを管理して」
+ *   種類：からだのページの読み込み中（最大3つ・PDFだけ）／記録のページの読み込み中（最大3つ・PDFだけ）／コラムのページ（PDF か 手入力）
+ *   PDFの表示のしかた（追加するときに選ぶ）：
+ *     ・画像でつなげる …… ページを画像にして、上下の白い余白を切り、すき間なく縦につなげる（図もそのまま）
+ *     ・文字と図 ………… 文字を読み取って見出し・段落・箇条書きに組み直し、図や写真だけ画像で入れる（スマホで読みやすい）
+ *   どちらも PDF はこの端末の中で読む（pdf.js。MenuImport.loadPdfjs）。画像は保存のときに columnUpload で1枚ずつ送る
+ *   読む側の表示は guidebook.js の後半 Column
+ * ============================================================================
+ */
+var ColumnEditor = {
+  KINDS: [
+    { k: 'body', label: 'からだのページの読み込み中', note: '「からだ」を開いたとき（とマイページを開いたとき）に、読み込み中に出ます。PDFから作ります。' },
+    { k: 'record', label: '記録のページの読み込み中', note: '「記録」を開いたとき（とマイページを開いたとき）に、読み込み中に出ます。PDFから作ります。' },
+    { k: 'page', label: 'コラムのページ', note: 'マイページの「コラム」から、題名を選んで読みます。PDFか手入力で作ります。' }
+  ],
+  data: null,      // columns の結果
+  openId: '',      // 中身を見ているコラム
+  ed: null,        // 作っている・直しているコラム
+  msg: '',
+  busy: '',
+
+  open: function () {
+    if (S.view !== 'staff') return;
+    if (Staff.page !== 'columns') {
+      Staff.returnTo = { tab: Staff.tab, scroll: window.scrollY || 0 };
+      try { history.pushState({ staffColumns: 1 }, ''); } catch (e) { /* 「戻る」ボタンでも戻れる */ }
+    }
+    Staff.page = 'columns';
+    ColumnEditor.ed = null; ColumnEditor.msg = ''; ColumnEditor.openId = '';
+    ColumnEditor.render(); window.scrollTo(0, 0);
+    ColumnEditor.load();
+  },
+  load: function () {
+    return Api.call('columns', { token: S.token, full: true }).then(function (res) { ColumnEditor.data = res; if (Staff.page === 'columns' && !ColumnEditor.ed) ColumnEditor.render(); })
+      .catch(function (err) { ColumnEditor.msg = msgHtml('error', err.message); ColumnEditor.render(); });
+  },
+  back: function () {
+    if (ColumnEditor.ed) { ColumnEditor.ed = null; ColumnEditor.render(); return; }
+    var st = history.state || {}; if (st.staffColumns) history.back(); else ColumnEditor.leave();
+  },
+  leave: function () { ColumnEditor.ed = null; Staff.leaveAthlete(); },
+  frame: function (inner) {
+    return Staff.athleteFrame('<h1 class="ath-name">コラムの管理</h1><p class="muted small">用語の説明などの補足を、選手の画面に出します。追加・変更は管理者とトレーナーだけができます。</p>', inner, 'コラム');
+  },
+
+  render: function () {
+    if (ColumnEditor.ed) return ColumnEditor.renderEditor();
+    var d = ColumnEditor.data;
+    var html = ColumnEditor.msg ? '<div class="card">' + ColumnEditor.msg + '</div>' : '';
+    if (!d) { app.innerHTML = ColumnEditor.frame(html + '<div class="card"><div class="loading">読み込み中…</div></div>'); return; }
+    if (!d.editor) html += '<div class="card">' + msgHtml('warn', 'コラムの追加・変更は、役職が「管理者」か「トレーナー」の人だけができます。') + '</div>';
+    ColumnEditor.KINDS.forEach(function (K) {
+      var list = d.columns.filter(function (c) { return c.kind === K.k; }), lim = d.limits[K.k];
+      html += '<div class="card"><h2>' + esc(K.label) + (K.k !== 'page' ? '<span class="muted small">（' + list.length + ' / ' + lim + '）</span>' : '') + '</h2><p class="muted small">' + esc(K.note) + '</p>';
+      html += list.length ? '<div class="ce-list">' + list.map(function (c, i) {
+        var open = ColumnEditor.openId === c.id;
+        return '<div class="ce-item' + (open ? ' open' : '') + '"><div class="ce-row"><button class="ce-title" data-ce="view" data-v="' + esc(c.id) + '">' + Icon(open ? 'up' : 'down', 18) + '<span>' + esc(c.title) +
+          '<span class="muted small">' + esc(c.format) + (c.updated ? '・' + esc(c.updated.replace(/-/g, '/')) : '') + '</span></span></button>' +
+          (d.editor ? '<span class="ce-btns"><button class="btn ghost small" data-ce="up" data-v="' + esc(c.id) + '"' + (i ? '' : ' disabled') + ' aria-label="上へ">' + Icon('up', 16) + '</button>' +
+            '<button class="btn ghost small" data-ce="down" data-v="' + esc(c.id) + '"' + (i < list.length - 1 ? '' : ' disabled') + ' aria-label="下へ">' + Icon('down', 16) + '</button>' +
+            '<button class="btn sub small" data-ce="edit" data-v="' + esc(c.id) + '">直す</button>' +
+            '<button class="btn ghost small ce-del" data-ce="del" data-v="' + esc(c.id) + '">' + (ColumnEditor.delArm === c.id ? 'もう一度押すと消す' : '消す') + '</button></span>' : '') + '</div>' +
+          (open ? '<div class="ce-preview' + (K.k !== 'page' ? ' as-card' : '') + '">' + Column.bodyHtml(c.blocks) + '</div>' : '') + '</div>';
+      }).join('') + '</div>' : '<p class="muted">まだありません。</p>';
+      if (d.editor) {
+        var full = list.length >= lim;
+        html += '<div class="row">' + (full ? '<p class="muted small">' + lim + 'つまでです。足すときは、どれかを消してください。</p>' :
+          '<button class="btn sub" data-ce="addPdf" data-v="' + K.k + '">' + Icon('file', 18) + 'PDFから追加</button>' +
+          (K.k === 'page' ? '<button class="btn sub" data-ce="addText" data-v="page">' + Icon('keyboard', 18) + '手入力で追加</button>' : '')) + '</div>';
+      }
+      html += '</div>';
+    });
+    app.innerHTML = ColumnEditor.frame(html);
+    Column.fillImages(app);
+  },
+
+  // ---------------- 作る・直す ----------------
+  startPdf: function (kind) { ColumnEditor.ed = { kind: kind, title: '', format: '', blocks: [], source: 'pdf', step: 'pick', mode: '文字と図' }; ColumnEditor.msg = ''; ColumnEditor.render(); window.scrollTo(0, 0); },
+  startText: function () { ColumnEditor.ed = { kind: 'page', title: '', format: '手入力', blocks: [], source: 'text', step: 'edit', text: '' }; ColumnEditor.msg = ''; ColumnEditor.render(); window.scrollTo(0, 0); },
+  startEdit: function (id) {
+    var c = ColumnEditor.data.columns.filter(function (x) { return x.id === id; })[0];
+    if (!c) return;
+    var ed = { id: c.id, kind: c.kind, title: c.title, format: c.format, blocks: JSON.parse(JSON.stringify(c.blocks || [])), source: c.format === '手入力' ? 'text' : 'pdf', step: 'edit' };
+    if (ed.source === 'text') ed.text = ColumnEditor.toText(ed.blocks);
+    ColumnEditor.ed = ed; ColumnEditor.msg = ''; ColumnEditor.render(); window.scrollTo(0, 0);
+  },
+
+  /** 手入力の決まり：「# 」で始まる行は見出し、「- 」「・」で始まる行は箇条書き、空いた行で段落を分ける */
+  fromText: function (text) {
+    var blocks = [], para = [];
+    var flush = function () { if (para.length) { blocks.push({ t: 'p', s: para.join('\n') }); para = []; } };
+    String(text || '').replace(/\r/g, '').split('\n').forEach(function (line) {
+      var l = line.trim();
+      if (!l) { flush(); return; }
+      var m;
+      if ((m = /^#+\s*(.+)$/.exec(l)) || (m = /^【(.+)】$/.exec(l))) { flush(); blocks.push({ t: 'h', s: m[1] }); return; }
+      if ((m = /^(?:[-・•●]\s*)(.+)$/.exec(l))) { flush(); blocks.push({ t: 'li', s: m[1] }); return; }
+      para.push(l);
+    });
+    flush();
+    return blocks;
+  },
+  toText: function (blocks) {
+    return (blocks || []).map(function (b) { return b.t === 'h' ? '# ' + b.s : b.t === 'li' ? '- ' + b.s : b.t === 'p' ? b.s : ''; })
+      .filter(String).join('\n\n').replace(/(- [^\n]*)\n\n(?=- )/g, '$1\n');
+  },
+
+  renderEditor: function () {
+    var e = ColumnEditor.ed, K = ColumnEditor.KINDS.filter(function (x) { return x.k === e.kind; })[0];
+    var html = ColumnEditor.msg ? '<div class="card">' + ColumnEditor.msg + '</div>' : '';
+    html += '<div class="card"><h2>' + (e.id ? 'コラムを直す' : 'コラムを追加') + '<span class="muted small">（' + esc(K.label) + '）</span></h2>';
+    if (e.step === 'pick') {
+      html += '<p class="small"><b>1. 表示のしかたを選ぶ</b></p><div class="ce-mode">' +
+        ['文字と図', '画像'].map(function (m) {
+          return '<label class="ce-mode-opt' + (e.mode === m ? ' on' : '') + '"><input type="radio" name="ceMode" value="' + m + '"' + (e.mode === m ? ' checked' : '') + '>' +
+            '<b>' + (m === '画像' ? 'ページを画像でつなげる' : '文字と図') + '</b><span class="muted small">' +
+            (m === '画像' ? 'PDFの見た目のまま、ページの境目なく縦につなげます。図もそのまま残ります。小さい文字は読みにくくなります。' :
+              '文字を読み取って、スマホの幅で読みやすく組み直します。図や写真は画像で入ります。読み取った文字はこのあと直せます。') + '</span></label>';
+        }).join('') + '</div>' +
+        '<p class="small"><b>2. PDFを選ぶ</b>（この端末の中で読み取ります。20ページまで）</p><input type="file" accept="application/pdf,.pdf" id="ceFile" class="mi-file">' +
+        (ColumnEditor.busy ? '<div class="loading">' + esc(ColumnEditor.busy) + '</div>' : '') +
+        '<div class="row"><button class="btn ghost" data-ce="cancel">やめる</button></div></div>';
+      app.innerHTML = ColumnEditor.frame(html); return;
+    }
+    html += '<label class="small">題名 <input class="sel ce-titlein" id="ceTitle" maxlength="60" value="' + esc(e.title) + '" placeholder="例：FFMIとは"></label>';
+    if (e.source === 'text') {
+      html += '<p class="muted small">書き方：「# 」で始まる行は<b>見出し</b>、「- 」で始まる行は<b>箇条書き</b>、1行あけると<b>段落</b>が分かれます。</p>' +
+        '<textarea class="ce-text" id="ceText" rows="14" placeholder="# FFMIとは&#10;&#10;FFMI（除脂肪量指数）は、…&#10;&#10;- 18〜20：平均的&#10;- 22以上：とても高い">' + esc(e.text || '') + '</textarea>' +
+        '<h3 class="mp-sub">選手の画面での見え方</h3><div class="ce-preview" id="cePreview">' + Column.bodyHtml(ColumnEditor.fromText(e.text)) + '</div>';
+    } else {
+      html += '<p class="muted small">表示：' + esc(e.format) + '。読み取った文字は直せます。いらない部分は「消す」を押してください。' + (e.format === '文字と図' ? '種類（見出し・本文・箇条書き）も変えられます。' : '') + '</p>' +
+        '<div class="ce-blocks">' + e.blocks.map(function (b, i) {
+          if (b.t === 'img') return '<div class="ce-block img"><div class="col-img ok"><img alt="" ' + (b.local ? 'src="' + b.local + '"' : 'data-colimg="' + esc(b.id) + '"') + '></div>' +
+            '<button class="btn ghost small" data-ce="bdel" data-v="' + i + '">消す</button></div>';
+          return '<div class="ce-block"><select class="sel" data-ce-type="' + i + '">' + [['h', '見出し'], ['p', '本文'], ['li', '箇条書き']].map(function (o) {
+              return '<option value="' + o[0] + '"' + (b.t === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
+            '<textarea class="ce-btext" data-ce-text="' + i + '" rows="' + Math.min(8, Math.max(2, Math.ceil(b.s.length / 28))) + '">' + esc(b.s) + '</textarea>' +
+            '<button class="btn ghost small" data-ce="bdel" data-v="' + i + '">消す</button></div>';
+        }).join('') + '</div>' +
+        '<h3 class="mp-sub">選手の画面での見え方</h3><div class="ce-preview' + (e.kind !== 'page' ? ' as-card' : '') + '" id="cePreview">' + Column.bodyHtml(e.blocks.map(ColumnEditor.viewBlock)) + '</div>';
+    }
+    html += '<div class="roster-apply"><button class="btn block" data-ce="save" id="ceSave"' + (ColumnEditor.busy ? ' disabled' : '') + '>' + (ColumnEditor.busy ? esc(ColumnEditor.busy) : (e.id ? 'この内容で直す' : 'このコラムを追加する')) + '</button>' +
+      '<button class="btn ghost block" data-ce="cancel">やめる</button></div></div>';
+    app.innerHTML = ColumnEditor.frame(html);
+    ColumnEditor.showLocal(); Column.fillImages(app);
+  },
+  /** 確認の見え方：まだ送っていない画像は、端末の中の画像で見せる */
+  viewBlock: function (b) { return b.t === 'img' && b.local ? { t: 'img', id: 'local', w: b.w, h: b.h, gap: b.gap, local: b.local } : b; },
+  showLocal: function () {
+    var e = ColumnEditor.ed; if (!e) return;
+    var imgs = e.blocks.filter(function (b) { return b.t === 'img'; });
+    var els = app.querySelectorAll('#cePreview img[data-colimg]');
+    Array.prototype.forEach.call(els, function (img, i) { var b = imgs[i]; if (b && b.local) { img.src = b.local; img.parentNode.classList.add('ok'); } });
+  },
+  refreshPreview: function () {
+    var e = ColumnEditor.ed, box = document.getElementById('cePreview'); if (!e || !box) return;
+    box.innerHTML = Column.bodyHtml(e.source === 'text' ? ColumnEditor.fromText(e.text) : e.blocks.map(ColumnEditor.viewBlock));
+    ColumnEditor.showLocal(); Column.fillImages(box);
+  },
+
+  // ---------------- PDF を読む ----------------
+  onFile: function (file) {
+    var e = ColumnEditor.ed; if (!file || !e) return;
+    ColumnEditor.busy = 'PDFを読み取っています…'; ColumnEditor.msg = ''; ColumnEditor.render();
+    MenuImport.loadPdfjs().then(function () { return file.arrayBuffer(); })
+      .then(function (buf) { return window.pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise; })
+      .then(function (doc) { return e.mode === '画像' ? ColumnEditor.pagesAsImages(doc) : ColumnEditor.textAndFigures(doc); })
+      .then(function (blocks) {
+        if (!blocks.length) throw new Error('このPDFから中身を読み取れませんでした。');
+        e.blocks = blocks; e.format = e.mode; e.step = 'edit';
+        e.title = e.title || String(file.name || '').replace(/\.pdf$/i, '').slice(0, 60);
+        ColumnEditor.busy = ''; ColumnEditor.render();
+      })
+      .catch(function (err) { ColumnEditor.busy = ''; ColumnEditor.msg = msgHtml('error', err.message || String(err)); ColumnEditor.render(); });
+  },
+  renderPage: function (page, width) {
+    var vp1 = page.getViewport({ scale: 1 }), scale = width / vp1.width, vp = page.getViewport({ scale: scale });
+    var c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+    var ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+    return page.render({ canvasContext: ctx, viewport: vp }).promise.then(function () { return { canvas: c, viewport: vp }; });
+  },
+  /** 白い部分（上下・左右）を見つける → { top, bottom, left, right } */
+  inkBox: function (c, x0, y0, x1, y1) {
+    var ctx = c.getContext('2d'), w = x1 - x0, h = y1 - y0;
+    if (w < 2 || h < 2) return null;
+    var d = ctx.getImageData(x0, y0, w, h).data, top = -1, bottom = -1, left = w, right = -1;
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x += 2) {
+      var k = (y * w + x) * 4;
+      if (d[k] < 235 || d[k + 1] < 235 || d[k + 2] < 235) { if (top < 0) top = y; bottom = y; if (x < left) left = x; if (x > right) right = x; }
+    }
+    if (top < 0) return null;
+    return { top: y0 + top, bottom: y0 + bottom, left: x0 + left, right: x0 + right };
+  },
+  crop: function (c, x, y, w, h, maxW) {
+    var s = Math.min(1, (maxW || 1000) / w), o = document.createElement('canvas');
+    o.width = Math.max(1, Math.round(w * s)); o.height = Math.max(1, Math.round(h * s));
+    var ctx = o.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, o.width, o.height);
+    ctx.drawImage(c, x, y, w, h, 0, 0, o.width, o.height);
+    return { url: o.toDataURL('image/jpeg', 0.82), w: o.width, h: o.height };
+  },
+  /** 画像でつなげる：ページごとに上下の白い余白を切って、すき間なくつなげる */
+  pagesAsImages: function (doc) {
+    var out = [], chain = Promise.resolve(), n = Math.min(doc.numPages, 20);
+    for (var p = 1; p <= n; p++) (function (p) {
+      chain = chain.then(function () { ColumnEditor.setBusy('ページを画像にしています（' + p + ' / ' + n + '）…'); return doc.getPage(p); })
+        .then(function (page) { return ColumnEditor.renderPage(page, 1000); })
+        .then(function (r) {
+          var c = r.canvas, box = ColumnEditor.inkBox(c, 0, 0, c.width, c.height);
+          if (!box) return;
+          var pad = 16, y0 = Math.max(0, box.top - pad), y1 = Math.min(c.height, box.bottom + pad);
+          var im = ColumnEditor.crop(c, 0, y0, c.width, y1 - y0, 1000);
+          out.push({ t: 'img', local: im.url, w: im.w, h: im.h, gap: false });
+        });
+    })(p);
+    return chain.then(function () { return out; });
+  },
+  setBusy: function (text) { ColumnEditor.busy = text; var el = app.querySelector('.card .loading'); if (el) el.textContent = text; },
+
+  /** 文字と図：文字は行 → 段落・見出し・箇条書きに、図は画像で切り出す */
+  textAndFigures: function (doc) {
+    var out = [], chain = Promise.resolve(), n = Math.min(doc.numPages, 20), OPS = window.pdfjsLib.OPS;
+    for (var p = 1; p <= n; p++) (function (p) {
+      var page, vp, items, figs;
+      chain = chain.then(function () { ColumnEditor.setBusy('読み取っています（' + p + ' / ' + n + '）…'); return doc.getPage(p); })
+        .then(function (pg) { page = pg; vp = page.getViewport({ scale: 1000 / page.getViewport({ scale: 1 }).width }); return page.getTextContent(); })
+        .then(function (tc) {
+          items = tc.items.filter(function (i) { return i.str && i.str.trim(); }).map(function (i) {
+            var pt = vp.convertToViewportPoint(i.transform[4], i.transform[5]);
+            var size = Math.hypot(i.transform[2], i.transform[3]) * vp.scale;
+            return { s: i.str, x: pt[0], y: pt[1] - size, b: pt[1], w: i.width * vp.scale, size: size };
+          });
+          return page.getOperatorList();
+        })
+        .then(function (ol) {
+          figs = ColumnEditor.imageBoxes(ol, OPS, vp);
+          var pageArea = vp.width * vp.height;
+          // 文字が無いページ（スキャンなど）は、ページ全体を画像に
+          if (!items.length) return ColumnEditor.renderPage(page, 1000).then(function (r) {
+            var box = ColumnEditor.inkBox(r.canvas, 0, 0, r.canvas.width, r.canvas.height); if (!box) return;
+            var im = ColumnEditor.crop(r.canvas, 0, Math.max(0, box.top - 12), r.canvas.width, Math.min(r.canvas.height, box.bottom + 12) - Math.max(0, box.top - 12));
+            out.push({ t: 'img', local: im.url, w: im.w, h: im.h, gap: true });
+          });
+          figs = figs.filter(function (f) { var a = f.w * f.h; return f.w > 60 && f.h > 40 && a < pageArea * 0.85; });   // 小さすぎる・背景の画像は入れない
+          var draw = figs.length ? ColumnEditor.renderPage(page, 1000) : Promise.resolve(null);
+          return draw.then(function (r) {
+            var els = [];
+            figs.forEach(function (f) {
+              var im = ColumnEditor.crop(r.canvas, Math.max(0, f.x), Math.max(0, f.y), Math.min(f.w, r.canvas.width - Math.max(0, f.x)), Math.min(f.h, r.canvas.height - Math.max(0, f.y)), 900);
+              els.push({ kind: 'img', y: f.y, block: { t: 'img', local: im.url, w: im.w, h: im.h, gap: true } });
+            });
+            var inFig = function (it) { return figs.some(function (f) { var cx = it.x + it.w / 2, cy = it.y + it.size / 2; return cx > f.x && cx < f.x + f.w && cy > f.y && cy < f.y + f.h; }); };
+            ColumnEditor.textBlocks(items.filter(function (it) { return !inFig(it); }), vp.height).forEach(function (t) { els.push({ kind: 't', y: t.y, block: t.block }); });
+            els.sort(function (a, b) { return a.y - b.y; }).forEach(function (e) { e.block._page = p; out.push(e.block); });
+          });
+        });
+    })(p);
+    return chain.then(function () { return ColumnEditor.mergeAcrossPages(out); });
+  },
+  /** 描画の命令から、画像が置かれた四角を求める（ページの座標 → 画面の座標） */
+  imageBoxes: function (ol, OPS, vp) {
+    var mul = function (a, b) { return [a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1], a[0] * b[2] + a[2] * b[3], a[1] * b[2] + a[3] * b[3], a[0] * b[4] + a[2] * b[5] + a[4], a[1] * b[4] + a[3] * b[5] + a[5]]; };
+    var ctm = [1, 0, 0, 1, 0, 0], stack = [], boxes = [];
+    for (var i = 0; i < ol.fnArray.length; i++) {
+      var fn = ol.fnArray[i], args = ol.argsArray[i];
+      if (fn === OPS.save) stack.push(ctm.slice());
+      else if (fn === OPS.restore) { if (stack.length) ctm = stack.pop(); }
+      else if (fn === OPS.transform) ctm = mul(ctm, args);
+      else if (fn === OPS.paintFormXObjectBegin) { stack.push(ctm.slice()); if (args && args[0]) ctm = mul(ctm, args[0]); }
+      else if (fn === OPS.paintFormXObjectEnd) { if (stack.length) ctm = stack.pop(); }
+      else if (fn === OPS.paintImageXObject || fn === OPS.paintJpegXObject || fn === OPS.paintInlineImageXObject || fn === OPS.paintImageXObjectRepeat) {
+        var pts = [[0, 0], [1, 0], [0, 1], [1, 1]].map(function (q) { return vp.convertToViewportPoint(ctm[0] * q[0] + ctm[2] * q[1] + ctm[4], ctm[1] * q[0] + ctm[3] * q[1] + ctm[5]); });
+        var xs = pts.map(function (q) { return q[0]; }), ys = pts.map(function (q) { return q[1]; });
+        var x0 = Math.min.apply(null, xs), y0 = Math.min.apply(null, ys);
+        boxes.push({ x: x0, y: y0, w: Math.max.apply(null, xs) - x0, h: Math.max.apply(null, ys) - y0 });
+      }
+    }
+    // 重なっている画像は1つにまとめる
+    var merged = [];
+    boxes.forEach(function (b) {
+      var m = merged.filter(function (o) { return b.x < o.x + o.w + 4 && o.x < b.x + b.w + 4 && b.y < o.y + o.h + 4 && o.y < b.y + b.h + 4; })[0];
+      if (m) { var x1 = Math.max(m.x + m.w, b.x + b.w), y1 = Math.max(m.y + m.h, b.y + b.h); m.x = Math.min(m.x, b.x); m.y = Math.min(m.y, b.y); m.w = x1 - m.x; m.h = y1 - m.y; }
+      else merged.push({ x: b.x, y: b.y, w: b.w, h: b.h });
+    });
+    return merged;
+  },
+  /** 文字のかけら → 行 → 段落・見出し・箇条書き */
+  textBlocks: function (items, pageH) {
+    if (!items.length) return [];
+    items.sort(function (a, b) { return a.b - b.b || a.x - b.x; });
+    var lines = [];
+    items.forEach(function (it) {
+      var l = lines.filter(function (x) { return Math.abs(x.b - it.b) < Math.max(3, it.size * 0.45); })[0];
+      if (!l) { l = { b: it.b, y: it.y, size: it.size, parts: [] }; lines.push(l); }
+      l.parts.push(it); l.size = Math.max(l.size, it.size); l.y = Math.min(l.y, it.y);
+    });
+    lines.forEach(function (l) {
+      l.parts.sort(function (a, b) { return a.x - b.x; });
+      var s = '', end = null;
+      l.parts.forEach(function (p) {
+        if (end !== null && p.x - end > p.size * 0.6 && /[A-Za-z0-9]$/.test(s) && /^[A-Za-z0-9]/.test(p.s)) s += ' ';
+        s += p.s; end = p.x + p.w;
+      });
+      // PDFのフォントによっては「⼿」のような部首の文字になるので、ふつうの漢字に直す
+      l.s = ColumnEditor.fixChars(s).replace(/\s+/g, ' ').trim(); l.x = l.parts[0].x; l.end = end;
+    });
+    lines = lines.filter(function (l) { return l.s && !/^[-–—\s]*\d{1,3}[-–—\s]*$/.test(l.s); })   // ページ番号だけの行は入れない
+      .sort(function (a, b) { return a.b - b.b; });
+    var sizes = lines.map(function (l) { return l.size; }).sort(function (a, b) { return a - b; }), base = sizes[Math.floor(sizes.length / 2)] || 12;
+    var xs = lines.map(function (l) { return l.x; }).sort(function (a, b) { return a - b; }), left = xs[Math.floor(xs.length * 0.2)] || 0;
+    var right = Math.max.apply(null, lines.map(function (l) { return l.end; }));
+    var out = [], cur = null;
+    var cjk = /[　-ヿ㐀-鿿＀-￯]/;
+    lines.forEach(function (l, i) {
+      var bullet = /^[・•●○■□◆◇▶►\-－✓✔]\s*/.exec(l.s) || /^\(?\d{1,2}[\.\)）]\s+/.exec(l.s);
+      var head = l.size >= base * 1.25 && l.s.length <= 40;
+      var prev = lines[i - 1], gap = prev ? l.y - prev.b : 999;
+      if (head) { cur = null; out.push({ y: l.y, block: { t: 'h', s: l.s } }); return; }
+      if (bullet) { cur = { y: l.y, block: { t: 'li', s: l.s.slice(bullet[0].length).trim() || l.s } }; out.push(cur); return; }
+      // 箇条書きの印が文字に無いPDF（印が図形）：左が字下げされた短い行は箇条書きにする
+      if (l.x > left + l.size * 0.8 && l.end < right - l.size * 3) { cur = null; out.push({ y: l.y, block: { t: 'li', s: l.s } }); return; }
+      // 前の行が右端まで届いていなければ、そこで段落が終わっている
+      var prevFull = prev && prev.end > right - prev.size * 2.5;
+      var cont = cur && prevFull && gap < l.size * 0.9 && Math.abs(l.size - (prev ? prev.size : l.size)) < 2;
+      if (cont) {
+        var a = cur.block.s, glue = cjk.test(a.slice(-1)) || cjk.test(l.s[0]) ? '' : ' ';
+        cur.block.s = a + glue + l.s;
+      } else { cur = { y: l.y, block: { t: 'p', s: l.s } }; out.push(cur); }
+    });
+    return out;
+  },
+  /** PDFのフォントによっては「⼿」「⻑」のような部首の文字になるので、ふつうの漢字に直す */
+  RADICALS: { '⻑': '長', '⻄': '西', '⻘': '青', '⻝': '食', '⻣': '骨', '⻤': '鬼', '⻭': '歯', '⻯': '竜', '⻩': '黄', '⻲': '亀', '⻨': '麦', '⻁': '虎', '⺟': '母', '⺠': '民', '⻆': '角', '⻑': '長', '⻖': '阝', '⺍': '⺍' },
+  fixChars: function (s) {
+    return String(s).replace(/[\u2e80-\u2fdf]/g, function (ch) { return ColumnEditor.RADICALS[ch] || ch.normalize('NFKC'); });
+  },
+  /** ページの境目で切れた段落をつなぐ */
+  mergeAcrossPages: function (blocks) {
+    var out = [];
+    blocks.forEach(function (b) {
+      var last = out[out.length - 1];
+      if (last && last.t === 'p' && b.t === 'p' && !/[。．.!?！？」』）)]$/.test(last.s) && b._page !== last._page) { last.s += b.s; return; }
+      out.push(b);
+    });
+    return out;
+  },
+
+  // ---------------- 保存・削除・順番 ----------------
+  save: function () {
+    var e = ColumnEditor.ed; if (!e || ColumnEditor.busy) return;
+    var title = (document.getElementById('ceTitle') || {}).value || '';
+    e.title = title.trim();
+    if (!e.title) { alert('題名を入れてください。'); return; }
+    var blocks = e.source === 'text' ? ColumnEditor.fromText(e.text) : e.blocks;
+    if (!blocks.length) { alert('中身がありません。'); return; }
+    var ups = blocks.filter(function (b) { return b.t === 'img' && b.local; }), done = 0;
+    var chain = Promise.resolve();
+    ups.forEach(function (b) {
+      chain = chain.then(function () {
+        ColumnEditor.busy = '画像を送っています（' + (done + 1) + ' / ' + ups.length + '）…'; var btn = document.getElementById('ceSave'); if (btn) { btn.disabled = true; btn.textContent = ColumnEditor.busy; }
+        return Api.call('columnUpload', { token: S.token, mime: 'image/jpeg', data: b.local.split(',')[1] }).then(function (res) { b.id = res.id; delete b.local; done++; });
+      });
+    });
+    chain.then(function () {
+      ColumnEditor.busy = '保存しています…'; var btn = document.getElementById('ceSave'); if (btn) btn.textContent = ColumnEditor.busy;
+      return Api.call('columnSave', { token: S.token, column: { id: e.id || '', kind: e.kind, title: e.title, format: e.format || '手入力', blocks: blocks } });
+    }).then(function (res) {
+      ColumnEditor.busy = ''; ColumnEditor.ed = null; ColumnEditor.msg = msgHtml('ok', res.message + '（選手の画面には、次にアプリを開いたときに出ます）');
+      ColumnEditor.render(); window.scrollTo(0, 0); ColumnEditor.load();
+    }).catch(function (err) {
+      ColumnEditor.busy = ''; ColumnEditor.msg = msgHtml('error', err.message); ColumnEditor.render(); window.scrollTo(0, 0);
+    });
+  },
+  del: function (id) {
+    if (ColumnEditor.delArm !== id) { ColumnEditor.delArm = id; ColumnEditor.render(); return; }
+    ColumnEditor.delArm = '';
+    Api.call('columnDelete', { token: S.token, id: id }).then(function (res) { ColumnEditor.msg = msgHtml('ok', res.message); return ColumnEditor.load(); })
+      .catch(function (err) { ColumnEditor.msg = msgHtml('error', err.message); ColumnEditor.render(); });
+  },
+  move: function (id, dir) {
+    Api.call('columnMove', { token: S.token, id: id, dir: dir }).then(function () { return ColumnEditor.load(); })
+      .catch(function (err) { ColumnEditor.msg = msgHtml('error', err.message); ColumnEditor.render(); });
+  }
+};
+
+app.addEventListener('click', function (e) {
+  var t = e.target.closest('[data-ce]');
+  if (!t || S.view !== 'staff' || Staff.page !== 'columns') return;
+  var k = t.dataset.ce, v = t.dataset.v, ed = ColumnEditor.ed;
+  if (k !== 'del') ColumnEditor.delArm = '';
+  if (k === 'view') { ColumnEditor.openId = ColumnEditor.openId === v ? '' : v; ColumnEditor.render(); }
+  else if (k === 'addPdf') ColumnEditor.startPdf(v);
+  else if (k === 'addText') ColumnEditor.startText();
+  else if (k === 'edit') ColumnEditor.startEdit(v);
+  else if (k === 'del') ColumnEditor.del(v);
+  else if (k === 'up' || k === 'down') ColumnEditor.move(v, k === 'up' ? -1 : 1);
+  else if (k === 'cancel') { ColumnEditor.ed = null; ColumnEditor.busy = ''; ColumnEditor.render(); }
+  else if (k === 'save') ColumnEditor.save();
+  else if (k === 'bdel' && ed) { var tt = document.getElementById('ceTitle'); if (tt) ed.title = tt.value; ed.blocks.splice(Number(v), 1); ColumnEditor.render(); }
+});
+app.addEventListener('change', function (e) {
+  if (S.view !== 'staff' || Staff.page !== 'columns' || !ColumnEditor.ed) return;
+  var t = e.target, ed = ColumnEditor.ed;
+  if (t.id === 'ceFile') return ColumnEditor.onFile(t.files && t.files[0]);
+  if (t.name === 'ceMode') { ed.mode = t.value; ColumnEditor.render(); return; }
+  if (t.dataset.ceType !== undefined) { ed.blocks[Number(t.dataset.ceType)].t = t.value; ColumnEditor.refreshPreview(); }
+});
+app.addEventListener('input', function (e) {
+  if (S.view !== 'staff' || Staff.page !== 'columns' || !ColumnEditor.ed) return;
+  var t = e.target, ed = ColumnEditor.ed;
+  if (t.id === 'ceText') { ed.text = t.value; ColumnEditor.refreshPreview(); }
+  if (t.dataset.ceText !== undefined) { ed.blocks[Number(t.dataset.ceText)].s = t.value; ColumnEditor.refreshPreview(); }
+  if (t.id === 'ceTitle') ed.title = t.value;
+});

@@ -31,7 +31,7 @@ var Staff = {
   render: function () {
     S.view = 'staff';
     // 個人ページの印（ブラウザの履歴）が残っていたら消す（声の操作などで、個人ページから直接ほかの画面に移ったとき。v37）
-    try { if (history.state && (history.state.staffAthlete || history.state.staffReport || history.state.staffRoster || history.state.staffMenuImport || history.state.staffGuide)) history.replaceState(null, ''); } catch (e) {}
+    try { if (history.state && (history.state.staffAthlete || history.state.staffReport || history.state.staffRoster || history.state.staffMenuImport || history.state.staffGuide || history.state.staffAdmin || history.state.staffColumns)) history.replaceState(null, ''); } catch (e) {}
     Staff.page = Staff.tab;   // 今の画面（overview / inbody / weight / athlete）。音声の操作で使う（v35）
     if (Staff.tab === 'overview') return Staff.renderOverview();
     if (Staff.tab === 'list') return StaffList.render();
@@ -88,6 +88,9 @@ var Staff = {
       '<button class="btn sub" data-staff="guide" data-v="staff">' + Icon('book', 18) + 'スタッフ向け</button>' +
       '<button class="btn sub" data-staff="guide" data-v="athlete">' + Icon('book', 18) + '選手向け（配る用）</button></div></div>';   // v52：アプリの中の使い方（guidebook.js）
     // ログインの管理（v53：管理者だけ。このファイルの後半の Admin）
+    // コラムの管理（v56：管理者・トレーナーだけ。menu_import.js の後半 ColumnEditor）
+    if (o.columnEditor) html += '<div class="card"><h2>コラムの管理</h2><p class="muted small">用語の説明などのコラムを追加します。からだ・記録のページの読み込み中に出すコラム（各3つまで）と、マイページから読むコラムのページの分があります。</p>' +
+      '<button class="btn sub block" data-staff="columns">' + Icon('book', 18) + 'コラムを追加・管理する</button></div>';
     if (o.admin) html += '<div class="card"><h2>ログインの管理（管理者）</h2><p class="muted small">スマホ・タブレット・PCで、それぞれ何台ログインしているかを確かめられます。知らない端末はログアウトさせられます。ログインの失敗の記録も見られます。</p>' +
       '<button class="btn sub block" data-staff="admin">' + Icon('phone', 18) + 'ログインしている端末を見る</button></div>';
     app.innerHTML = Staff.frame(html);
@@ -267,7 +270,8 @@ var Staff = {
     var st = history.state || {};
     if (Staff.page === 'roster') { Roster.back(); return; }   // 部員名簿の取り込み（v44）
     if (Staff.page === 'menuImport') { MenuImport.back(); return; }
-    if (Staff.page === 'admin') { Admin.back(); return; }   // ログインの管理（v53）
+    if (Staff.page === 'admin') { Admin.back(); return; }
+    if (Staff.page === 'columns') { ColumnEditor.back(); return; }   // コラムの管理（v56）   // ログインの管理（v53）
     if (Staff.page === 'guide') { Guidebook.back(); return; }   // 使い方（v52）   // メニュー表の取り込み（v50）
     if (Staff.page === 'report') { if (st.staffReport) history.back(); else Staff.leaveReportPage(); return; }   // → popstate で leaveReportPage
     if (st.staffAthlete) history.back();   // → popstate で leaveAthlete
@@ -318,7 +322,7 @@ app.addEventListener('click', function (e) {
   if (!t || S.view !== 'staff' || t.tagName === 'SELECT' || t.tagName === 'INPUT') return;
   var v = t.dataset.v;
   // v53b：別のファイルの画面が読み込めていないときは、何も起きないのではなく理由を出す（GitHub に入れ忘れたときなど）
-  var need = { roster: ['Roster', 'roster.js'], menuImport: ['MenuImport', 'menu_import.js'], guide: ['Guidebook', 'guidebook.js'] }[t.dataset.staff];
+  var need = { roster: ['Roster', 'roster.js'], menuImport: ['MenuImport', 'menu_import.js'], guide: ['Guidebook', 'guidebook.js'], columns: ['ColumnEditor', 'menu_import.js'] }[t.dataset.staff];
   if (need && typeof window[need[0]] === 'undefined') {
     var box = t.parentNode.querySelector('.msg') || null;
     if (!box) t.insertAdjacentHTML('afterend', msgHtml('error', 'この画面のファイル（' + need[1] + '）が読み込めていません。GitHub のリポジトリに「' + need[1] + '」があるか確かめてください。入れたばかりなら、1〜2分待ってから開き直してください。'));
@@ -344,7 +348,8 @@ app.addEventListener('click', function (e) {
     case 'xReportXlsx': Export.reportExcel(Staff.current); break;
     case 'roster': Roster.open(); break;
     case 'menuImport': MenuImport.open(); break;
-    case 'admin': Admin.show('accounts'); break;   // ログインの管理（v53）
+    case 'admin': Admin.show('accounts'); break;
+    case 'columns': ColumnEditor.open(); break;   // コラムの管理（v56）   // ログインの管理（v53）
     case 'guide': Guidebook.showStaff(v); break;   // 使い方（v52。guidebook.js）   // メニュー表の取り込み（v50。menu_import.js）   // 部員名簿から取り込む（v44。roster.js）
     case 'reload': Staff.overview = null; Staff.body = null; Staff.render(); break;
   }
@@ -362,6 +367,7 @@ window.addEventListener('popstate', function () {
   else if (Staff.page === 'menuImport') MenuImport.leave();
   else if (Staff.page === 'guide') Staff.leaveAthlete();
   else if (Staff.page === 'admin') Admin.leave();   // v53
+  else if (Staff.page === 'columns') ColumnEditor.leave();   // v56
   else if (Staff.page === 'report') Staff.leaveReportPage();
   else if (Staff.page === 'athlete') Staff.leaveAthlete();
 });

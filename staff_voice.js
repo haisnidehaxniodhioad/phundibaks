@@ -142,6 +142,12 @@ var StaffVoice = {
       return done('AIアシスタントの設定を開きました。');
     }
 
+    // コラムの管理（v56。管理者・トレーナー。menu_import.js の ColumnEditor）
+    if (/コラム/.test(t) && /管理|かんり|追加|ついか|足|作|つく|直|なお|開|ひら|見|み/.test(t) && !people.length) {
+      if (!Staff.overview || !Staff.overview.columnEditor) return done('コラムの追加・変更は、管理者とトレーナーだけができます。');
+      ColumnEditor.open();
+      return done('コラムの管理を開きました。PDFか手入力で追加できます。');
+    }
     // ログインの管理（v53。管理者だけ。staff.js の Admin.voice）
     var adm = window.Admin && !people.length ? Admin.voice(t) : null;
     if (adm) return done(adm);

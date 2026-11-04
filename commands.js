@@ -37,7 +37,7 @@ var VoiceUI = {
     var draftId = S.draft ? S.draft.id : null;
     if (draftId !== this.draftId) { this.undo = []; this.draftId = draftId; }
     // v37：音声入力が使えないブラウザでもボタンは出す（押すと、文字で入力する欄が出る）
-    var show = (!!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition', 'mypage', 'guide'].indexOf(S.view) >= 0 ||   // v53：マイページ・使い方でも「話す」を出す
+    var show = (!!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition', 'mypage', 'guide', 'column'].indexOf(S.view) >= 0 ||   // v53：マイページ・使い方でも「話す」を出す
                 S.view === 'staff' && !!S.token);   // v35：スタッフ画面でも話しかけられる（staff_voice.js）
     this.btn.hidden = !show;
     // アバターの表示と置き場所は dock.js（画面の下のバー）が決める
@@ -47,7 +47,7 @@ var VoiceUI = {
     document.body.classList.toggle('has-mic', show);
     if (!show) { this.box.hidden = true; return; }
     if (S.view === 'staff') { StaffVoice.helpCard(); return; }   // v35：スタッフ画面の「話し方の例」（staff_voice.js）
-    if ((S.view === 'session' || S.view === 'home' || S.view === 'body' || S.view === 'history' || S.view === 'mypage' || S.view === 'guide') && !document.getElementById('voiceHelp')) {
+    if ((S.view === 'session' || S.view === 'home' || S.view === 'body' || S.view === 'history' || S.view === 'mypage' || S.view === 'guide' || S.view === 'column') && !document.getElementById('voiceHelp')) {
       var help = document.createElement('details');
       help.id = 'voiceHelp';
       help.className = 'card voice-help';
@@ -351,7 +351,7 @@ function handleVoice(text) {
   var nav = VoiceParser.parseNav(text, S.home.myMenus);
   if (nav && !(S.view === 'finish' && nav.type === 'closePanel')) return doNav(text, nav);
   if (S.view === 'finish') return voiceInFinish(text, VoiceParser.parse(text, { candidates: voiceCandidates() }));
-  if (S.view === 'body' || S.view === 'mymenu' || S.view === 'history' || S.view === 'mypage' || S.view === 'guide') {   // レポート・メニュー作成・記録・マイページの画面は、基本操作とちょっとした会話だけ
+  if (S.view === 'body' || S.view === 'mymenu' || S.view === 'history' || S.view === 'mypage' || S.view === 'guide' || S.view === 'column') {   // レポート・メニュー作成・記録・マイページの画面は、基本操作とちょっとした会話だけ
     if (smallTalk(text)) return;
     if (S.view === 'history' && askPrevious(text)) return;
     if (Chat.question(text)) return;   // 「今何時？」「今週あと何回？」など（chat.js）

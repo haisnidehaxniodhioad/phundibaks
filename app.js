@@ -8,7 +8,7 @@
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v55 2026-11-04';
+var APP_VERSION = 'v56 2026-11-04';
 // 記録し忘れた日の分を、何日前まで遡って入力できるか（v26）。Apps Script の 設定.gs の MAX_BACKDATE_DAYS と同じ数字にする
 var MAX_BACKDATE_DAYS = 3;
 var S = { token: null, home: null, draft: null, view: 'loading' };
@@ -93,7 +93,7 @@ function doLogin() {
     S.token = res.token;
     Store.set('token', res.token);
     if (res.role === 'staff') { Staff.start(res.name); return; }   // スタッフはスタッフ画面へ（staff.js）
-    if (res.home) { S.home = res.home; Store.set('home', res.home); renderHome(); return; }   // ホームのデータも一緒に届く
+    if (res.home) { S.home = res.home; Store.set('home', res.home); Column.prefetch(); renderHome(); return; }   // ホームのデータも一緒に届く
     loadHome();
   }).catch(function (err) { renderLogin(err.message); });
 }
@@ -117,6 +117,7 @@ function loadHome(notice) {
     if (res.role === 'staff') { Staff.start(res.name); return; }
     S.home = res;
     Store.set('home', res);
+    Column.prefetch();   // v56：読み込み中のコラムの画像を先に読んでおく
     if (S.view === 'home' || S.view === 'loading' || S.view === 'login') renderHome(notice);   // トレーニングを始めていたら描き直さない
     showSyncing(false);
   }).catch(function (err) {
@@ -696,7 +697,8 @@ function onAct(t) {
     case 'startFree': startFree(); break;
     case 'body': Body.showMine(); break;
     case 'records': History.show(); break;
-    case 'mypage': MyPage.show(); break;   // v47：マイページ（mypage.js）
+    case 'mypage': MyPage.show(); break;
+    case 'column': Column.show(); break;   // v56：コラム（guidebook.js の後半）   // v47：マイページ（mypage.js）
     case 'guide': Guidebook.showAthlete(); break;   // v52：アプリの中の使い方（guidebook.js）
     case 'avatarSettings': if (window.Avatar && typeof Avatar.openAppearancePicker === 'function') Avatar.openAppearancePicker(); else alert('トレーナー設定を読み込めませんでした。ページを再読み込みしてください。'); break;
     case 'home': if (S.view === 'session') S.reorder = false;

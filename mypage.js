@@ -19,7 +19,7 @@ var MyPage = {
     var need = [Api.call('myPage', { token: S.token }).then(function (res) { MyPage.data = res; })];
     if (!QA.fresh('stats')) need.push(QA.load('stats'));
     if (!QA.fresh('body')) need.push(QA.load('body'));
-    return Promise.all(need).then(function () {
+    return Column.hold('mypage', Promise.all(need)).then(function () {   // v56：読み込み中はコラム（からだ＋記録）
       if (S.view !== 'mypage') return;
       CondChart.set(MyPage.data.conditions || [], MyPage.data.weekStart);
       MyPage.render();
@@ -34,7 +34,8 @@ var MyPage = {
     S.view = 'mypage';
     var p = (MyPage.data && MyPage.data.profile) || {};
     var html = '<div class="group"><div class="topbar"><h1>マイページ</h1><button class="btn ghost" data-act="home">ホームへ</button></div>' +
-      '<p class="mp-name"><b>' + esc(p.name || '') + '</b>' + (p.kana ? ' <span class="muted small">' + esc(p.kana) + '</span>' : '') + '</p></div>';
+      '<p class="mp-name"><b>' + esc(p.name || '') + '</b>' + (p.kana ? ' <span class="muted small">' + esc(p.kana) + '</span>' : '') + '</p>' +
+      '<button class="btn sub block mp-column" data-act="column">' + Icon('book', 20) + 'コラム（用語の説明など）を読む</button></div>';   // v56
     html += MyPage.profileHtml(p) + MyPage.trainingHtml() + MyPage.physicalHtml() +
       '<div class="group" id="mpCondition"><h2 class="mp-h">コンディションの推移</h2>' + CondChart.html() +
       '<p class="muted small">疲労は上ほど疲れていて、点線の8が注意の目安だよ。動きやすさは上ほど良い状態。「3か月」は週ごとの平均だよ。</p></div>' +
@@ -134,6 +135,7 @@ var MyPage = {
   voice: function (text) {
     var t = VoiceParser.norm(VoiceParser.normalizeNumbers(text));
     if (S.view === 'session' || S.view === 'finish') return false;
+    if (Column.voice(text, t)) return true;   // v56：「コラムを見せて」
     var open = function (id, msg) {
       var go = function () { if (id) MyPage.scrollTo(id); Avatar.feedback('success'); reply(text, msg); };
       if (S.view === 'mypage') { go(); return true; }
