@@ -29,6 +29,7 @@ var Dock = {
     history: '「先月」って話しかけると、前の月が見られるよ。',
     body: '「体重にして」と話しかけると、体重のレポートになるよ。',
     mymenu: '数字をタップすると変えられるよ。',
+    guide: '上のもくじから、見たい所を押してね。',
     mypage: '「3か月にして」でコンディションのグラフが変わるよ。PINは画面で変えてね。',
     staff: '「今週やってないのは誰？」「（選手の名前）を開いて」のように話しかけてください。'
   },
@@ -52,7 +53,7 @@ var Dock = {
   /** 今の画面に合わせて、バーの中身・アバターの場所を変える */
   update: function () {
     var v = S.view;
-    var athlete = !!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition', 'mypage'].indexOf(v) >= 0;
+    var athlete = !!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition', 'mypage', 'guide'].indexOf(v) >= 0;
     var staff = v === 'staff' && !!S.token;   // v35：スタッフ画面にも上の帯（コーチ）とマイクを出す
     // v36：スタッフ画面では「コーチ」ではなく「AIアシスタント」と表示する（style.css の body.is-staff、avatar.js の Avatar.title）
     if (document.body.classList.contains('is-staff') !== staff) {
@@ -61,7 +62,7 @@ var Dock = {
       var pk = document.getElementById('avatarAppearancePicker');
       if (pk) pk.remove();   // 設定パネルの見出しを作り直すため
     }
-    var mode = staff ? 'staff' : !athlete ? 'none' : (v === 'home' || v === 'history' || v === 'body' || v === 'mypage') ? 'tabs' : v;
+    var mode = staff ? 'staff' : !athlete ? 'none' : (v === 'home' || v === 'history' || v === 'body' || v === 'mypage' || v === 'guide') ? 'tabs' : v;
     this.el.hidden = mode === 'none';
     document.body.classList.toggle('has-dock', mode !== 'none');
     this.el.className = 'dock mode-' + mode + ' view-' + v;
@@ -96,7 +97,7 @@ var Dock = {
         tab('records', 'calendar', '記録', v === 'history') +
         '<div class="dock-mic"><span data-slot="mic"></span><span class="dock-mic-label">話す</span></div>' +
         tab('body', 'heart', 'からだ', v === 'body') +
-        tab('mypage', 'person', 'マイページ', v === 'mypage') + '</nav>';
+        tab('mypage', 'person', 'マイページ', v === 'mypage' || v === 'guide') + '</nav>';
     } else if (mode === 'session') {
       html = '<div class="dock-row"><span data-slot="timer"></span><div class="dock-hint">終わったら ✓ を押してね</div><span data-slot="mic"></span></div>';
     } else if (mode === 'finish') {
@@ -108,7 +109,7 @@ var Dock = {
       html = '<div class="dock-row"><div class="dock-hint">声でも選べるよ</div><span data-slot="mic"></span></div>';
     } else if (mode === 'staff') {   // v35：スタッフ画面
       html = '<div class="dock-row"><div class="dock-hint">操作も質問も、話しかけてできます</div>' +
-        '<button class="btn sub btn-pill" data-typevoice="1" aria-label="文字で入力する">⌨ 文字で</button><span data-slot="mic"></span></div>';   // v37：パソコンでは文字でも入れられる
+        '<button class="btn sub btn-pill" data-typevoice="1" aria-label="文字で入力する">' + Icon('keyboard', 18) + '文字で</button><span data-slot="mic"></span></div>';   // v37：パソコンでは文字でも入れられる
     } else if (mode === 'mymenu') {
       html = '<div class="dock-row"><button class="btn btn-primary btn-pill dock-main" data-mm="save">' + Icon('check', 22) + '保存する</button><span data-slot="mic"></span></div>';
     }

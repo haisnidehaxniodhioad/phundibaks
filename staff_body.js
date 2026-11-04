@@ -35,7 +35,7 @@ var StaffBody = {
     var p = StaffBody.parsed && StaffBody.parsed.kind === kind ? StaffBody.parsed : null;
     var hasData = Staff.body.athletes.some(function (a) { return kind === 'weight' ? a.weight.length : a.inbody.length; });
     var open = p || StaffBody.result || !hasData ? ' open' : '';   // まだ記録が無いときは最初から開いておく
-    var html = '<details class="card"' + open + '><summary><b>📥 ' + label + 'を取り込む</b></summary>' +
+    var html = '<details class="card"' + open + '><summary><b>' + Icon('download', 18) + ' ' + label + 'を取り込む</b></summary>' +
       '<p class="muted small">ファイルを選ぶと読み取り、Excelに入っているすべての測定日を取り込みます（同じ選手・同じ日は上書き）。ファイルはこの端末の中で読むだけで、保存はしません。</p>' +
       '<input type="file" accept=".xlsx,.xls" data-sb="file">';
     if (StaffBody.result) html += '<div class="msg ok">' + esc(StaffBody.result) + '</div>';
@@ -111,9 +111,9 @@ var StaffBody = {
       '<select class="sel" data-sb="rankDate"><option value="">最新の記録</option>' + dates.map(function (d) { return '<option' + (d === date ? ' selected' : '') + '>' + d + '</option>'; }).join('') + '</select>' +
       Staff.select('grade', '学年', uniq(Staff.body.athletes.map(function (a) { return a.grade; }))) + '</div>' +
       '<p class="muted small">測定日を選ぶと、その日以前のいちばん新しい記録で並べます。選手名を押すと個別のレポートを表示します。</p>' +
-      '<div class="row"><button class="btn sub" data-sb="xRankPdf">📄 ランキングをPDF</button><button class="btn sub" data-sb="xRankXlsx">📊 ランキングをExcel</button></div>' +
-      '<div class="row"><button class="btn sub" data-sb="xReportsPdf">📄 学年のフィジカルレポートをまとめてPDF保存</button>' +
-      '<button class="btn sub" data-sb="xLatestXlsx">📊 表示中の選手のInBody最新値をExcel</button></div></div>';
+      '<div class="row"><button class="btn sub" data-sb="xRankPdf">' + Icon('file', 18) + 'ランキングをPDF</button><button class="btn sub" data-sb="xRankXlsx">' + Icon('sheet', 18) + 'ランキングをExcel</button></div>' +
+      '<div class="row"><button class="btn sub" data-sb="xReportsPdf">' + Icon('file', 18) + '学年のフィジカルレポートをまとめてPDF保存</button>' +
+      '<button class="btn sub" data-sb="xLatestXlsx">' + Icon('sheet', 18) + '表示中の選手のInBody最新値をExcel</button></div></div>';
     html += '<div class="card"><table class="tbl"><tr><th>順位</th><th>選手</th><th>学年</th><th>' + esc(labels[metric]) + '</th><th>測定日</th></tr>' +
       StaffBody.rankRows.map(function (r) {
         return '<tr><td>' + r.rank + '</td><td><button class="link" data-staff="openReport" data-v="' + esc(r.id) + '" data-tab="inbody">' + esc(r.name) + '</button></td><td>' + esc(r.grade) +
@@ -156,9 +156,9 @@ var StaffBody = {
         .map(function (o) { return '<option value="' + o[0] + '"' + (sort === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
       Staff.select('grade', '学年', uniq(Staff.body.athletes.map(function (a) { return a.grade; }))) + '</div>' +
       '<p class="small">表示 ' + rows.length + '人' + (StaffBody.weightDate ? ' ／ <b class="ng-text">未測定 ' + missing + '人</b>' : '') + '</p>' +
-      '<div class="row"><button class="btn sub" data-sb="xWeightPdf">📄 一覧をPDF</button><button class="btn sub" data-sb="xWeightXlsx">📊 一覧をExcel</button>' +
-      '<button class="btn sub" data-sb="xWeightAllXlsx">📊 全員の体重の全履歴をExcel</button></div>' +
-      '<div class="row"><button class="btn sub" data-sb="xWeightReportsPdf">📄 学年の体重レポートをまとめてPDF保存</button></div></div>';
+      '<div class="row"><button class="btn sub" data-sb="xWeightPdf">' + Icon('file', 18) + '一覧をPDF</button><button class="btn sub" data-sb="xWeightXlsx">' + Icon('sheet', 18) + '一覧をExcel</button>' +
+      '<button class="btn sub" data-sb="xWeightAllXlsx">' + Icon('sheet', 18) + '全員の体重の全履歴をExcel</button></div>' +
+      '<div class="row"><button class="btn sub" data-sb="xWeightReportsPdf">' + Icon('file', 18) + '学年の体重レポートをまとめてPDF保存</button></div></div>';
     html += '<div class="card"><div class="table-scroll"><table class="tbl"><tr><th>選手</th><th>学年</th><th>体重</th><th>前回比</th><th>4週前比</th><th>測定日</th></tr>' +
       rows.map(function (r) {
         var fmt = function (d) { return d === '' ? '-' : (d > 0 ? '▲' : d < 0 ? '▼' : '±') + Math.abs(d); };

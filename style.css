@@ -907,3 +907,20 @@ body.is-staff .dock-bubble::before { content: 'AIアシスタントより'; }
 
 /* ---- v51：使い方の案内のリンク（ボタンの見た目） ---- */
 a.btn { text-decoration: none; justify-content: center; align-items: center; }
+
+/* ---- v52：線アイコン（絵文字の代わり）・アプリの中の使い方（guidebook.js） ---- */
+.btn .ic, summary .ic, .heard .ic, .topbar h1 .ic { display: inline-block; flex: none; vertical-align: -3px; margin-right: 4px; }
+.topbar h1 .ic { vertical-align: -4px; }
+.gb-lead { margin: 4px 0 8px; }
+.gb-toc { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 6px; }
+.gb-toc-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--color-paper); color: var(--color-text); font: inherit; font-size: 0.88rem; cursor: pointer; }
+.gb-toc-btn span { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--color-accent); color: #fff; font-size: 0.75rem; font-weight: 700; }
+.gb-sec { scroll-margin-top: 90px; }
+.gb-sec h2 { margin-top: 0; }
+.gb-sec p { line-height: 1.7; }
+.gb-list, .gb-steps { margin: 6px 0 10px; padding-left: 1.4em; line-height: 1.7; }
+.gb-steps li { margin: 4px 0; }
+.gb-fig { margin: 10px auto 12px; max-width: 300px; text-align: center; }
+.gb-fig img { display: block; width: 100%; height: auto; border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-sm); }
+.gb-fig figcaption { margin-top: 4px; font-size: 0.8rem; color: var(--muted); }
+.gb-table td, .gb-table th { font-size: 0.88rem; }

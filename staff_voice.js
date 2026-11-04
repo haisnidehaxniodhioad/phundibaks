@@ -144,9 +144,8 @@ var StaffVoice = {
 
     // 使い方の案内（v51）
     if (/使い方|つかいかた|案内|あんない|マニュアル|説明書/.test(t) && /見|み|開|ひら|教え|おしえ|どこ/.test(t) && !/ペジの|画面の/.test(t)) {
-      Staff.tab = 'overview'; Staff.render();
-      setTimeout(function () { var a = app.querySelector('a[href="' + GUIDE_LINKS.staff + '"]'); if (a) a.scrollIntoView({ block: 'center' }); }, 0);
-      return done('使い方の案内は、実施状況のいちばん下の「使い方」から開けます。スタッフ向けと、選手に配る案内があります。');
+      Guidebook.showStaff(/選手/.test(t) ? 'athlete' : 'staff');
+      return done('使い方を開きました。上の「スタッフ向け」「選手向け（配る用）」で切り替え、もくじから見たい所を押してください。');
     }
     // メニュー表（PDF）の取り込み（v50。menu_import.js。反映は画面で確かめてから、ボタンで行う）
     if (/メニュ/.test(t) && /取り込|とりこ|追加|ついか|読み込|よみこ|pdf/.test(t) && !people.length) {
@@ -302,7 +301,7 @@ var StaffVoice = {
     var help = document.createElement('details');
     help.id = 'voiceHelp';
     help.className = 'card voice-help';
-    help.innerHTML = '<summary>🎤 話し方の例（スタッフ）</summary>' +
+    help.innerHTML = '<summary>' + Icon('mic', 16) + '話し方の例（スタッフ）</summary>' +
       '見方：「このページの見方を説明して」「FFMIって何？」「基準比って何？」<br>' +
       '操作：「（選手の名前）のフィジカルレポートを開いて」「（選手の名前）の体重レポート」「先週にして」「今週に戻して」「InBodyにして」「体重のタブ」「FFMIのランキング」「（選手の名前）を開いて」「戻って」「1年だけ」「Aチームだけ」「全員を表示」「Excelで保存」「PDFで保存」「閉じて」「AIアシスタントの設定」「部員名簿から取り込んで」<br>選手一覧：「選手一覧」「1年の投手を見せて」「ピッチャーは誰？」「内野手だけ」「ポジション別にして」「学年別にして」「チーム別にして」「チーム分けをする」「全員を表示」<br>' +
       '選手の個人ページ：「3か月にして」「1週間にして」「前の週」「次の週」「フィジカルレポートを開いて」「体重レポートを開いて」「戻って」<br>フィジカルレポート：「このフィジカルレポートを説明して」「体重にして」「InBodyにして」「PDFで保存」「戻って」<br>' +

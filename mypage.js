@@ -99,8 +99,8 @@ var MyPage = {
   settingsHtml: function (pinMsg) {
     return '<div class="group" id="mpSettings"><h2 class="mp-h">設定</h2>' +
       '<button class="btn sub block" data-act="avatarSettings">' + Icon('smiley', 20) + 'コーチの設定（種類・声・話す速さ・画面の色）</button>' +
-      '<button class="btn sub block" data-typevoice="1">⌨ 文字で話しかける</button>' +
-      '<a class="btn sub block" href="' + esc(GUIDE_LINKS.athlete) + '" target="_blank" rel="noopener">📖 使い方（選手向けの案内）を開く</a>' +   // v51
+      '<button class="btn sub block" data-typevoice="1">' + Icon('keyboard', 18) + '文字で話しかける</button>' +
+      '<button class="btn sub block" data-act="guide">' + Icon('book', 18) + '使い方を見る</button>' +   // v52：アプリの中の使い方（guidebook.js）
       '<h3 class="mp-sub">PINの変更</h3>' + (pinMsg || '') +
       '<form class="mp-pin" data-mp-form="pin" autocomplete="off">' +
       '<label>今のPIN<input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" id="pinCur" autocomplete="current-password"></label>' +
@@ -142,7 +142,7 @@ var MyPage = {
       return true;
     };
     if (/pin|ピン|暗証|あんしょう|パスワド/.test(t) && /変え|かえ|変更|へんこう|新しく/.test(t)) return open('mpSettings', 'PINは下の「PINの変更」で変えられるよ。声では言わずに、画面で入れてね。');
-    if (/使い方|つかいかた|案内|あんない|マニュアル|説明書/.test(t) && /見|み|開|ひら|教え|おしえ|どこ/.test(t) && !/ペジの|画面の/.test(t)) return open('mpSettings', '使い方の案内は、マイページのいちばん下の「使い方（選手向けの案内）を開く」から見られるよ。');
+    if (/使い方|つかいかた|案内|あんない|マニュアル|説明書/.test(t) && /見|み|開|ひら|教え|おしえ|どこ/.test(t) && !/ペジの|画面の/.test(t)) { Guidebook.showAthlete(); Avatar.feedback('success'); reply(text, '使い方を開いたよ。上のもくじから、見たい所を押してね。'); return true; }
     if (/マイペジ|まいぺじ|my ?page/.test(t)) return open('', 'マイページだよ。プロフィール、トレーニングとフィジカルのまとめ、コンディションの推移、設定が見られるよ。');
     if (/プロフィル|ぷろふぃる|自分の(情報|じょうほう)/.test(t) && /見|み|開|ひら|教え|おしえ|表示/.test(t)) return open('mpProfile', MyPage.profileText());
     if (/自己ベスト|じこべすと/.test(t) && /一覧|いちらん|見せ|みせ|開/.test(t)) return open('mpTraining', '自己ベストは「トレーニングのまとめ」にあるよ。');

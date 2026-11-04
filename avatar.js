@@ -303,8 +303,8 @@ var Avatar = {
       '<div class="avatar-picker-row"><span class="avatar-picker-label">画面の色</span><span class="avatar-picker-genders">' +
         Theme.MODES.map(function (m) { return '<button type="button" class="btn sub avatar-picker-option" data-theme-mode="' + m.key + '">' + m.label + '</button>'; }).join('') + '</span></div>' +
       '<div class="avatar-picker-row"><span class="avatar-picker-label">声</span><select class="avatar-picker-voice" aria-label="声"></select></div>' +
-      '<button type="button" class="btn sub avatar-picker-try" data-try="1">🔊 声を試す</button>' +
-      '<button type="button" class="btn sub avatar-picker-try" data-typevoice="1">⌨ 文字で話しかける</button>' +   // v43：パソコンなどで、声の代わりに文字で
+      '<button type="button" class="btn sub avatar-picker-try" data-try="1">' + Icon('speaker', 18) + '声を試す</button>' +
+      '<button type="button" class="btn sub avatar-picker-try" data-typevoice="1">' + Icon('keyboard', 18) + '文字で話しかける</button>' +   // v43：パソコンなどで、声の代わりに文字で
       '<details class="avatar-picker-description"><summary>声が機械っぽいときは</summary>iPhone のブラウザ（Safari・Chrome とも）は、スマホにダウンロードした「拡張」の声を使えず、Kyoko だけになることが多いです（Apple の制限）。「話し方：短め」と「声の速さ：ふつう〜ゆっくり」にすると聞き取りやすくなります。Android：「設定」→「テキスト読み上げ」で Google の音声データ（日本語）を入れてください。<br>種類・声の速さ・話し方・画面の色・声はこの端末に保存されます。「画面の色：自動」はスマホのダークモードに合わせます。声は男性・女性で変わります（スマホに入っている声によって聞こえ方は違います）。名前は「設定」シートの「キャラクターの名前」で変えられます。</details>';
 
     panel.addEventListener('click', function (e) {
@@ -349,13 +349,13 @@ var Avatar = {
     Array.prototype.forEach.call(panel.querySelectorAll('[data-theme-mode]'), function (b) {
       b.setAttribute('aria-pressed', String(b.dataset.themeMode === Theme.get()));
     });
-    // 声の一覧（この端末に入っている日本語の声）。自然な声には「★」を付ける
+    // 声の一覧（この端末に入っている日本語の声）。自然な声には「（自然な声）」を付ける（v52：絵文字の★をやめた）
     Speech.loadVoices();
     var sel = panel.querySelector('.avatar-picker-voice'), chosen = Speech.chosenName(this.currentGender);
     var auto = Speech.bestVoice(this.currentGender === 'male');
     sel.innerHTML = '<option value="">おすすめ' + (auto ? '（' + esc(auto.name) + '）' : '') + '</option>' +
       Speech.voices.map(function (v) {
-        return '<option value="' + esc(v.name) + '"' + (v.name === chosen ? ' selected' : '') + '>' + (Speech.GOOD_VOICE.test(v.name) ? '★ ' : '') + esc(v.name) + '</option>';
+        return '<option value="' + esc(v.name) + '"' + (v.name === chosen ? ' selected' : '') + '>' + esc(v.name) + (Speech.GOOD_VOICE.test(v.name) ? '（自然な声）' : '') + '</option>';
       }).join('');
   },
 

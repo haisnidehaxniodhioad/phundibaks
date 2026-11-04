@@ -30,7 +30,7 @@ var Staff = {
   render: function () {
     S.view = 'staff';
     // 個人ページの印（ブラウザの履歴）が残っていたら消す（声の操作などで、個人ページから直接ほかの画面に移ったとき。v37）
-    try { if (history.state && (history.state.staffAthlete || history.state.staffReport || history.state.staffRoster || history.state.staffMenuImport)) history.replaceState(null, ''); } catch (e) {}
+    try { if (history.state && (history.state.staffAthlete || history.state.staffReport || history.state.staffRoster || history.state.staffMenuImport || history.state.staffGuide)) history.replaceState(null, ''); } catch (e) {}
     Staff.page = Staff.tab;   // 今の画面（overview / inbody / weight / athlete）。音声の操作で使う（v35）
     if (Staff.tab === 'overview') return Staff.renderOverview();
     if (Staff.tab === 'list') return StaffList.render();
@@ -82,10 +82,10 @@ var Staff = {
     // メニューの管理（v50：毎月のメニュー表（PDF）を取り込む。menu_import.js）
     html += '<div class="card"><h2>メニューの管理</h2><p class="muted small">毎月のメニュー表（Excel から作ったPDF）を読み取って、メニューに足します。開始日から、そのチームの選手を新しいメニューに切り替えられます。</p>' +
       '<button class="btn sub block" data-staff="menuImport">メニュー表（PDF）を取り込む</button></div>';
-    // 使い方（v51：利用案内のドキュメント）
+    // 使い方（v52：アプリの中で読む。guidebook.js）
     html += '<div class="card"><h2>使い方</h2><p class="muted small">スタッフ画面の使い方と、選手に配る案内です。</p><div class="row">' +
-      '<a class="btn sub" href="' + esc(GUIDE_LINKS.staff) + '" target="_blank" rel="noopener">📖 スタッフ向けの案内</a>' +
-      '<a class="btn sub" href="' + esc(GUIDE_LINKS.athlete) + '" target="_blank" rel="noopener">📖 選手向けの案内</a></div></div>';
+      '<button class="btn sub" data-staff="guide" data-v="staff">' + Icon('book', 18) + 'スタッフ向け</button>' +
+      '<button class="btn sub" data-staff="guide" data-v="athlete">' + Icon('book', 18) + '選手向け（配る用）</button></div></div>';   // v52：アプリの中の使い方（guidebook.js）
     app.innerHTML = Staff.frame(html);
   },
 
@@ -242,11 +242,11 @@ var Staff = {
     var t = function (k, label) { return '<button class="tab' + (tab === k ? ' on' : '') + '" data-staff="phys" data-v="' + k + '">' + label + '</button>'; };
     var html = '<div class="tabs">' + t('inbody', 'InBody') + t('weight', '体重') + '</div>';
     if (tab === 'weight') {
-      html += '<div class="row report-actions"><button class="btn sub" data-staff="xWeightPdf">📄 体重レポートをPDFで保存</button>' +
-        '<button class="btn sub" data-staff="xReportXlsx">📊 InBody・体重の履歴をExcelで保存</button></div>' + Body.weightReportHtml(c);
+      html += '<div class="row report-actions"><button class="btn sub" data-staff="xWeightPdf">' + Icon('file', 18) + '体重レポートをPDFで保存</button>' +
+        '<button class="btn sub" data-staff="xReportXlsx">' + Icon('sheet', 18) + 'InBody・体重の履歴をExcelで保存</button></div>' + Body.weightReportHtml(c);
     } else {
-      html += '<div class="row report-actions"><button class="btn sub" data-staff="xInbodyPdf">📄 フィジカルレポートをPDFで保存</button>' +
-        '<button class="btn sub" data-staff="xReportXlsx">📊 InBody・体重の履歴をExcelで保存</button></div>' + Body.physicalHtml(c) + BodyBase.athleteCard(c);
+      html += '<div class="row report-actions"><button class="btn sub" data-staff="xInbodyPdf">' + Icon('file', 18) + 'フィジカルレポートをPDFで保存</button>' +
+        '<button class="btn sub" data-staff="xReportXlsx">' + Icon('sheet', 18) + 'InBody・体重の履歴をExcelで保存</button></div>' + Body.physicalHtml(c) + BodyBase.athleteCard(c);
     }
     return html + '<p class="muted small">PDFは印刷画面が開くので「PDFとして保存」を選んでください（グラフの下に数値の表も付きます）。</p>';
   },
@@ -262,7 +262,8 @@ var Staff = {
   back: function () {
     var st = history.state || {};
     if (Staff.page === 'roster') { Roster.back(); return; }   // 部員名簿の取り込み（v44）
-    if (Staff.page === 'menuImport') { MenuImport.back(); return; }   // メニュー表の取り込み（v50）
+    if (Staff.page === 'menuImport') { MenuImport.back(); return; }
+    if (Staff.page === 'guide') { Guidebook.back(); return; }   // 使い方（v52）   // メニュー表の取り込み（v50）
     if (Staff.page === 'report') { if (st.staffReport) history.back(); else Staff.leaveReportPage(); return; }   // → popstate で leaveReportPage
     if (st.staffAthlete) history.back();   // → popstate で leaveAthlete
     else Staff.leaveAthlete();
@@ -330,7 +331,8 @@ app.addEventListener('click', function (e) {
     case 'xWeightPdf': Export.reportPdf(Staff.current, 'weight'); break;
     case 'xReportXlsx': Export.reportExcel(Staff.current); break;
     case 'roster': Roster.open(); break;
-    case 'menuImport': MenuImport.open(); break;   // メニュー表の取り込み（v50。menu_import.js）   // 部員名簿から取り込む（v44。roster.js）
+    case 'menuImport': MenuImport.open(); break;
+    case 'guide': Guidebook.showStaff(v); break;   // 使い方（v52。guidebook.js）   // メニュー表の取り込み（v50。menu_import.js）   // 部員名簿から取り込む（v44。roster.js）
     case 'reload': Staff.overview = null; Staff.body = null; Staff.render(); break;
   }
 });
@@ -345,6 +347,7 @@ window.addEventListener('popstate', function () {
   if (S.view !== 'staff') return;
   if (Staff.page === 'roster') Roster.leave();
   else if (Staff.page === 'menuImport') MenuImport.leave();
+  else if (Staff.page === 'guide') Staff.leaveAthlete();
   else if (Staff.page === 'report') Staff.leaveReportPage();
   else if (Staff.page === 'athlete') Staff.leaveAthlete();
 });

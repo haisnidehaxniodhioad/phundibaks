@@ -47,11 +47,11 @@ var VoiceUI = {
     document.body.classList.toggle('has-mic', show);
     if (!show) { this.box.hidden = true; return; }
     if (S.view === 'staff') { StaffVoice.helpCard(); return; }   // v35：スタッフ画面の「話し方の例」（staff_voice.js）
-    if ((S.view === 'session' || S.view === 'home' || S.view === 'body' || S.view === 'history' || S.view === 'mypage') && !document.getElementById('voiceHelp')) {
+    if ((S.view === 'session' || S.view === 'home' || S.view === 'body' || S.view === 'history' || S.view === 'mypage' || S.view === 'guide') && !document.getElementById('voiceHelp')) {
       var help = document.createElement('details');
       help.id = 'voiceHelp';
       help.className = 'card voice-help';
-      help.innerHTML = '<summary>🎤 話し方の例</summary>' + (S.view === 'history' ? '「今週何回やった？」「今月は何回？」「前回のスクワットは？」「ホームに戻って」' : S.view === 'mypage' ? '「3か月にして」「1週間にして」「前の週」「設定」「プロフィールを見せて」「PINを変えたい」「このページの見方を教えて」「ホームに戻って」' : S.view === 'body' ? '「体重にして」「InBodyにして」「体重の履歴」「閉じて」「ホームに戻って」' : S.view === 'session'
+      help.innerHTML = '<summary>' + Icon('mic', 16) + '話し方の例</summary>' + (S.view === 'history' ? '「今週何回やった？」「今月は何回？」「前回のスクワットは？」「ホームに戻って」' : S.view === 'mypage' ? '「3か月にして」「1週間にして」「前の週」「設定」「プロフィールを見せて」「PINを変えたい」「このページの見方を教えて」「ホームに戻って」' : S.view === 'body' ? '「体重にして」「InBodyにして」「体重の履歴」「閉じて」「ホームに戻って」' : S.view === 'session'
         ? '記録：「スクワット60キロ8回」「60キロ8回」（今の種目）「懸垂10回」「同じ」「同じで7回」<br>案内：「次は？」→「それ先にやる」「その次は？」／「前回は？」→「それでできた」<br>' +
           '順番：「RDLから始める」「ベンチを最後にする」（今回だけ。いつもの順番は▲▼で）<br>' +
           'レスト：「あと何秒」「延長」「あと30秒」「スキップ」<br>そのほか：「取り消し」「もう一回言って」「デッドリフト追加」「終わり」'
@@ -154,7 +154,7 @@ var VoiceUI = {
     else if (reply && /どの操作|どの種目|選んでください|始めますか|始める？|ですか[。！!]?$/.test(reply) &&
              window.Avatar && typeof Avatar.feedback === 'function') Avatar.feedback('confirming', 1600);
     this.box.hidden = false;
-    this.box.innerHTML = (heard ? '<div class="heard">🎤 ' + esc(heard) + '</div>' : '') +
+    this.box.innerHTML = (heard ? '<div class="heard">' + Icon('mic', 14) + ' ' + esc(heard) + '</div>' : '') +
       (reply ? '<div class="av-name">' + esc(Avatar.name()) + '</div><div class="reply' + (ng ? ' ng' : '') + '">' + esc(reply) + '</div>' : '');
     var self = this;
     // 文字で入力しているときは、入力欄を出したままにする（v37）
@@ -215,7 +215,7 @@ var Chooser = {
     var box = VoiceUI.box;
     clearTimeout(VoiceUI.hideHandle);
     box.hidden = false;
-    box.innerHTML = '<div class="heard">🎤 ' + esc(this.text) + '</div><div class="reply">' + esc(title) + '</div>' +
+    box.innerHTML = '<div class="heard">' + Icon('mic', 14) + ' ' + esc(this.text) + '</div><div class="reply">' + esc(title) + '</div>' +
       '<div class="choose-list">' + opts.map(function (o) {
         return '<button class="btn sub choose-btn" data-choose="' + o[0] + '" data-value="' + esc(o[1]) + '">' + esc(o[2]) + '</button>';
       }).join('') + (extraHtml || '') +
@@ -351,7 +351,7 @@ function handleVoice(text) {
   var nav = VoiceParser.parseNav(text, S.home.myMenus);
   if (nav && !(S.view === 'finish' && nav.type === 'closePanel')) return doNav(text, nav);
   if (S.view === 'finish') return voiceInFinish(text, VoiceParser.parse(text, { candidates: voiceCandidates() }));
-  if (S.view === 'body' || S.view === 'mymenu' || S.view === 'history' || S.view === 'mypage') {   // レポート・メニュー作成・記録・マイページの画面は、基本操作とちょっとした会話だけ
+  if (S.view === 'body' || S.view === 'mymenu' || S.view === 'history' || S.view === 'mypage' || S.view === 'guide') {   // レポート・メニュー作成・記録・マイページの画面は、基本操作とちょっとした会話だけ
     if (smallTalk(text)) return;
     if (S.view === 'history' && askPrevious(text)) return;
     if (Chat.question(text)) return;   // 「今何時？」「今週あと何回？」など（chat.js）
