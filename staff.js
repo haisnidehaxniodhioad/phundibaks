@@ -317,6 +317,13 @@ app.addEventListener('click', function (e) {
   var t = e.target.closest('[data-staff]');
   if (!t || S.view !== 'staff' || t.tagName === 'SELECT' || t.tagName === 'INPUT') return;
   var v = t.dataset.v;
+  // v53b：別のファイルの画面が読み込めていないときは、何も起きないのではなく理由を出す（GitHub に入れ忘れたときなど）
+  var need = { roster: ['Roster', 'roster.js'], menuImport: ['MenuImport', 'menu_import.js'], guide: ['Guidebook', 'guidebook.js'] }[t.dataset.staff];
+  if (need && typeof window[need[0]] === 'undefined') {
+    var box = t.parentNode.querySelector('.msg') || null;
+    if (!box) t.insertAdjacentHTML('afterend', msgHtml('error', 'この画面のファイル（' + need[1] + '）が読み込めていません。GitHub のリポジトリに「' + need[1] + '」があるか確かめてください。入れたばかりなら、1〜2分待ってから開き直してください。'));
+    return;
+  }
   switch (t.dataset.staff) {
     case 'tab': Staff.tab = v; Staff.render(); break;
     case 'week':
