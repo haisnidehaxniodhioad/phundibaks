@@ -924,3 +924,29 @@ a.btn { text-decoration: none; justify-content: center; align-items: center; }
 .gb-fig img { display: block; width: 100%; height: auto; border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-sm); }
 .gb-fig figcaption { margin-top: 4px; font-size: 0.8rem; color: var(--muted); }
 .gb-table td, .gb-table th { font-size: 0.88rem; }
+
+/* ===== v53：ログインの管理（管理者。staff.js の Admin） ===== */
+.adm-sum { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0 8px; }
+.adm-stat { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; border: 1px solid var(--line-strong, #d6d9e3); border-radius: 12px; }
+.adm-stat .ic { color: var(--color-accent); }
+.adm-stat-n { font-size: 1.6rem; font-weight: 800; line-height: 1.1; }
+.adm-tools { align-items: center; flex-wrap: wrap; gap: 8px; }
+.adm-tools h2 { margin: 0; flex: 1 1 auto; }
+.adm-check { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9rem; font-weight: 600; }
+.adm-check input { width: 20px; height: 20px; }
+.adm-tbl td, .adm-tbl th { text-align: left; }
+.adm-tbl tr.adm-warn td, .adm-acc.adm-warn { background: color-mix(in srgb, var(--danger) 9%, transparent); }
+.adm-list { margin: 8px 0; border-top: 1px solid var(--line-strong, #d6d9e3); }
+.adm-acc { display: grid; grid-template-columns: minmax(0, 1fr) 44px 44px 40px 36px; align-items: center; gap: 4px; padding: 8px 4px; border-bottom: 1px solid var(--line-strong, #d6d9e3); }
+.adm-acc > span { text-align: center; }
+.adm-acc > span:first-child { text-align: left; min-width: 0; }
+.adm-head { font-size: 0.8rem; font-weight: 700; color: var(--color-neutral-700); line-height: 1.2; }
+.adm-sub { display: block; overflow-wrap: anywhere; }
+.adm-detail { padding: 4px 10px 8px; background: var(--color-surface); border-bottom: 1px solid var(--line-strong, #d6d9e3); }
+.adm-devs { list-style: none; margin: 0 0 8px; padding: 0; }
+.adm-devs li { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--line-strong, #d6d9e3); }
+.adm-devs li .ic { flex: none; color: var(--color-accent); }
+.adm-dev-txt { flex: 1; min-width: 0; }
+.adm-devs .chip { margin-left: 6px; padding: 2px 8px; font-size: 0.78rem; }
+.adm-devs li .ic { margin-top: 2px; }
+.adm-dev-btn { margin-top: 6px; }

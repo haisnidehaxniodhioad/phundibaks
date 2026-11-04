@@ -8,7 +8,7 @@
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v52 2026-11-04';
+var APP_VERSION = 'v53 2026-11-04';
 // 記録し忘れた日の分を、何日前まで遡って入力できるか（v26）。Apps Script の 設定.gs の MAX_BACKDATE_DAYS と同じ数字にする
 var MAX_BACKDATE_DAYS = 3;
 var S = { token: null, home: null, draft: null, view: 'loading' };
@@ -60,11 +60,36 @@ function renderLogin(error) {
     '<p class="ver">' + esc(APP_VERSION) + '</p></div>';
 }
 
+/**
+ * この端末の情報（v53）。ログインのときに送り、管理者が「スマホ・タブレット・PCで何台ログインしているか」を見られるようにする
+ *   type：スマホ／タブレット／PC、os・br：OSとブラウザの名前、did：この端末の番号（はじめてのときに作って端末に保存）
+ *   ※ 名前や場所などの個人の情報は送らない
+ */
+function deviceInfo() {
+  var ua = navigator.userAgent || '', touch = (navigator.maxTouchPoints || 0) > 1;
+  var ipad = /iPad/.test(ua) || (/Macintosh/.test(ua) && touch);   // iPadOS は Mac と同じ名前を名乗るので、タッチで見分ける
+  var type = ipad || (/Android/.test(ua) && !/Mobile/.test(ua)) || /Tablet|Kindle|Silk/.test(ua) ? 'タブレット'
+    : /iPhone|iPod|Android|Mobile/.test(ua) ? 'スマホ' : 'PC';
+  var os = ipad ? 'iPadOS' : /iPhone|iPod/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows'
+    : /CrOS/.test(ua) ? 'ChromeOS' : /Mac OS X|Macintosh/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : '';
+  var br = /Line\//.test(ua) ? 'LINE' : /Instagram/.test(ua) ? 'Instagram' : /EdgiOS|Edg\//.test(ua) ? 'Edge' : /SamsungBrowser/.test(ua) ? 'Samsung'
+    : /FxiOS|Firefox/.test(ua) ? 'Firefox' : /CriOS|Chrome/.test(ua) ? 'Chrome' : /Safari/.test(ua) ? 'Safari' : '';
+  if (navigator.standalone || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)) br += (br ? '・' : '') + 'ホーム画面';
+  var did = Store.get('deviceId', '');
+  if (!/^[A-Za-z0-9]{8,40}$/.test(did)) {
+    did = ''; var c = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    var r = new Uint32Array(20); try { crypto.getRandomValues(r); } catch (e) { for (var i = 0; i < 20; i++) r[i] = Math.random() * 1e9; }
+    for (var j = 0; j < 20; j++) did += c[r[j] % c.length];
+    Store.set('deviceId', did);
+  }
+  return { type: type, os: os, br: br, did: did };
+}
+
 function doLogin() {
   var id = document.getElementById('lid').value.normalize('NFKC').replace(/\s/g, '').toUpperCase();   // v49：小文字・全角で入れても大丈夫
   var pin = document.getElementById('lpin').value.trim();
   app.querySelector('[data-act="login"]').disabled = true;
-  Api.call('login', { id: id, pin: pin }).then(function (res) {
+  Api.call('login', { id: id, pin: pin, device: deviceInfo() }).then(function (res) {
     S.token = res.token;
     Store.set('token', res.token);
     if (res.role === 'staff') { Staff.start(res.name); return; }   // スタッフはスタッフ画面へ（staff.js）

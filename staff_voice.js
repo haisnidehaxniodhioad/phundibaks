@@ -142,6 +142,9 @@ var StaffVoice = {
       return done('AIアシスタントの設定を開きました。');
     }
 
+    // ログインの管理（v53。管理者だけ。staff.js の Admin.voice）
+    var adm = window.Admin && !people.length ? Admin.voice(t) : null;
+    if (adm) return done(adm);
     // 使い方の案内（v51）
     if (/使い方|つかいかた|案内|あんない|マニュアル|説明書/.test(t) && /見|み|開|ひら|教え|おしえ|どこ/.test(t) && !/ペジの|画面の/.test(t)) {
       Guidebook.showStaff(/選手/.test(t) ? 'athlete' : 'staff');

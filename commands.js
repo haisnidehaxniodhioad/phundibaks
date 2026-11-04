@@ -37,7 +37,7 @@ var VoiceUI = {
     var draftId = S.draft ? S.draft.id : null;
     if (draftId !== this.draftId) { this.undo = []; this.draftId = draftId; }
     // v37：音声入力が使えないブラウザでもボタンは出す（押すと、文字で入力する欄が出る）
-    var show = (!!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition'].indexOf(S.view) >= 0 ||
+    var show = (!!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition', 'mypage', 'guide'].indexOf(S.view) >= 0 ||   // v53：マイページ・使い方でも「話す」を出す
                 S.view === 'staff' && !!S.token);   // v35：スタッフ画面でも話しかけられる（staff_voice.js）
     this.btn.hidden = !show;
     // アバターの表示と置き場所は dock.js（画面の下のバー）が決める

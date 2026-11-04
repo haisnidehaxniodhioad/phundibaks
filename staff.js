@@ -8,6 +8,7 @@
  *   「← 戻る」（またはブラウザの戻る）で、開く前の画面に戻る
  *   InBody   … 体組成Excel（InBody結果）の取り込み、FFMI・除脂肪体重などのランキング、レポートのPDF（staff_body.js）
  * 実施状況のいちばん下の「部員名簿から選手を取り込む」で、別のページ（roster.js）に移る（v44）
+ * v53：管理者（役職が「管理者」）には「ログインの管理」も出る（このファイルの後半の Admin）
  *   体重     … 体重管理表の取り込み、測定日ごとの体重一覧（未測定・前回比・4週前比）、体重レポートのPDF（staff_body.js）
  */
 var Staff = {
@@ -86,6 +87,9 @@ var Staff = {
     html += '<div class="card"><h2>使い方</h2><p class="muted small">スタッフ画面の使い方と、選手に配る案内です。</p><div class="row">' +
       '<button class="btn sub" data-staff="guide" data-v="staff">' + Icon('book', 18) + 'スタッフ向け</button>' +
       '<button class="btn sub" data-staff="guide" data-v="athlete">' + Icon('book', 18) + '選手向け（配る用）</button></div></div>';   // v52：アプリの中の使い方（guidebook.js）
+    // ログインの管理（v53：管理者だけ。このファイルの後半の Admin）
+    if (o.admin) html += '<div class="card"><h2>ログインの管理（管理者）</h2><p class="muted small">スマホ・タブレット・PCで、それぞれ何台ログインしているかを確かめられます。知らない端末はログアウトさせられます。ログインの失敗の記録も見られます。</p>' +
+      '<button class="btn sub block" data-staff="admin">' + Icon('phone', 18) + 'ログインしている端末を見る</button></div>';
     app.innerHTML = Staff.frame(html);
   },
 
@@ -263,6 +267,7 @@ var Staff = {
     var st = history.state || {};
     if (Staff.page === 'roster') { Roster.back(); return; }   // 部員名簿の取り込み（v44）
     if (Staff.page === 'menuImport') { MenuImport.back(); return; }
+    if (Staff.page === 'admin') { Admin.back(); return; }   // ログインの管理（v53）
     if (Staff.page === 'guide') { Guidebook.back(); return; }   // 使い方（v52）   // メニュー表の取り込み（v50）
     if (Staff.page === 'report') { if (st.staffReport) history.back(); else Staff.leaveReportPage(); return; }   // → popstate で leaveReportPage
     if (st.staffAthlete) history.back();   // → popstate で leaveAthlete
@@ -332,6 +337,7 @@ app.addEventListener('click', function (e) {
     case 'xReportXlsx': Export.reportExcel(Staff.current); break;
     case 'roster': Roster.open(); break;
     case 'menuImport': MenuImport.open(); break;
+    case 'admin': Admin.show('accounts'); break;   // ログインの管理（v53）
     case 'guide': Guidebook.showStaff(v); break;   // 使い方（v52。guidebook.js）   // メニュー表の取り込み（v50。menu_import.js）   // 部員名簿から取り込む（v44。roster.js）
     case 'reload': Staff.overview = null; Staff.body = null; Staff.render(); break;
   }
@@ -348,6 +354,168 @@ window.addEventListener('popstate', function () {
   if (Staff.page === 'roster') Roster.leave();
   else if (Staff.page === 'menuImport') MenuImport.leave();
   else if (Staff.page === 'guide') Staff.leaveAthlete();
+  else if (Staff.page === 'admin') Admin.leave();   // v53
   else if (Staff.page === 'report') Staff.leaveReportPage();
   else if (Staff.page === 'athlete') Staff.leaveAthlete();
+});
+
+/**
+ * ===== v53：管理者だけのページ「ログインの管理」（v53。スタッフ画面の中の1ページ。Staff.page = 'admin'）
+ *
+ *   管理者＝スタッフマスタの「役職」が「管理者」の人。実施状況のいちばん下にカードが出る（声「ログインの管理を開いて」）
+ *   タブ：
+ *     ・アカウント別 … 今ログインしている端末の台数（スマホ・タブレット・PC）。多い人を上に。
+ *                      名前を押すと端末の一覧（OS・ブラウザ・ログインした日時・最後に使った日時）
+ *                      「この端末をログアウト」「全部ログアウト」（2回押すと実行）
+ *     ・ログインの記録 … 成功・失敗・ログアウトの記録（新しい順）。「失敗だけ」で絞り込める
+ *   データは Apps Script の adminSessions・adminLogout・adminLog（管理者.gs）
+ */
+var Admin = {
+  tab: 'accounts',
+  data: null,       // adminSessions の結果
+  log: null,        // adminLog の結果
+  open: {},         // 端末の一覧を開いている人（id → true）
+  armed: '',        // 1回目を押したボタン（もう一度押すと実行）
+  onlyFail: false,
+  onlyWarn: false,
+  msg: '',
+
+  show: function (tab) {
+    if (S.view !== 'staff') return;
+    if (Staff.page !== 'admin') {
+      Staff.returnTo = { tab: Staff.tab, scroll: window.scrollY || 0 };
+      try { history.pushState({ staffAdmin: 1 }, ''); } catch (e) { /* 「戻る」ボタンでも戻れる */ }
+    }
+    Staff.page = 'admin';
+    if (tab) Admin.tab = tab;
+    Admin.msg = ''; Admin.armed = '';
+    Admin.render();
+    window.scrollTo(0, 0);
+    Admin.load();
+  },
+  load: function () {
+    var p = Admin.tab === 'log'
+      ? Api.call('adminLog', { token: S.token, limit: 300 }).then(function (res) { Admin.log = res; })
+      : Api.call('adminSessions', { token: S.token }).then(function (res) { Admin.data = res; });
+    return p.then(function () { if (Staff.page === 'admin') Admin.render(); })
+      .catch(function (err) { Admin.msg = msgHtml('error', err.message); if (Staff.page === 'admin') Admin.render(); });
+  },
+  back: function () { var st = history.state || {}; if (st.staffAdmin) history.back(); else Admin.leave(); },
+  leave: function () { Staff.leaveAthlete(); },
+
+  render: function () {
+    var tab = function (k, label) { return '<button class="tab' + (Admin.tab === k ? ' on' : '') + '" data-adm="tab" data-v="' + k + '">' + label + '</button>'; };
+    var head = '<h1 class="ath-name">ログインの管理</h1>' +
+      '<p class="muted small">今ログインしている端末の台数と、ログインの記録を確かめられます。知らない端末があれば、ログアウトさせてPINを変えてもらってください。</p>' +
+      '<div class="tabs">' + tab('accounts', 'アカウント別') + tab('log', 'ログインの記録') + '</div>';
+    var html = Admin.msg ? '<div class="card">' + Admin.msg + '</div>' : '';
+    html += Admin.tab === 'log' ? Admin.logHtml() : Admin.accountsHtml();
+    app.innerHTML = Staff.athleteFrame(head, html, '管理者');
+  },
+
+  // ---------------- アカウント別 ----------------
+  accountsHtml: function () {
+    var d = Admin.data;
+    if (!d) return '<div class="card"><p class="muted">読み込んでいます…</p></div>';
+    var t = d.total, warnAt = d.warnAt || 3;
+    var sum = t['スマホ'] + t['タブレット'] + t['PC'] + t['不明'];
+    var html = '<div class="card"><h2>いまログイン中</h2><div class="adm-sum">' +
+      Admin.stat('phone', 'スマホ', t['スマホ']) + Admin.stat('tablet', 'タブレット', t['タブレット']) + Admin.stat('monitor', 'PC', t['PC']) +
+      (t['不明'] ? Admin.stat('question', '不明', t['不明']) : '') + '</div>' +
+      '<p class="muted small">' + d.accounts.length + '人・合計' + sum + '台。最近7日のログインの失敗：' +
+      (d.fails7 ? '<b class="ng-text">' + d.fails7 + '回</b>（「ログインの記録」で確かめる）' : '0回') + '</p>' +
+      (t['不明'] ? '<p class="muted small">「不明」は v53 より前にログインした端末です。ログインし直すと種類が分かります。</p>' : '') + '</div>';
+    var list = d.accounts.filter(function (a) { return !Admin.onlyWarn || a.total >= warnAt; });
+    html += '<div class="card"><div class="row adm-tools"><h2>アカウントごとの台数</h2>' +
+      '<label class="adm-check"><input type="checkbox" data-adm="onlyWarn"' + (Admin.onlyWarn ? ' checked' : '') + '>' + warnAt + '台以上だけ</label>' +
+      '<button class="btn sub small" data-adm="reload">' + Icon('refresh', 16) + '読み直す</button></div>';
+    if (!list.length) return html + '<p class="muted">' + (Admin.onlyWarn ? warnAt + '台以上でログインしている人はいません。' : 'ログインしている人はいません。') + '</p></div>';
+    // 表ではなく、1人1行の並び（端末の一覧を開いても横にはみ出さないように）
+    html += '<div class="adm-list"><div class="adm-acc adm-head"><span>名前</span><span>スマホ</span><span>タブ<br>レット</span><span>PC</span><span>計</span></div>' +
+      list.map(function (a) {
+        var warn = a.total >= warnAt, c = a.counts, n = function (v) { return v ? String(v) : '<span class="muted">0</span>'; };
+        return '<div class="adm-acc' + (warn ? ' adm-warn' : '') + '"><span><button class="link" data-adm="toggle" data-v="' + esc(a.id) + '">' + esc(a.name) + '</button>' +
+          '<span class="muted small adm-sub">' + esc([a.role === 'staff' ? 'スタッフ' : '選手', a.sub, a.id, a.active ? '' : '在籍なし'].filter(String).join('・')) + '</span></span>' +
+          '<span>' + n(c['スマホ']) + '</span><span>' + n(c['タブレット']) + '</span><span>' + n(c['PC']) + (c['不明'] ? '<span class="muted small adm-sub">不明' + c['不明'] + '</span>' : '') + '</span>' +
+          '<span><b' + (warn ? ' class="ng-text"' : '') + '>' + a.total + '</b></span></div>' +
+          (Admin.open[a.id] ? '<div class="adm-detail">' + Admin.devicesHtml(a) + '</div>' : '');
+      }).join('') + '</div>' +
+      '<p class="muted small">名前を押すと、端末の一覧が出ます。' + warnAt + '台以上は赤（台数は設定シートの「端末の台数の注意」で変えられます）。同じスマホでも、Safari と「ホーム画面に追加」から開いたアプリは別の1台として数えます。</p></div>';
+    return html;
+  },
+  stat: function (icon, label, v) {
+    return '<div class="adm-stat">' + Icon(icon, 22) + '<span class="adm-stat-n">' + v + '</span><span class="muted small">' + label + '</span></div>';
+  },
+  devicesHtml: function (a) {
+    var arm = function (key, label, cls) {
+      var on = Admin.armed === key;
+      return '<button class="btn small ' + (on ? 'danger' : 'sub') + (cls || '') + '" data-adm="logout" data-v="' + esc(key) + '">' + (on ? 'もう一度押すとログアウト' : label) + '</button>';
+    };
+    var typeIcon = { 'スマホ': 'phone', 'タブレット': 'tablet', 'PC': 'monitor' };
+    return '<ul class="adm-devs">' + a.devices.map(function (d) {
+      return '<li>' + Icon(typeIcon[d.type] || 'question', 20) + '<div class="adm-dev-txt"><b>' + esc(d.type) + '</b>' +
+        (d.os || d.br ? '　' + esc([d.os, d.br].filter(String).join('・')) : '') + (d.mine ? '<span class="chip done">この端末</span>' : '') +
+        '<div class="muted small">ログイン ' + esc(d.at || '不明') + '<br>最後に使った ' + esc(d.last || '不明') + '</div>' +
+        (d.mine ? '' : '<div class="adm-dev-btn">' + arm('h:' + d.handle, 'この端末をログアウト') + '</div>') + '</div></li>';
+    }).join('') + '</ul>' + (a.devices.length > 1 || !a.devices[0].mine ? '<div class="row">' + arm('id:' + a.id, 'この人の端末を全部ログアウト') + '</div>' : '');
+  },
+
+  logout: function (key) {
+    if (Admin.armed !== key) { Admin.armed = key; Admin.render(); return; }   // 1回目：確認のボタンにする
+    Admin.armed = '';
+    var data = { token: S.token };
+    if (key.indexOf('h:') === 0) data.handle = key.slice(2); else data.id = key.slice(3);
+    Api.call('adminLogout', data).then(function (res) {
+      Admin.msg = msgHtml('ok', res.message);
+      return Admin.load();
+    }).catch(function (err) { Admin.msg = msgHtml('error', err.message); Admin.render(); });
+  },
+
+  // ---------------- ログインの記録 ----------------
+  logHtml: function () {
+    var L = Admin.log;
+    if (!L) return '<div class="card"><p class="muted">読み込んでいます…</p></div>';
+    var isFail = function (r) { return /ちがい|無い|ロック/.test(r.result); };
+    var rows = L.rows.filter(function (r) { return !Admin.onlyFail || isFail(r); });
+    var html = '<div class="card"><div class="row adm-tools"><h2>ログインの記録</h2>' +
+      '<label class="adm-check"><input type="checkbox" data-adm="onlyFail"' + (Admin.onlyFail ? ' checked' : '') + '>失敗だけ</label>' +
+      '<button class="btn sub small" data-adm="reload">' + Icon('refresh', 16) + '読み直す</button></div>';
+    if (!rows.length) return html + '<p class="muted">' + (Admin.onlyFail ? 'ログインの失敗はありません。' : 'まだ記録がありません（v53 から記録します）。') + '</p></div>';
+    html += '<div class="table-scroll"><table class="tbl adm-tbl"><tr><th>日時</th><th>だれ</th><th>結果</th><th>端末</th></tr>' +
+      rows.map(function (r) {
+        return '<tr class="' + (isFail(r) ? 'adm-warn' : '') + '"><td class="small">' + esc(r.time.slice(5).replace('-', '/')) + '</td>' +
+          '<td>' + esc(r.name || '（不明）') + '<div class="muted small">' + esc(r.id) + '</div></td>' +
+          '<td' + (isFail(r) ? ' class="ng-text"' : '') + '>' + esc(r.result) + (r.memo ? '<div class="muted small">' + esc(r.memo) + '</div>' : '') + '</td>' +
+          '<td class="small">' + esc(r.type) + '<div class="muted small">' + esc([r.os, r.br].filter(String).join('・')) + '</div></td></tr>';
+      }).join('') + '</table></div>' +
+      '<p class="muted small">新しい順に最大300件。全部はスプレッドシートの「ログインの記録」シートにあります。「IDが無い」＝存在しないIDでのログイン、「PINちがい」＝PINの間違い、「ロック中」＝間違えすぎて止められている間のログイン。同じIDで失敗が続いているときは要注意です。</p></div>';
+    return html;
+  },
+
+  /** 声：「ログインの管理を開いて」「何台でログインしてる？」「ログインの失敗を見せて」。返事の文（関係ない言葉なら null）。staff_voice.js から呼ぶ */
+  voice: function (t) {
+    t = String(t || '');
+    if (!/端末|台数|不正|ログインの(管理|記録|履歴|失敗)|ログイン(して|中)/.test(t)) return null;
+    if (!Staff.overview || !Staff.overview.admin) return 'ログインの管理は、管理者だけが使えます。';
+    var log = /記録|履歴|失敗/.test(t);
+    Admin.onlyFail = /失敗/.test(t);
+    Admin.show(log ? 'log' : 'accounts');
+    return log ? 'ログインの記録を開きました。' + (Admin.onlyFail ? '失敗だけを出しています。' : '') : 'ログインの管理を開きました。アカウントごとの、スマホ・タブレット・PCの台数です。';
+  }
+};
+
+document.addEventListener('click', function (e) {
+  var t = e.target.closest('[data-adm]');
+  if (!t || S.view !== 'staff' || Staff.page !== 'admin') return;
+  var k = t.dataset.adm, v = t.dataset.v;
+  if (k === 'tab') { Admin.tab = v; Admin.armed = ''; Admin.msg = ''; Admin.render(); Admin.load(); }
+  else if (k === 'toggle') { Admin.open[v] = !Admin.open[v]; Admin.armed = ''; Admin.render(); }
+  else if (k === 'logout') Admin.logout(v);
+  else if (k === 'reload') { Admin.msg = ''; Admin.load(); }
+});
+document.addEventListener('change', function (e) {
+  var t = e.target;
+  if (!t.dataset || S.view !== 'staff' || Staff.page !== 'admin') return;
+  if (t.dataset.adm === 'onlyFail') { Admin.onlyFail = t.checked; Admin.render(); }
+  if (t.dataset.adm === 'onlyWarn') { Admin.onlyWarn = t.checked; Admin.render(); }
 });
