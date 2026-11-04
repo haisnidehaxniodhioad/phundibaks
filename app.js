@@ -8,7 +8,7 @@
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v56 2026-11-04';
+var APP_VERSION = 'v57 2026-11-05';
 // 記録し忘れた日の分を、何日前まで遡って入力できるか（v26）。Apps Script の 設定.gs の MAX_BACKDATE_DAYS と同じ数字にする
 var MAX_BACKDATE_DAYS = 3;
 var S = { token: null, home: null, draft: null, view: 'loading' };
@@ -93,7 +93,7 @@ function doLogin() {
     S.token = res.token;
     Store.set('token', res.token);
     if (res.role === 'staff') { Staff.start(res.name); return; }   // スタッフはスタッフ画面へ（staff.js）
-    if (res.home) { S.home = res.home; Store.set('home', res.home); Column.prefetch(); renderHome(); return; }   // ホームのデータも一緒に届く
+    if (res.home) { S.home = res.home; Store.set('home', res.home); renderHome(); return; }   // ホームのデータも一緒に届く
     loadHome();
   }).catch(function (err) { renderLogin(err.message); });
 }
@@ -117,7 +117,6 @@ function loadHome(notice) {
     if (res.role === 'staff') { Staff.start(res.name); return; }
     S.home = res;
     Store.set('home', res);
-    Column.prefetch();   // v56：読み込み中のコラムの画像を先に読んでおく
     if (S.view === 'home' || S.view === 'loading' || S.view === 'login') renderHome(notice);   // トレーニングを始めていたら描き直さない
     showSyncing(false);
   }).catch(function (err) {

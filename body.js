@@ -27,7 +27,7 @@ var Body = {
   showMine: function (after) {   // after: 表示し終わったあとにすること（音声で開いたときの読み上げなど）
     S.view = 'body';
     app.innerHTML = '<div class="loading">読み込み中…</div>';
-    Column.hold('body', Api.call('myBody', { token: S.token })).then(function (res) {   // v56：読み込み中はコラム
+    Api.call('myBody', { token: S.token }).then(function (res) {
       if (S.view !== 'body') return;   // 読み込み中にほかの画面へ移ったときは描かない
       if (res.chart) Body.chart = res.chart;
       if (res.weekStart) Body.weekStart = res.weekStart;   // 体重の週平均の区切り（v46）

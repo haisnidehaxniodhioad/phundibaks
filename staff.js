@@ -89,7 +89,7 @@ var Staff = {
       '<button class="btn sub" data-staff="guide" data-v="athlete">' + Icon('book', 18) + '選手向け（配る用）</button></div></div>';   // v52：アプリの中の使い方（guidebook.js）
     // ログインの管理（v53：管理者だけ。このファイルの後半の Admin）
     // コラムの管理（v56：管理者・トレーナーだけ。menu_import.js の後半 ColumnEditor）
-    if (o.columnEditor) html += '<div class="card"><h2>コラムの管理</h2><p class="muted small">用語の説明などのコラムを追加します。からだ・記録のページの読み込み中に出すコラム（各3つまで）と、マイページから読むコラムのページの分があります。</p>' +
+    if (o.columnEditor) html += '<div class="card"><h2>コラムの管理</h2><p class="muted small">用語の説明などのコラムを追加・修正します。選手はマイページの「コラム」から読みます。</p>' +
       '<button class="btn sub block" data-staff="columns">' + Icon('book', 18) + 'コラムを追加・管理する</button></div>';
     if (o.admin) html += '<div class="card"><h2>ログインの管理（管理者）</h2><p class="muted small">スマホ・タブレット・PCで、それぞれ何台ログインしているかを確かめられます。知らない端末はログアウトさせられます。ログインの失敗の記録も見られます。</p>' +
       '<button class="btn sub block" data-staff="admin">' + Icon('phone', 18) + 'ログインしている端末を見る</button></div>';

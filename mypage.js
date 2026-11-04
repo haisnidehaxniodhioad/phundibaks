@@ -19,7 +19,7 @@ var MyPage = {
     var need = [Api.call('myPage', { token: S.token }).then(function (res) { MyPage.data = res; })];
     if (!QA.fresh('stats')) need.push(QA.load('stats'));
     if (!QA.fresh('body')) need.push(QA.load('body'));
-    return Column.hold('mypage', Promise.all(need)).then(function () {   // v56：読み込み中はコラム（からだ＋記録）
+    return Promise.all(need).then(function () {
       if (S.view !== 'mypage') return;
       CondChart.set(MyPage.data.conditions || [], MyPage.data.weekStart);
       MyPage.render();

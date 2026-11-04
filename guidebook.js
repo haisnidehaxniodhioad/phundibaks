@@ -64,7 +64,7 @@ var Guidebook = {
         { img: 'a-body.jpg', alt: 'からだ（フィジカルレポート）' },
         '**マイページ**：プロフィール、トレーニングの回数と自己ベスト、フィジカルのまとめ、コンディションのグラフ。いちばん下の「設定」で、コーチの声・話す速さ・画面の色を変えたり、PINを変えたりできるよ。',
         { img: 'a-mypage.jpg', alt: 'マイページ' },
-        '**コラム**：マイページの「コラム（用語の説明など）を読む」から、トレーニングや体の用語の説明が読めるよ。声で「コラムを見せて」でもOK。記録・からだ・マイページを開いたときの読み込み中にも、横にスワイプして読めるコラムが出るよ（「スキップ」ですぐ進めるよ）。'
+        '**コラム**：マイページの「コラム（用語の説明など）を読む」から、トレーニングや体の用語の説明が読めるよ。声で「コラムを見せて」でもOK。'
       ] },
       { id: 'help', h: '困ったとき', body: [
         { table: [['こんなとき', 'こうしよう'], ['PINを忘れた', 'スタッフに聞いてね'], ['「PINを続けて間違えた」と出た', '15分ほど待ってから、もう一度'],
@@ -129,14 +129,12 @@ var Guidebook = {
         { list: ['新しい人にはIDとPINを発行します。PINは各マスタの「PIN」の列で確かめて、本人に渡してください', '「名簿にいない」は最初はチェックなし。卒業・退部した人だけチェックすると在籍を外します（記録は残ります）',
                  '学年は入学年度から自動で出すので、4月に自動で上がります。ホームページが新年度になってから取り込んでください', '反映すると、選手マスタは「在籍 → 学年（4年→1年）→ ふりがな」の順に並びます'] }
       ] },
-      { id: 'column', h: 'コラムの管理（管理者・トレーナー）', body: [   // v56
-        '用語の説明などのコラムを、選手の画面に出せます。実施状況のいちばん下「コラムの管理」から追加します（役職が「管理者」「トレーナー」の人だけ）。',
-        { table: [['種類', '出る場所', '作り方'], ['からだのページの読み込み中（3つまで）', '「からだ」とマイページを開いたときの読み込み中', 'PDF'],
-                  ['記録のページの読み込み中（3つまで）', '「記録」とマイページを開いたときの読み込み中', 'PDF'], ['コラムのページ', 'マイページ →「コラム」で題名から選ぶ', 'PDF か 手入力']] },
+      { id: 'column', h: 'コラムの管理（管理者・トレーナー）', body: [   // v56・v57
+        '用語の説明などのコラムを、選手のマイページの「コラム」に載せられます。実施状況のいちばん下「コラムの管理」から追加します（役職が「管理者」「トレーナー」の人だけ）。',
         { list: ['PDFは、「ページを画像でつなげる」（見た目のまま）か「文字と図」（文字をスマホ向けに組み直し、図は画像）を選びます。読み取った文字は追加する前に直せます',
                  '手入力は「# 」で見出し、「- 」で箇条書き、1行あけると段落です',
-                 '題名を押すと選手の画面での見え方、「直す」で文字の直し、矢印で順番、「消す」を2回押すと削除です',
-                 '読み込み中のコラムは、アプリを開いてから各ページで1回だけ、最低4秒出ます（カードを触ると、読み終わるまで待ちます）'] }
+                 '「直す」で文字の直し。「PDFを読み込み直す」で、新しいPDFに入れ替えることもできます（題名はそのまま）',
+                 '題名を押すと選手の画面での見え方、矢印で順番、「消す」を2回押すと削除です'] }
       ] },
       { id: 'admin', h: 'ログインの管理（管理者だけ）', body: [   // v53
         'スタッフマスタの「役職」が「管理者」の人だけ、実施状況のいちばん下に「ログインの管理」が出ます。不正なログインがないかを確かめるためのページです。',
@@ -232,19 +230,12 @@ app.addEventListener('click', function (e) {
  * ============================================================================
  *   ・コラムのページ（S.view = 'column'）：マイページの「コラム」ボタン、声「コラムを見せて」
  *       題名の一覧 → 押すと本文（Webページのように、途切れず縦にスクロール）
- *   ・読み込み中のコラム：記録（record）・からだ（body）・マイページ（からだ＋記録）を開くとき、
- *       データを読んでいる間に、横にスワイプするカードで出す（Column.hold）。カードの中は縦にスクロールして全部読める
- *       最低 MIN_MS は見せてからページを出す。カードに触ったら自動では進まず「ページを開く」ボタンを出す
- *       同じ種類は、アプリを開いてから1回だけ（何度も待たされないように）
- *   ・データ：読み込み中のコラムはホームのデータ（S.home.columns）に入っている。コラムのページの分は API columns
- *       画像は API columnImage（Google ドライブのコラム画像フォルダ）。一度読んだ画像はこの端末のメモリに置く
+ *   ・v57：読み込み中にコラムを出すのはやめた（読み込みが速く、読む時間が無いため。keke さんの判断）
+ *   ・データ：API columns（題名の一覧・本文）、画像は API columnImage（Google ドライブのコラム画像フォルダ）。一度読んだ画像はこの端末のメモリに置く
  *   ・追加・変更はスタッフ画面の「コラムの管理」（menu_import.js の後半 ColumnEditor）
  * ============================================================================
  */
 var Column = {
-  MIN_MS: 4000,
-  KIND_NAME: { body: 'からだ', record: '記録', page: 'コラム' },
-  shown: {},        // その種類の読み込み中のコラムを、もう出したか
   imgs: {},         // 画像ID → Promise<dataURL>
   list: null,       // コラムのページの一覧
   current: null,    // 開いているコラム
@@ -278,66 +269,6 @@ var Column = {
       Column.imgs[id].catch(function () { delete Column.imgs[id]; });   // 失敗したら次に読み直す
     }
     return Column.imgs[id];
-  },
-  /** ホームを読んだあと、読み込み中のコラムの画像を先に読んでおく */
-  prefetch: function () {
-    var c = (S.home && S.home.columns) || {};
-    (c.body || []).concat(c.record || []).forEach(function (col) {
-      (col.blocks || []).forEach(function (b) { if (b.t === 'img') Column.image(b.id).catch(function () {}); });
-    });
-  },
-
-  // ---------------- 読み込み中のコラム ----------------
-  /** kind: 'body' | 'record' | 'mypage'。promise が終わり、かつ最低時間が過ぎたら resolve する */
-  hold: function (kind, promise) {
-    var c = (S.home && S.home.columns) || {};
-    var cols = kind === 'mypage' ? (c.body || []).concat(c.record || []) : (c[kind] || []);
-    if (!cols.length || Column.shown[kind]) return promise;
-    Column.shown[kind] = true;
-    var view = S.view, state = { done: false, timeUp: false, touched: false, skip: false, value: null, error: null };
-    app.innerHTML = Column.loadingHtml(cols);
-    Column.fillImages(app);
-    Column.bindCarousel(app.querySelector('.colw'));
-    return new Promise(function (resolve, reject) {
-      var finish = function () {
-        if (S.view !== view) return;   // ほかの画面に移った
-        if (!state.done) return;
-        if (state.error) { reject(state.error); return; }
-        if (state.skip || (state.timeUp && !state.touched)) { Column.hold.current = null; resolve(state.value); }
-        else if (state.touched) Column.loadingReady();   // カードを読んでいるときは、自分で「ページを開く」を押してもらう
-      };
-      Column.hold.current = { state: state, finish: finish };
-      setTimeout(function () { state.timeUp = true; finish(); }, Column.MIN_MS);
-      promise.then(function (v) { state.done = true; state.value = v; finish(); }, function (err) { state.done = true; state.error = err; finish(); });
-    });
-  },
-  loadingHtml: function (cols) {
-    return '<div class="colw-wrap"><div class="colw-top"><span class="loading-dot"></span><span id="colwStatus">読み込み中…</span>' +
-      '<button class="btn ghost small" data-col="skip" id="colwSkip">スキップ</button></div>' +
-      '<p class="colw-kicker">' + Icon('book', 16) + 'コラム</p>' +
-      '<div class="colw" tabindex="0">' + cols.map(function (c) {
-        return '<article class="colw-card"><h2>' + esc(c.title) + '</h2>' + Column.bodyHtml(c.blocks) + '</article>';
-      }).join('') + '</div>' +
-      (cols.length > 1 ? '<div class="colw-dots">' + cols.map(function (c, i) { return '<span' + (i ? '' : ' class="on"') + '></span>'; }).join('') + '</div>' : '') +
-      '<p class="muted small colw-hint">' + (cols.length > 1 ? '横にスワイプすると次のコラムが見られるよ。' : '') + 'カードの中は上下にスクロールできるよ。</p></div>';
-  },
-  /** 読み終わったけど、選手がカードを読んでいるとき */
-  loadingReady: function () {
-    var st = document.getElementById('colwStatus'), sk = document.getElementById('colwSkip');
-    if (st) st.textContent = '読み込みが終わったよ';
-    if (sk) { sk.textContent = 'ページを開く'; sk.className = 'btn small'; }
-    var dot = app.querySelector('.loading-dot'); if (dot) dot.remove();
-  },
-  bindCarousel: function (el) {
-    if (!el) return;
-    var dots = app.querySelectorAll('.colw-dots span');
-    var touch = function () { var h = Column.hold.current; if (h && !h.state.touched) { h.state.touched = true; h.finish(); } };
-    el.addEventListener('scroll', function () {
-      var i = Math.round(el.scrollLeft / Math.max(1, el.clientWidth * 0.88));
-      Array.prototype.forEach.call(dots, function (d, k) { d.classList.toggle('on', k === i); });
-    }, { passive: true });
-    ['touchstart', 'pointerdown', 'wheel'].forEach(function (ev) { el.addEventListener(ev, touch, { passive: true }); });
-    Array.prototype.forEach.call(el.querySelectorAll('.colw-card'), function (c) { c.addEventListener('scroll', touch, { passive: true }); });
   },
 
   // ---------------- コラムのページ ----------------
@@ -390,7 +321,6 @@ app.addEventListener('click', function (e) {
   var t = e.target.closest('[data-col]');
   if (!t) return;
   var k = t.dataset.col;
-  if (k === 'skip') { var h = Column.hold.current; if (h) { h.state.skip = true; h.finish(); if (!h.state.done) t.textContent = '読み込み中…'; } }
   if (k === 'open') Column.open(t.dataset.v);
   if (k === 'list') { if (Column.list) Column.renderList(); else Column.show(); }
 });

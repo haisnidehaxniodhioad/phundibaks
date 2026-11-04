@@ -462,7 +462,8 @@ app.addEventListener('click', function (e) {
  * ここから v56：コラムの管理（スタッフ画面の中の1ページ。Staff.page = 'columns'）
  * ============================================================================
  *   開き方：実施状況のいちばん下「コラムの管理」（役職が 管理者・トレーナー の人だけ出る）。声「コラムを管理して」
- *   種類：からだのページの読み込み中（最大3つ・PDFだけ）／記録のページの読み込み中（最大3つ・PDFだけ）／コラムのページ（PDF か 手入力）
+ *   種類：コラムのページ（PDF か 手入力）。v57 で読み込み中のコラム（からだ・記録）はやめた
+ *   直すとき：文字を直す・「PDFを読み込み直す」で別のPDFに入れ替える（v57。題名とIDはそのまま。使わなくなった画像はサーバーがごみ箱へ）
  *   PDFの表示のしかた（追加するときに選ぶ）：
  *     ・画像でつなげる …… ページを画像にして、上下の白い余白を切り、すき間なく縦につなげる（図もそのまま）
  *     ・文字と図 ………… 文字を読み取って見出し・段落・箇条書きに組み直し、図や写真だけ画像で入れる（スマホで読みやすい）
@@ -471,10 +472,9 @@ app.addEventListener('click', function (e) {
  * ============================================================================
  */
 var ColumnEditor = {
+  // v57：読み込み中に出すコラム（からだ・記録）はやめた。コラムのページだけ
   KINDS: [
-    { k: 'body', label: 'からだのページの読み込み中', note: '「からだ」を開いたとき（とマイページを開いたとき）に、読み込み中に出ます。PDFから作ります。' },
-    { k: 'record', label: '記録のページの読み込み中', note: '「記録」を開いたとき（とマイページを開いたとき）に、読み込み中に出ます。PDFから作ります。' },
-    { k: 'page', label: 'コラムのページ', note: 'マイページの「コラム」から、題名を選んで読みます。PDFか手入力で作ります。' }
+    { k: 'page', label: 'コラムのページ', note: '選手のマイページの「コラム」から、題名を選んで読みます。PDFか手入力で作ります。' }
   ],
   data: null,      // columns の結果
   openId: '',      // 中身を見ているコラム
@@ -513,7 +513,7 @@ var ColumnEditor = {
     if (!d) { app.innerHTML = ColumnEditor.frame(html + '<div class="card"><div class="loading">読み込み中…</div></div>'); return; }
     if (!d.editor) html += '<div class="card">' + msgHtml('warn', 'コラムの追加・変更は、役職が「管理者」か「トレーナー」の人だけができます。') + '</div>';
     ColumnEditor.KINDS.forEach(function (K) {
-      var list = d.columns.filter(function (c) { return c.kind === K.k; }), lim = d.limits[K.k];
+      var list = d.columns.filter(function (c) { return c.kind === K.k; }), lim = d.limits[K.k] || 100;
       html += '<div class="card"><h2>' + esc(K.label) + (K.k !== 'page' ? '<span class="muted small">（' + list.length + ' / ' + lim + '）</span>' : '') + '</h2><p class="muted small">' + esc(K.note) + '</p>';
       html += list.length ? '<div class="ce-list">' + list.map(function (c, i) {
         var open = ColumnEditor.openId === c.id;
@@ -548,6 +548,20 @@ var ColumnEditor = {
     ColumnEditor.ed = ed; ColumnEditor.msg = ''; ColumnEditor.render(); window.scrollTo(0, 0);
   },
 
+  /** v57：直しているコラムを、別のPDFで読み込み直す（題名・IDはそのまま） */
+  reloadPdf: function () {
+    var e = ColumnEditor.ed; if (!e) return;
+    var tt = document.getElementById('ceTitle'); if (tt) e.title = tt.value;
+    var ta = document.getElementById('ceText'); if (ta) e.text = ta.value;
+    e.prev = { blocks: e.blocks, format: e.format, source: e.source, text: e.text };
+    e.mode = e.format === '画像' ? '画像' : '文字と図';
+    e.step = 'pick'; ColumnEditor.msg = ''; ColumnEditor.render(); window.scrollTo(0, 0);
+  },
+  undoReload: function () {
+    var e = ColumnEditor.ed; if (!e || !e.prev) return;
+    e.blocks = e.prev.blocks; e.format = e.prev.format; e.source = e.prev.source; e.text = e.prev.text; e.prev = null;
+    e.step = 'edit'; ColumnEditor.busy = ''; ColumnEditor.render();
+  },
   /** 手入力の決まり：「# 」で始まる行は見出し、「- 」「・」で始まる行は箇条書き、空いた行で段落を分ける */
   fromText: function (text) {
     var blocks = [], para = [];
@@ -571,7 +585,8 @@ var ColumnEditor = {
   renderEditor: function () {
     var e = ColumnEditor.ed, K = ColumnEditor.KINDS.filter(function (x) { return x.k === e.kind; })[0];
     var html = ColumnEditor.msg ? '<div class="card">' + ColumnEditor.msg + '</div>' : '';
-    html += '<div class="card"><h2>' + (e.id ? 'コラムを直す' : 'コラムを追加') + '<span class="muted small">（' + esc(K.label) + '）</span></h2>';
+    html += '<div class="card"><h2>' + (e.id ? 'コラムを直す' : 'コラムを追加') + '<span class="muted small">（' + esc(K.label) + '）</span></h2>' +
+      (e.id && e.step === 'pick' ? '<p class="small">「' + esc(e.title) + '」の中身を、新しいPDFで入れ替えます。</p>' : '');
     if (e.step === 'pick') {
       html += '<p class="small"><b>1. 表示のしかたを選ぶ</b></p><div class="ce-mode">' +
         ['文字と図', '画像'].map(function (m) {
@@ -582,10 +597,12 @@ var ColumnEditor = {
         }).join('') + '</div>' +
         '<p class="small"><b>2. PDFを選ぶ</b>（この端末の中で読み取ります。20ページまで）</p><input type="file" accept="application/pdf,.pdf" id="ceFile" class="mi-file">' +
         (ColumnEditor.busy ? '<div class="loading">' + esc(ColumnEditor.busy) + '</div>' : '') +
-        '<div class="row"><button class="btn ghost" data-ce="cancel">やめる</button></div></div>';
+        '<div class="row">' + (e.prev ? '<button class="btn ghost" data-ce="unpdf">読み込み直すのをやめる</button>' : '<button class="btn ghost" data-ce="cancel">やめる</button>') + '</div></div>';
       app.innerHTML = ColumnEditor.frame(html); return;
     }
     html += '<label class="small">題名 <input class="sel ce-titlein" id="ceTitle" maxlength="60" value="' + esc(e.title) + '" placeholder="例：FFMIとは"></label>';
+    if (e.id) html += '<div class="ce-reload"><button class="btn sub small" data-ce="repdf">' + Icon('file', 16) + 'PDFを読み込み直す</button>' +
+      '<span class="muted small">' + (e.source === 'text' ? '手入力の中身を、PDFの中身に入れ替えます。' : '今の中身を、新しいPDFの中身に入れ替えます。') + '題名はそのままです。</span></div>';   // v57
     if (e.source === 'text') {
       html += '<p class="muted small">書き方：「# 」で始まる行は<b>見出し</b>、「- 」で始まる行は<b>箇条書き</b>、1行あけると<b>段落</b>が分かれます。</p>' +
         '<textarea class="ce-text" id="ceText" rows="14" placeholder="# FFMIとは&#10;&#10;FFMI（除脂肪量指数）は、…&#10;&#10;- 18〜20：平均的&#10;- 22以上：とても高い">' + esc(e.text || '') + '</textarea>' +
@@ -630,7 +647,7 @@ var ColumnEditor = {
       .then(function (doc) { return e.mode === '画像' ? ColumnEditor.pagesAsImages(doc) : ColumnEditor.textAndFigures(doc); })
       .then(function (blocks) {
         if (!blocks.length) throw new Error('このPDFから中身を読み取れませんでした。');
-        e.blocks = blocks; e.format = e.mode; e.step = 'edit';
+        e.blocks = blocks; e.format = e.mode; e.step = 'edit'; e.source = 'pdf'; e.prev = null;
         e.title = e.title || String(file.name || '').replace(/\.pdf$/i, '').slice(0, 60);
         ColumnEditor.busy = ''; ColumnEditor.render();
       })
@@ -704,11 +721,12 @@ var ColumnEditor = {
             out.push({ t: 'img', local: im.url, w: im.w, h: im.h, gap: true });
           });
           figs = figs.filter(function (f) { var a = f.w * f.h; return f.w > 60 && f.h > 40 && a < pageArea * 0.85; });   // 小さすぎる・背景の画像は入れない
-          var draw = figs.length ? ColumnEditor.renderPage(page, 1000) : Promise.resolve(null);
+          var draw = figs.length ? ColumnEditor.renderPage(page, 2000) : Promise.resolve(null);   // 図はくっきり見えるように2倍の大きさで描いて切り出す
           return draw.then(function (r) {
             var els = [];
             figs.forEach(function (f) {
-              var im = ColumnEditor.crop(r.canvas, Math.max(0, f.x), Math.max(0, f.y), Math.min(f.w, r.canvas.width - Math.max(0, f.x)), Math.min(f.h, r.canvas.height - Math.max(0, f.y)), 900);
+              var k = 2, fx = Math.max(0, f.x * k), fy = Math.max(0, f.y * k);
+              var im = ColumnEditor.crop(r.canvas, fx, fy, Math.min(f.w * k, r.canvas.width - fx), Math.min(f.h * k, r.canvas.height - fy), 1000);
               els.push({ kind: 'img', y: f.y, block: { t: 'img', local: im.url, w: im.w, h: im.h, gap: true } });
             });
             var inFig = function (it) { return figs.some(function (f) { var cx = it.x + it.w / 2, cy = it.y + it.size / 2; return cx > f.x && cx < f.x + f.w && cy > f.y && cy < f.y + f.h; }); };
@@ -794,7 +812,8 @@ var ColumnEditor = {
   /** PDFのフォントによっては「⼿」「⻑」のような部首の文字になるので、ふつうの漢字に直す */
   RADICALS: { '⻑': '長', '⻄': '西', '⻘': '青', '⻝': '食', '⻣': '骨', '⻤': '鬼', '⻭': '歯', '⻯': '竜', '⻩': '黄', '⻲': '亀', '⻨': '麦', '⻁': '虎', '⺟': '母', '⺠': '民', '⻆': '角', '⻑': '長', '⻖': '阝', '⺍': '⺍' },
   fixChars: function (s) {
-    return String(s).replace(/[\u2e80-\u2fdf]/g, function (ch) { return ColumnEditor.RADICALS[ch] || ch.normalize('NFKC'); });
+    return String(s).replace(/[\u2e80-\u2fdf]/g, function (ch) { return ColumnEditor.RADICALS[ch] || ch.normalize('NFKC'); })
+      .replace(/[\u2027\u00b7\uff65]/g, '・');   // 「・」が「‧」などで読み取られるPDFがあるので直す
   },
   /** ページの境目で切れた段落をつなぐ */
   mergeAcrossPages: function (blocks) {
@@ -857,6 +876,8 @@ app.addEventListener('click', function (e) {
   else if (k === 'del') ColumnEditor.del(v);
   else if (k === 'up' || k === 'down') ColumnEditor.move(v, k === 'up' ? -1 : 1);
   else if (k === 'cancel') { ColumnEditor.ed = null; ColumnEditor.busy = ''; ColumnEditor.render(); }
+  else if (k === 'repdf') ColumnEditor.reloadPdf();   // v57
+  else if (k === 'unpdf') ColumnEditor.undoReload();
   else if (k === 'save') ColumnEditor.save();
   else if (k === 'bdel' && ed) { var tt = document.getElementById('ceTitle'); if (tt) ed.title = tt.value; ed.blocks.splice(Number(v), 1); ColumnEditor.render(); }
 });

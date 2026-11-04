@@ -996,25 +996,6 @@ a.btn { text-decoration: none; justify-content: center; align-items: center; }
 .col-list .ic { color: var(--color-accent); flex: none; }
 .mp-column { margin-top: 10px; }
 
-/* 読み込み中のコラム（横にスワイプするカード） */
-.colw-wrap { padding: 4px 0 10px; }
-.colw-top { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--muted); margin: 4px 2px 8px; }
-.colw-top #colwSkip { margin-left: auto; }
-.loading-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--color-accent); animation: colwPulse 1s ease-in-out infinite; }
-@keyframes colwPulse { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
-.colw-kicker { margin: 0 2px 6px; font-size: .8rem; font-weight: 700; letter-spacing: .08em; color: var(--color-accent); display: flex; align-items: center; gap: 4px; }
-.colw { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; padding: 2px 6% 8px 2px; scrollbar-width: none; }
-.colw::-webkit-scrollbar { display: none; }
-.colw-card { flex: 0 0 88%; scroll-snap-align: start; height: min(calc(100vh - 330px), 520px); min-height: 240px; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
-  background: var(--color-paper, #fff); border: 1px solid var(--line-strong); border-radius: 22px; padding: 18px 18px 22px; box-shadow: 0 6px 18px rgba(30, 20, 60, .10); }
-.colw-card h2 { font-size: 1.2rem; margin: 0 0 10px; line-height: 1.35; }
-.colw-card .col-body { font-size: .96rem; }
-.colw-card .col-img:not(.gap) { margin: 0 -18px; width: calc(100% + 36px); }
-.colw-dots { display: flex; justify-content: center; gap: 7px; margin: 4px 0 2px; }
-.colw-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--line-strong, #ccc); transition: background .2s, transform .2s; }
-.colw-dots span.on { background: var(--color-accent); transform: scale(1.25); }
-.colw-hint { text-align: center; margin: 6px 0 0; }
-
 /* コラムの管理 */
 .ce-list { border-top: 1.5px solid var(--rule); margin: 8px 0 10px; }
 .ce-item { border-bottom: 1px solid var(--line); }
@@ -1041,5 +1022,3 @@ a.btn { text-decoration: none; justify-content: center; align-items: center; }
 .ce-block.img .col-img { max-height: 220px; overflow: hidden; }
 .ce-btext { width: 100%; font: inherit; font-size: .92rem; line-height: 1.5; padding: 6px 8px; border: 1px solid var(--line-strong, #ccc); border-radius: 8px; background: var(--bg, #fff); color: inherit; }
 
-.colw-card:only-child { flex-basis: 100%; }
-.colw:has(.colw-card:only-child) { padding-right: 2px; }

@@ -18,7 +18,7 @@ var History = {
   show: function (month, after) {
     S.view = 'history';
     app.innerHTML = '<div class="loading">読み込み中…</div>';
-    Column.hold('record', History.load(month)).then(function () {   // v56：読み込み中はコラム
+    History.load(month).then(function () {
       if (S.view !== 'history') return;   // 読み込み中にほかの画面へ移ったときは描かない
       History.render();
       if (after) after();
