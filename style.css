@@ -955,3 +955,21 @@ a.btn { text-decoration: none; justify-content: center; align-items: center; }
 .mi-part-table td { vertical-align: middle; }
 .mi-part-table select { min-width: 6.5em; }
 .mi-auto { display: block; }
+
+/* ===== v55：取り込んだメニューの中身（menu_import.js） ===== */
+.mi-list { border-top: 1.5px solid var(--rule); margin: 10px 0 12px; }
+.mi-item { border-bottom: 1px solid var(--line); }
+.mi-item-head { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 4px; border: none; background: transparent; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.mi-item-name { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.mi-item-name .ic { color: var(--color-accent); }
+.mi-item-name .muted { flex-basis: 100%; padding-left: 24px; font-weight: 400; }
+.mi-item-head .r { flex: none; text-align: right; }
+.mi-item.open { background: var(--color-surface); }
+.mi-detail { padding: 0 8px 12px; }
+.mi-dh { margin: 14px 0 4px; font-size: 1rem; }
+.mi-view { width: 100%; }
+.mi-view td, .mi-view th { font-size: 0.9rem; vertical-align: top; }
+.mi-view td:nth-child(2), .mi-view td:nth-child(3), .mi-view th:nth-child(2), .mi-view th:nth-child(3) { white-space: nowrap; text-align: center; }
+.mi-sub { display: block; margin-top: 2px; }
+.mi-view td:first-child, .mi-view th:first-child { white-space: normal; overflow-wrap: anywhere; }
+.mi-view td:nth-child(2), .mi-view td:nth-child(3) { width: 1%; }

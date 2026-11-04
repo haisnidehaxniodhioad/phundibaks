@@ -30,6 +30,7 @@ var MenuImport = {
     MenuImport.loadInfo();
   },
   loadInfo: function () {
+    MenuImport.details = {};   // v55：取り込みのあとは中身も読み直す
     return Api.call('menuInfo', { token: S.token }).then(function (res) { MenuImport.info = res; if (Staff.page === 'menuImport') MenuImport.render(); })
       .catch(function (err) { MenuImport.msg = msgHtml('error', err.message); MenuImport.render(); });
   },
@@ -47,7 +48,7 @@ var MenuImport = {
     html += '<div class="card"><h2>1. PDFを選ぶ</h2><p class="muted small">チームごとに1つずつ選びます。PDFはこの端末の中で読み取ります。</p>' +
       '<input type="file" accept="application/pdf,.pdf" id="miFile" class="mi-file"></div>';
     if (MenuImport.parsed) html += MenuImport.previewHtml();
-    html += MenuImport.listHtml();
+    html += '<div id="miList">' + MenuImport.listHtml() + '</div>';   // v55：一覧だけ描き直せるように
     app.innerHTML = MenuImport.frame(html);
     if (MenuImport.parsed) MenuImport.sync();
   },
@@ -359,6 +360,49 @@ var MenuImport = {
   },
 
   /** 今あるメニューと、切り替えの予定 */
+  // ---------------- v55：取り込んだメニューの中身を見る ----------------
+  openId: '',       // 中身を開いているメニューID
+  details: {},      // メニューID → menuDetail の結果（読み込み中は 'loading'、失敗はエラー文）
+  toggleDetail: function (id) {
+    MenuImport.openId = MenuImport.openId === id ? '' : id;
+    if (MenuImport.openId && !MenuImport.details[id]) {
+      MenuImport.details[id] = 'loading';
+      Api.call('menuDetail', { token: S.token, menuId: id }).then(function (res) { MenuImport.details[id] = res; })
+        .catch(function (err) { MenuImport.details[id] = { error: err.message }; })
+        .then(function () { if (Staff.page === 'menuImport') MenuImport.refreshList(); });
+    }
+    MenuImport.refreshList();
+  },
+  /** 一覧のところだけ描き直す（上のPDFの確かめる表は、そのまま残す） */
+  refreshList: function () {
+    var box = document.getElementById('miList');
+    if (box) box.innerHTML = MenuImport.listHtml(); else MenuImport.render();
+  },
+  detailHtml: function (id) {
+    var d = MenuImport.details[id];
+    if (!d || d === 'loading') return '<div class="loading">読み込み中…</div>';
+    if (d.error) return msgHtml('error', d.error);
+    var WD = { '月': 1, '火': 2, '水': 3, '木': 4, '金': 5, '土': 6, '日': 7 };
+    var html = '<p class="small">' + esc([d.team ? d.team + 'チーム向け' : '', d.memo, d.users ? '使用中 ' + d.users + '人' : '使っている人なし'].filter(String).join('・')) + '</p>';
+    var order = d.days.filter(function (x) { return x.weekday; }).sort(function (a, b) { return (WD[a.weekday] || 9) - (WD[b.weekday] || 9); });
+    if (order.length) html += '<p class="small">推奨曜日：' + order.map(function (x) { return esc(x.weekday) + '＝Day' + x.day; }).join('、') + '</p>';
+    var noPart = 0;
+    d.days.forEach(function (day) {
+      html += '<h3 class="mi-dh">Day' + day.day + (day.name ? '　' + esc(day.name) : '') + (day.weekday ? '<span class="muted small">（' + esc(day.weekday) + '）</span>' : '') + '</h3>' +
+        // スマホでも横にはみ出さないように、種目ごとに2行（上：種目名・回数×セット・部位、下：カテゴリ・テンポ・レスト・RIR）
+        '<table class="tbl mi-view"><tr><th>種目</th><th>回数×セット</th><th>部位</th></tr>' +
+        day.items.map(function (it) {
+          if (!it.part) noPart++;
+          var sub = [it.category, it.tempo ? 'テンポ ' + it.tempo : '', it.rest ? 'レスト ' + it.rest + (/^\d+$/.test(it.rest) ? '秒' : '') : '', it.rir !== '' ? 'RIR ' + it.rir : ''].filter(String).join('・');
+          return '<tr><td><b>' + esc(it.name) + '</b>' + (sub ? '<span class="muted small mi-sub">' + esc(sub) + '</span>' : '') + '</td>' +
+            '<td>' + esc(it.reps || '-') + (it.sets ? '×' + esc(it.sets) : '') + '</td>' +
+            '<td>' + (it.part ? esc(it.part) : '<span class="ng-text small">未登録</span>') + '</td></tr>';
+        }).join('') + '</table>';
+    });
+    if (noPart) html += '<p class="muted small">「未登録」の種目は種目マスタに無いため、部位の集計に入りません。種目マスタに足すか、メニューシートの名前を直してください。</p>';
+    return html;
+  },
+
   listHtml: function () {
     var info = MenuImport.info;
     if (!info) return '<div class="card"><div class="loading">メニューの一覧を読み込み中…</div></div>';
@@ -368,10 +412,14 @@ var MenuImport = {
     if (info.plans.length) html += '<h3 class="mp-sub">切り替えの予定</h3><ul class="mi-plans">' + info.plans.map(function (p) {
       return '<li>' + esc(p.start.slice(5).replace('-', '/')) + '：' + esc(p.team) + 'チーム → ' + esc(p.menuId) + ' <button class="btn ghost small" data-mi="cancel" data-v="' + p.row + '">取り消す</button></li>';
     }).join('') + '</ul>';
-    html += '<table class="line-table"><tbody>' + info.menus.slice().reverse().map(function (m) {
-      return '<tr><td>' + esc(m.id) + '<div class="muted small">' + esc(m.team ? m.team + 'チーム向け' : '対象チームなし') + '・' + m.days + 'Day</div></td><td class="r">' +
-        (used[m.id] ? '<b>' + used[m.id] + '人</b>が使用中' : '<span class="muted">使っている人なし</span>') + '</td></tr>';
-    }).join('') + '</tbody></table><p class="muted small">選手ごとの使用メニューは、選手一覧の「チーム分け」でも変えられます。使っていない古いメニューは、メニューシートから消してもかまいません（記録は残ります）。</p></div>';
+    // v55：メニューIDを押すと、その中身（Dayごとの種目・部位・テンポ・回数・セット・レスト・RIR・推奨曜日）を開く
+    html += '<div class="mi-list">' + info.menus.slice().reverse().map(function (m) {
+      var open = MenuImport.openId === m.id;
+      return '<div class="mi-item' + (open ? ' open' : '') + '"><button class="mi-item-head" data-mi="detail" data-v="' + esc(m.id) + '" aria-expanded="' + open + '">' +
+        '<span class="mi-item-name">' + Icon(open ? 'up' : 'down', 18) + esc(m.id) + '<span class="muted small">' + esc(m.team ? m.team + 'チーム向け' : '対象チームなし') + '・' + m.days + 'Day</span></span>' +
+        '<span class="r small">' + (used[m.id] ? '<b>' + used[m.id] + '人</b>が使用中' : '<span class="muted">使っている人なし</span>') + '</span></button>' +
+        (open ? '<div class="mi-detail">' + MenuImport.detailHtml(m.id) + '</div>' : '') + '</div>';
+    }).join('') + '</div><p class="muted small">メニューIDを押すと、中身が見られます。選手ごとの使用メニューは、選手一覧の「チーム分け」でも変えられます。使っていない古いメニューは、メニューシートから消してもかまいません（記録は残ります）。</p></div>';
     return html;
   }
 };
@@ -403,6 +451,7 @@ app.addEventListener('click', function (e) {
   var t = e.target.closest('[data-mi]');
   if (!t || S.view !== 'staff' || Staff.page !== 'menuImport') return;
   if (t.dataset.mi === 'apply') MenuImport.apply(false);
+  if (t.dataset.mi === 'detail') MenuImport.toggleDetail(t.dataset.v);   // v55：メニューの中身
   if (t.dataset.mi === 'cancel' && confirm('この切り替えの予定を取り消しますか？')) {
     Api.call('menuPlanCancel', { token: S.token, row: Number(t.dataset.v) }).then(MenuImport.loadInfo).catch(function (err) { alert(err.message); });
   }

@@ -150,6 +150,11 @@ var StaffVoice = {
       Guidebook.showStaff(/選手/.test(t) ? 'athlete' : 'staff');
       return done('使い方を開きました。上の「スタッフ向け」「選手向け（配る用）」で切り替え、もくじから見たい所を押してください。');
     }
+    // 取り込んだメニューの中身を見る（v55。menu_import.js の一覧でメニューIDを押す）
+    if (/メニュ/.test(t) && /中身|なかみ|内容|ないよう|一覧|いちらん|確認|かくにん|見せ|みせ|見たい/.test(t) && !/取り込|とりこ|pdf/.test(t) && !people.length) {
+      MenuImport.open();
+      return done('メニューの管理を開きました。下の「今あるメニュー」でメニューIDを押すと、Dayごとの種目・部位・回数などが見られます。');
+    }
     // メニュー表（PDF）の取り込み（v50。menu_import.js。反映は画面で確かめてから、ボタンで行う）
     if (/メニュ/.test(t) && /取り込|とりこ|追加|ついか|読み込|よみこ|pdf/.test(t) && !people.length) {
       MenuImport.open();
