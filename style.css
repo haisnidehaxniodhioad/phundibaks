@@ -889,3 +889,21 @@ body.is-staff .dock-bubble::before { content: 'AIアシスタントより'; }
 
 /* ---- v49：ログインのID（英字と数字） ---- */
 .input-id { text-transform: uppercase; letter-spacing: 0.12em; }
+
+/* ---- v50：メニュー表の取り込み（menu_import.js） ---- */
+.mi-file { display: block; width: 100%; margin-top: 6px; }
+.mi-form { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 6px 0 10px; }
+.mi-form input.sel { min-width: 9em; }
+.mi-day { margin: 12px 0; }
+.mi-day-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 4px; }
+.mi-dname { width: 8em; }
+.mi-table td { padding: 2px 3px; }
+.mi-in { padding: 6px 6px; font: inherit; font-size: 0.9rem; border: 1px solid var(--border); border-radius: 6px; background: var(--color-paper); color: var(--color-text); }
+.mi-in.mi-unk { border-color: var(--color-accent-2); }
+.mi-plans { margin: 4px 0 10px; padding-left: 1.2em; }
+/* 夜の色で、注意の文字（黄色の地）が読みにくかったのを直す（v50） */
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .msg.warn, :root:not([data-theme="light"]) .tag.off { color: #f3dc8a; } }
+:root[data-theme="dark"] .msg.warn, :root[data-theme="dark"] .tag.off { color: #f3dc8a; }
+
+/* ---- v51：使い方の案内のリンク（ボタンの見た目） ---- */
+a.btn { text-decoration: none; justify-content: center; align-items: center; }

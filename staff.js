@@ -30,7 +30,7 @@ var Staff = {
   render: function () {
     S.view = 'staff';
     // 個人ページの印（ブラウザの履歴）が残っていたら消す（声の操作などで、個人ページから直接ほかの画面に移ったとき。v37）
-    try { if (history.state && (history.state.staffAthlete || history.state.staffReport || history.state.staffRoster)) history.replaceState(null, ''); } catch (e) {}
+    try { if (history.state && (history.state.staffAthlete || history.state.staffReport || history.state.staffRoster || history.state.staffMenuImport)) history.replaceState(null, ''); } catch (e) {}
     Staff.page = Staff.tab;   // 今の画面（overview / inbody / weight / athlete）。音声の操作で使う（v35）
     if (Staff.tab === 'overview') return Staff.renderOverview();
     if (Staff.tab === 'list') return StaffList.render();
@@ -79,6 +79,13 @@ var Staff = {
     // 選手の管理（v44：部員名簿から選手を追加・更新。roster.js）
     html += '<div class="card"><h2>選手の管理</h2><p class="muted small">チームのホームページの部員名簿と比べて、新しい選手・スタッフ（学生コーチ・トレーナー・アナリスト・指導陣）の追加や、ポジション・ふりがななどの更新ができます。反映する前に確認できます。</p>' +
       '<button class="btn sub block" data-staff="roster">部員名簿から選手を取り込む</button></div>';
+    // メニューの管理（v50：毎月のメニュー表（PDF）を取り込む。menu_import.js）
+    html += '<div class="card"><h2>メニューの管理</h2><p class="muted small">毎月のメニュー表（Excel から作ったPDF）を読み取って、メニューに足します。開始日から、そのチームの選手を新しいメニューに切り替えられます。</p>' +
+      '<button class="btn sub block" data-staff="menuImport">メニュー表（PDF）を取り込む</button></div>';
+    // 使い方（v51：利用案内のドキュメント）
+    html += '<div class="card"><h2>使い方</h2><p class="muted small">スタッフ画面の使い方と、選手に配る案内です。</p><div class="row">' +
+      '<a class="btn sub" href="' + esc(GUIDE_LINKS.staff) + '" target="_blank" rel="noopener">📖 スタッフ向けの案内</a>' +
+      '<a class="btn sub" href="' + esc(GUIDE_LINKS.athlete) + '" target="_blank" rel="noopener">📖 選手向けの案内</a></div></div>';
     app.innerHTML = Staff.frame(html);
   },
 
@@ -255,6 +262,7 @@ var Staff = {
   back: function () {
     var st = history.state || {};
     if (Staff.page === 'roster') { Roster.back(); return; }   // 部員名簿の取り込み（v44）
+    if (Staff.page === 'menuImport') { MenuImport.back(); return; }   // メニュー表の取り込み（v50）
     if (Staff.page === 'report') { if (st.staffReport) history.back(); else Staff.leaveReportPage(); return; }   // → popstate で leaveReportPage
     if (st.staffAthlete) history.back();   // → popstate で leaveAthlete
     else Staff.leaveAthlete();
@@ -321,7 +329,8 @@ app.addEventListener('click', function (e) {
     case 'xInbodyPdf': Export.reportPdf(Staff.current, 'inbody'); break;
     case 'xWeightPdf': Export.reportPdf(Staff.current, 'weight'); break;
     case 'xReportXlsx': Export.reportExcel(Staff.current); break;
-    case 'roster': Roster.open(); break;   // 部員名簿から取り込む（v44。roster.js）
+    case 'roster': Roster.open(); break;
+    case 'menuImport': MenuImport.open(); break;   // メニュー表の取り込み（v50。menu_import.js）   // 部員名簿から取り込む（v44。roster.js）
     case 'reload': Staff.overview = null; Staff.body = null; Staff.render(); break;
   }
 });
@@ -335,6 +344,7 @@ app.addEventListener('change', function (e) {
 window.addEventListener('popstate', function () {
   if (S.view !== 'staff') return;
   if (Staff.page === 'roster') Roster.leave();
+  else if (Staff.page === 'menuImport') MenuImport.leave();
   else if (Staff.page === 'report') Staff.leaveReportPage();
   else if (Staff.page === 'athlete') Staff.leaveAthlete();
 });
