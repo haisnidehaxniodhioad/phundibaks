@@ -7,7 +7,7 @@
  *           ③ メニューID・チーム・開始日を決めて「反映する」（Apps Script の menuImport。メニュー取り込み.gs）
  *              前の月のメニューは消さずに残す。開始日から、そのチームの選手を新しいメニューに切り替える（予定にもできる）
  *   ★ メニュー表の作り（列の並び・見出しの言葉）が大きく変わったら、MenuImport.parse を直す
- *     見出しの言葉：「Day 1」「カテゴリー」「エクササイズ名」「テンポ」「回数」「セット数」「レスト」「RIR」、下の週の表「Mon〜Sun」
+ *     見出しの言葉：「Day 1」（v57b：「A」「B」「C」も。A＝Day1）「カテゴリー」「エクササイズ名」「テンポ」「回数」「セット数」「レスト」「RIR」、下の週の表「Mon〜Sun」
  */
 var MenuImport = {
   PDFJS: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
@@ -93,7 +93,7 @@ var MenuImport = {
       if (items.length < 20) throw new Error('このPDFは、文字が画像になっているため読み取れません（「Microsoft Print to PDF」などで印刷し直したPDFや、スキャンしたPDFはこうなります）。' +
         'Excel のメニュー表から「ファイル」→「エクスポート」（または「名前を付けて保存」で種類を PDF）で作ったPDFか、印刷し直す前の元のPDFを選んでください。');
       var p = MenuImport.parse(items);
-      if (!p.rows.length) throw new Error('このPDFからメニューを読み取れませんでした。「Day 1」「エクササイズ名」「テンポ」などの見出しがあるメニュー表か確かめてください（月間スケジュールのPDFは取り込めません）。');
+      if (!p.rows.length) throw new Error('このPDFからメニューを読み取れませんでした。「Day 1」（または「A」「B」）「エクササイズ名」「テンポ」などの見出しがあるメニュー表か確かめてください（月間スケジュールのPDFは取り込めません）。');
       p.fileName = file.name;
       p.team = MenuImport.guessTeam(file.name);
       p.menuId = MenuImport.defaultId(p.start, p.team);
@@ -111,8 +111,13 @@ var MenuImport = {
   parse: function (items) {
     var N = function (s) { return String(s || '').normalize('NFKC').replace(/\s+/g, ' ').trim(); };
     var it = items.map(function (i) { return { s: N(i.s), x: i.x, y: i.y, w: i.w || 0, cx: i.x + (i.w || 0) / 2 }; }).filter(function (i) { return i.s; });
-    var heads = it.filter(function (i) { return /^Day ?(\d+)$/i.test(i.s); }).map(function (i) { return { day: Number(/(\d+)/.exec(i.s)[1]), x: i.x, y: i.y, cx: i.cx }; })
-      .sort(function (a, b) { return a.y - b.y; });
+    // 表の見出し：「Day 1」のほか、「A」「B」「C」のような1文字のもの（v57b。A＝Day1、B＝Day2…）。
+    // 1文字のものは、同じ高さに「エクササイズ名」があるときだけ表の見出しとみなす
+    var hasNameLabel = function (i) { return it.some(function (j) { return Math.abs(j.y - i.y) < 15 && j.x > i.x && j.s.replace(/\s/g, '') === 'エクササイズ名'; }); };
+    var heads = it.filter(function (i) { return /^Day ?(\d+)$/i.test(i.s) || (/^[A-H]$/.test(i.s) && hasNameLabel(i)); }).map(function (i) {
+      var m = /(\d+)/.exec(i.s);
+      return { day: m ? Number(m[1]) : i.s.charCodeAt(0) - 64, label: i.s, x: i.x, y: i.y, cx: i.cx };
+    }).sort(function (a, b) { return a.y - b.y; });
     // 下の週の表（Mon〜Sun）
     var WK = { mon: '月', tue: '火', wed: '水', thu: '木', fri: '金', sat: '土', sun: '日', '月': '月', '火': '火', '水': '水', '木': '木', '金': '金', '土': '土', '日': '日' };
     var wkItems = it.filter(function (i) { return /^(mon|tue|wed|thu|fri|sat|sun)$/i.test(i.s); });
@@ -158,7 +163,8 @@ var MenuImport = {
         out.rows.push({ day: h.day, order: order, category: dash(cell.category), name: name, tempo: dash(cell.tempo), reps: dash(cell.reps),
                         sets: dash(cell.sets), rest: dash(cell.rest), rir: dash(cell.rir) });
       });
-      if (out.days.every(function (d) { return d.day !== h.day; })) out.days.push({ day: h.day, name: '', weekday: '' });
+      // 種目が1つも無い表（空の「Day 4」など）は入れない（v57b）
+      if (order && out.days.every(function (d) { return d.day !== h.day; })) out.days.push({ day: h.day, name: '', weekday: '' });
     });
     // 推奨曜日・Day名（週の表の「Day 1（下）」）
     if (wkRow) {
