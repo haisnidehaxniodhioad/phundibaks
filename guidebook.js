@@ -239,6 +239,16 @@ var Column = {
   imgs: {},         // 画像ID → Promise<dataURL>
   list: null,       // コラムのページの一覧
   current: null,    // 開いているコラム
+  from: 'mypage',   // v64：コラムを開く前の画面（閉じたときの戻り先。ホームから開いたらホームへ）
+  /** v64：今の画面を、閉じたときの戻り先として覚える（コラムの中を移るあいだは変えない） */
+  remember: function () { if (S.view !== 'column') Column.from = Column.BACK[S.view] ? S.view : 'mypage'; },
+  // 戻り先の画面 → [ボタンの data-act（今までと同じ働き）, 文字]。ここに無い画面から開いたときは、今までどおりマイページへ
+  BACK: { home: ['home', 'ホームへ'], history: ['records', '記録へ'], body: ['body', 'からだへ'], mypage: ['mypage', 'マイページへ'] },
+  /** v64：閉じるボタン（戻り先の画面へ。ボタンの働きは今までの data-act と同じ） */
+  closeBtn: function (cls) {
+    var g = Column.BACK[Column.from] || Column.BACK.mypage;
+    return '<button class="' + cls + '" data-act="' + g[0] + '">' + g[1] + '</button>';
+  },
 
   // ---------------- 本文を描く（スタッフの確認画面でも使う） ----------------
   bodyHtml: function (blocks) {
@@ -273,6 +283,7 @@ var Column = {
 
   // ---------------- コラムのページ ----------------
   show: function () {
+    Column.remember();
     S.view = 'column';
     Column.current = null;
     app.innerHTML = '<div class="loading">読み込み中…</div>';
@@ -280,7 +291,7 @@ var Column = {
       Column.list = res.columns || [];
       if (S.view === 'column') Column.renderList();
     }).catch(function (err) {
-      app.innerHTML = msgHtml('error', err.message) + '<button class="btn block" data-act="mypage">マイページへ</button>';
+      app.innerHTML = msgHtml('error', err.message) + Column.closeBtn('btn block');
     });
   },
   /** v58：タグごとにまとめる。順番がいちばん小さいコラムのタグから並べ、タグなしは最後（「その他」） */
@@ -311,7 +322,7 @@ var Column = {
         Icon(open ? 'up' : 'down', 18) + '<span class="col-tag-t">' + esc(g.tag || 'その他') + '</span><span class="col-tag-n">' + g.items.length + '</span></button>' +
         (open ? '<ul class="col-list">' + g.items.map(item).join('') + '</ul>' : '') + '</section>';
     }).join('') + '</div>';
-    app.innerHTML = '<div class="group"><div class="topbar"><h1>' + Icon('book', 22) + 'コラム</h1><button class="btn ghost" data-act="mypage">マイページへ</button></div>' +
+    app.innerHTML = '<div class="group"><div class="topbar"><h1>' + Icon('book', 22) + 'コラム</h1>' + Column.closeBtn('btn ghost') + '</div>' +
       '<p class="muted small">トレーニングや体の用語などを説明しているよ。' + (groups.length > 1 || (groups[0] && groups[0].tag) ? 'まとまりの名前を押すと開くよ。' : '読みたい題名を押してね。') + '</p></div>' + body;
     if (!Column.keepScroll) window.scrollTo(0, 0);
     Column.keepScroll = false;
@@ -323,15 +334,16 @@ var Column = {
     Column.keepScroll = true; Column.renderList();
   },
   open: function (id) {
+    Column.remember();
     S.view = 'column';
     app.innerHTML = '<div class="loading">読み込み中…</div>';
     Api.call('columns', { token: S.token, kind: 'page', id: id }).then(function (res) {
       if (S.view !== 'column') return;
       if (!res.column) { Column.renderList(); return; }
       Column.current = res.column;
-      app.innerHTML = '<div class="group"><div class="topbar"><button class="btn ghost" data-col="list">' + Icon('left', 20) + 'コラムの一覧</button></div>' +
+      app.innerHTML = '<div class="group"><div class="topbar"><button class="btn ghost" data-col="list">' + Icon('left', 20) + 'コラムの一覧</button>' + (Column.from !== 'mypage' ? Column.closeBtn('btn ghost') : '') + '</div>' +
         '<h1 class="col-title">' + esc(res.column.title) + '</h1></div><article class="group col-article">' + Column.bodyHtml(res.column.blocks) + '</article>' +
-        '<div class="group"><button class="btn sub block" data-col="list">コラムの一覧へ</button></div>';
+        '<div class="group"><button class="btn sub block" data-col="list">コラムの一覧へ</button>' + (Column.from !== 'mypage' ? Column.closeBtn('btn ghost block') : '') + '</div>';
       Column.fillImages(app);
       window.scrollTo(0, 0);
     }).catch(function (err) { app.innerHTML = msgHtml('error', err.message) + '<button class="btn block" data-col="list">コラムの一覧へ</button>'; });

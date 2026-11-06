@@ -11,16 +11,19 @@
 var MyMenu = {
   list: function () { return (S.home && S.home.myMenus) || []; },
   find: function (id) { return MyMenu.list().filter(function (m) { return m.id === id; })[0] || null; },
+  /** v64：種目が1つも入っていないメニューか（名前の無い行だけのときも空とみなす） */
+  isEmpty: function (m) { return !m || !(m.items || []).some(function (it) { return it && String(it.name || '').trim(); }); },
 
   // ---------------- ホームのカード ----------------
   homeCard: function (noBlank) {   // v61：noBlank＝「白紙から記録する」を出さない（トレーニングのタブでは別の欄にある）
     var list = MyMenu.list();
     return '<section class="sec"><div class="sec-head"><h2>自分のメニュー</h2><button class="btn ghost small" data-mm="new">' + Icon('plus', 18) + '作る</button></div>' +
       (list.length ? list.map(function (m) {
-        return '<div class="mm-row"><span class="mm-icon">' + Icon('barbell', 26) + '</span>' +
-          '<div class="mm-text"><b>' + esc(m.name) + '</b><span class="small">' + m.items.map(function (it) { return esc(it.name); }).join('・') + '</span></div>' +
+        var empty = MyMenu.isEmpty(m);   // v64：種目が空のメニューは「始める」を出さず、空だとわかるように
+        return '<div class="mm-row' + (empty ? ' mm-empty' : '') + '"><span class="mm-icon">' + Icon('barbell', 26) + '</span>' +
+          '<div class="mm-text"><b>' + esc(m.name) + '</b><span class="small">' + (empty ? '種目がまだ入っていないよ。「編集」で足してね' : (m.items || []).map(function (it) { return esc(it.name); }).join('・')) + '</span></div>' +
           '<button class="btn ghost small" data-mm="edit" data-id="' + esc(m.id) + '">編集</button>' +
-          '<button class="btn mm-play" data-mm="start" data-id="' + esc(m.id) + '" aria-label="' + esc(m.name) + 'を始める">' + Icon('play', 22) + '</button></div>';
+          (empty ? '' : '<button class="btn mm-play" data-mm="start" data-id="' + esc(m.id) + '" aria-label="' + esc(m.name) + 'を始める">' + Icon('play', 22) + '</button>') + '</div>';
       }).join('') : '<p class="muted small">よくやるメニューを保存しておくと、次からここで選んで同じ種目・セット数で始められます。</p>') +
       (noBlank ? '' : '<button class="btn ghost block" data-act="startFree">白紙から記録する</button>' +
       '<p class="muted small">白紙から記録したときも、終わったあとの画面でその内容をメニューとして保存できます。</p>') + '</section>';
@@ -30,6 +33,11 @@ var MyMenu = {
   start: function (id, text) {
     var m = MyMenu.find(id);
     if (!m) return;
+    if (MyMenu.isEmpty(m)) {   // v64：種目が空のメニューでは始めない（画面のエラーを防ぐ）。データはそのまま
+      var msg = '「' + m.name + '」には種目がまだ入っていないよ。「編集」で種目を足すか、「白紙から記録する」で始めてね。';
+      if (text) reply(text, msg, true); else { VoiceUI.show('', msg, true); Speech.speak(msg); }
+      return;
+    }
     if (S.draft && !confirm('途中のトレーニングの記録を破棄して、新しく始めますか？')) return;
     S.draft = { id: newId(), startedAt: new Date().toISOString(), type: '個別', title: m.name, myMenuId: m.id, myMenuName: m.name,
                 items: m.items.map(function (it) {
@@ -49,7 +57,7 @@ var MyMenu = {
   edit: function (id, items, name) {
     var m = id ? MyMenu.find(id) : null;
     S.edit = { id: m ? m.id : '', name: m ? m.name : (name || ''),
-               items: (m ? m.items : items || [{ name: '', sets: 3, reps: 10, rest: 60 }]).map(function (it) {
+               items: (m ? (MyMenu.isEmpty(m) ? [{ name: '', sets: 3, reps: 10, rest: 60 }] : m.items) : items || [{ name: '', sets: 3, reps: 10, rest: 60 }]).map(function (it) {   // v64：空のメニューは1行目を用意
                  return { name: it.name, sets: it.sets, reps: it.reps, rest: it.rest || 0 };
                }) };
     MyMenu.renderEdit();
