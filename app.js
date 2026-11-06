@@ -8,7 +8,7 @@
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v60 2026-11-06';
+var APP_VERSION = 'v61 2026-11-06';
 // 利用者に見せるアプリの名前（v59）。config.js の APP_NAME は変えずに残し、画面の表示にはこちらを使う
 var BRAND = 'RIKKIO';
 // 記録し忘れた日の分を、何日前まで遡って入力できるか（v26）。Apps Script の 設定.gs の MAX_BACKDATE_DAYS と同じ数字にする
@@ -147,6 +147,12 @@ function homeTopHtml() {
     '<button class="tab' + (tr ? ' on' : '') + '" data-act="trainingTab" role="tab" aria-selected="' + tr + '">トレーニング</button></div>';
 }
 
+/**
+ * ホーム（v61：RIKKIO 段階3-A。スマホは1列のカード、768px以上は2列）
+ *   上から：未送信の記録 → 途中の記録 → ① 今日のトレーニング → ② コンディション → ③ 今週の実施 → ④ 最新の身体データ → ⑤ お知らせ・コラム
+ *   ①〜③はホームのデータ（S.home）ですぐ出す。④⑤はあとから読む（HomeLazy。読めなくてもホームは使える）
+ *   ボタンの data-act は今までと同じ（startDay・condOpen・resume・discard・resend・speakSuggest・body・column）
+ */
 function renderHome(notice, warning) {
   S.view = 'home'; S.tab = 'home';
   var h = S.home;
@@ -155,79 +161,124 @@ function renderHome(notice, warning) {
   var hello = hour < 10 ? 'おはよう' : hour < 18 ? 'こんにちは' : 'おつかれさま';
   var first = h.suggestion.order[0];
 
-  // いちばん上：日付と、コーチの出迎え（coachTop にアバターが大きく出る。dock.js が移動する）
   var html = homeTopHtml();
-  html += '<div class="coach-hello"><span id="coachTop" class="coach-top"></span>' +
-    '<div class="bubble bubble-left"><h1>' + hello + '、' + esc(h.name) + 'さん！</h1><i>' + esc(homeGreeting()) + '</i></div></div>';
-  html += msgHtml('ok', notice) + msgHtml('warn', warning);
-
+  // 未送信の記録は、いちばん上
   if (pending.length) {
-    html += '<div class="msg warn">まだ送信できていない記録が' + pending.length + '件あります。' +
+    html += '<div class="msg warn home-alert">まだ送信できていない記録が' + pending.length + '件あります。' +
       '<button class="btn sub block" data-act="resend">今すぐ送信する</button></div>';
   }
+  html += msgHtml('ok', notice) + msgHtml('warn', warning);
+  // コーチの出迎え（小さく。coachTop にアバターが出る。dock.js が移動する）
+  html += '<div class="coach-hello home-hello"><span id="coachTop" class="coach-top"></span>' +
+    '<div class="bubble bubble-left"><b>' + hello + '、' + esc(h.name) + 'さん！</b><i>' + esc(homeGreeting()) + '</i></div></div>';
   if (S.draft) {
-    html += '<div class="card soft"><h2>途中のトレーニングがあります</h2><p class="muted">' + esc(S.draft.title) + '</p>' +
+    html += '<div class="hcard home-draft"><h2>途中のトレーニングがあります</h2><p class="muted">' + esc(S.draft.title) + '</p>' +
       '<div class="row"><button class="btn btn-pill" data-act="resume">' + Icon('play', 20) + '続きから</button>' +
-      '<button class="btn ghost" data-act="discard">記録を破棄</button></div></div>';
+      '<button class="btn ghost" data-act="discard">破棄</button></div></div>';
+  }
+  html += '<div class="home-grid">';
+
+  // ① 今日のトレーニング（いちばん目立たせる）
+  if (first) {
+    var d0 = findDay(first), items = applySavedOrder(d0.items, d0.day);
+    html += '<section class="hcard home-today"><div class="hcard-head"><span class="kicker">今日のトレーニング</span>' +
+      '<button class="btn ghost small" data-act="trainingTab">ほかのDay' + Icon('right', 16) + '</button></div>' +
+      '<div class="today-row"><div class="today-title">Day' + d0.day + (d0.dayName ? '　' + esc(d0.dayName) : '') + '</div>' +
+      '<button class="btn ghost icon-btn" data-act="speakSuggest" aria-label="メニューを読み上げる">' + Icon('speaker', 22) + '</button></div>' +
+      '<p class="muted small">' + esc(h.suggestion.reason) + '</p>' +
+      '<table class="today-items line-table"><tbody>' + items.slice(0, 4).map(function (it) {
+        return '<tr><td class="name">' + esc(it.name) + '</td><td class="r">' + (it.reps ? esc(it.reps) + ' × ' + esc(it.sets || 1) : '') + '</td></tr>';
+      }).join('') + '</tbody></table>' + (items.length > 4 ? '<p class="muted small">＋' + (items.length - 4) + '種目</p>' : '') +
+      '<button class="btn btn-pill big block" data-act="startDay" data-day="' + d0.day + '">' + Icon('play', 22) + 'トレーニングを始める</button></section>';
+  } else if (h.days.length) {
+    html += '<section class="hcard home-today"><div class="hcard-head"><span class="kicker">今日のトレーニング</span></div>' +
+      '<div class="today-title">今週のメニューは全部できたね！</div><p class="muted small">もう一度やるときや自分のメニューは、トレーニングのタブから始められるよ。</p>' +
+      '<button class="btn sub btn-pill block" data-act="trainingTab">ほかのDay・自分のメニュー</button></section>';
+  } else {
+    html += '<section class="hcard home-today">' + MyMenu.homeCard() + '</section>';   // チームのメニューが無い選手
   }
 
-  // 自分のメニュー（mymenu.js）。チームのメニューが無い選手は、いちばん上に出す
-  if (!h.days.length) html += MyMenu.homeCard();
+  // ② コンディション
+  var c = h.condition;
+  html += '<section class="hcard home-cond"><div class="hcard-head"><span class="kicker">今日のコンディション</span>' +
+    (c ? '<button class="btn ghost small" data-act="condOpen">直す</button>' : '') + '</div>' +
+    (c ? '<div class="cond-vals">' + [['疲労（全身）', c.whole], ['上半身', c.upper], ['下半身', c.lower], ['動きやすさ', c.perf]].map(function (x) {
+      return '<div><b>' + (x[1] === '' ? '-' : esc(x[1])) + '</b><span>' + x[0] + '</span></div>'; }).join('') + '</div>'
+      : '<p class="muted small"><span class="tag off">未入力</span> 疲れ具合と動きやすさを記録しよう。</p><button class="btn sub btn-pill block" data-act="condOpen">いま入力する</button>') + '</section>';
 
-  // v30：似た内容はカード1枚にまとめる（.group）。今週のスタンプ・今日のおすすめ・もう一度・前回 は「今週のトレーニング」の1枚
-  html += '<div class="group">';
-  // 今週のスタンプ（Dayごとの丸。済み＝✓、今日のおすすめ＝輪っか）
+  // ③ 今週の実施（Dayのスタンプ）
   if (h.days.length) {
-    var left = h.days.filter(function (d) { return !h.doneDays[d.day]; }).length;
-    html += '<section class="sec"><div class="sec-head"><h2>今週のスタンプ</h2><span class="accent-text small">' +
-      (left ? 'あと' + left + '回で達成！' : '今週は全部できたね！') + '</span></div><div class="stamps">';
+    var doneN = h.days.filter(function (d) { return h.doneDays[d.day]; }).length;
+    html += '<section class="hcard home-week"><div class="hcard-head"><span class="kicker">今週の実施</span><b class="accent-text">' + doneN + ' / ' + h.days.length + ' Day</b></div><div class="stamps">';
     h.days.forEach(function (d) {
       var done = h.doneDays[d.day], today = !done && d.day === first;
       html += '<div class="stamp' + (done ? ' done' : today ? ' today' : '') + '" title="Day' + d.day + (d.dayName ? ' ' + esc(d.dayName) : '') + '">' +
-        '<span class="stamp-mark">' + (done ? Icon('check', 30) : d.day) + '</span>' +
+        '<span class="stamp-mark">' + (done ? Icon('check', 26) : d.day) + '</span>' +
         '<span class="stamp-label">' + (today ? '今日' : 'Day' + d.day) + '</span></div>';
     });
-    html += '</div></section>';
+    html += '</div>' + (h.last ? '<p class="muted small">前回: ' + esc(h.last.date) + '（' + esc(h.last.type) + (h.last.day ? ' Day' + esc(h.last.day) : '') + '）</p>' : '') +
+      '<button class="btn ghost small" data-act="records">記録を見る' + Icon('right', 16) + '</button></section>';
   }
 
-  // 今日はこれをやろう（おすすめのDayと開始ボタン）
-  if (first) {
-    var d0 = findDay(first);
-    html += '<section class="today-card"><div class="today-kicker"><span>今日はこれをやろう</span>' +
-      '<button class="btn ghost icon-btn" data-act="speakSuggest" aria-label="読み上げる">' + Icon('speaker', 22) + '</button></div>' +
-      '<div class="today-title">Day' + d0.day + (d0.dayName ? '　' + esc(d0.dayName) : '') + '</div>' +
-      // v32：種目は横線の表（No.・種目・回数×セット）
-      '<table class="today-items line-table"><thead><tr><th class="no">No.</th><th>種目</th><th class="r">回数×セット</th></tr></thead><tbody>' +
-      applySavedOrder(d0.items, d0.day).map(function (it, k) {
-        return '<tr><td class="no">' + (k + 1) + '</td><td class="name">' + esc(it.name) + '</td><td class="r">' + (it.reps ? esc(it.reps) + ' × ' + esc(it.sets || 1) : '') + '</td></tr>';
-      }).join('') + '</tbody></table>' +
-      '<button class="btn btn-pill big block" data-act="startDay" data-day="' + d0.day + '">' + Icon('play', 22) + 'はじめる</button>';
-    h.suggestion.order.slice(1).forEach(function (dayNo) {
-      var d = findDay(dayNo);
-      html += '<button class="btn ghost block" data-act="startDay" data-day="' + d.day + '">Day' + d.day + (d.dayName ? '（' + esc(d.dayName) + '）' : '') + 'にする</button>';
-    });
-    html += '</section>';
-  } else if (h.days.length) {
-    html += '<section class="today-card"><div class="today-kicker"><span>今日のおすすめ</span></div><p>' + esc(h.suggestion.reason) + '</p></section>';
-  }
-  var doneList = h.days.filter(function (d) { return h.doneDays[d.day]; });
-  if (doneList.length) {
-    html += '<details class="again"><summary>今週やったDayをもう一度やる</summary>';
-    doneList.forEach(function (d) {
-      html += '<button class="btn sub btn-pill block" data-act="startDay" data-day="' + d.day + '">Day' + d.day + (d.dayName ? '（' + esc(d.dayName) + '）' : '') + 'をもう一度</button>';
-    });
-    html += '</details>';
-  }
-  if (h.last) {
-    html += '<p class="muted small">前回: ' + esc(h.last.date) + '（' + esc(h.last.type) +
-      (h.last.day ? ' Day' + esc(h.last.day) : '') + '）</p>';
-  }
+  // ④ 最新の身体データ・⑤ お知らせ・コラム（あとから読む。高さを先に取っておく）
+  html += '<section class="hcard home-body" id="homeBody">' + HomeLazy.bodyHtml() + '</section>';
+  html += '<section class="hcard home-cols" id="homeCols">' + HomeLazy.colsHtml() + '</section>';
   html += '</div>';
-  html += Condition.homeHtml();   // 今日のコンディション（v33）
-  if (h.days.length) html += MyMenu.homeCard();
   html += '<p class="ver">' + esc(APP_VERSION) + '</p>';
   app.innerHTML = html;
+  HomeLazy.load();
 }
+
+/**
+ * ホームの「最新の身体データ」「お知らせ・コラム」（v61）。ホームの表示を待たせないよう、描いたあとで読む。
+ *   身体データ：myBody（コーチの質問と同じ QA.load('body')。読んだものは使い回す）
+ *   コラム：columns（コラムのページと同じ Column.list。タグ「お知らせ」を先に）
+ */
+var HomeLazy = {
+  bodyErr: false, colsErr: false, bodyBusy: false, colsBusy: false,
+  head: function (title, act, label) {
+    return '<div class="hcard-head"><span class="kicker">' + title + '</span>' + (act ? '<button class="btn ghost small" ' + act + '>' + label + Icon('right', 16) + '</button>' : '') + '</div>';
+  },
+  bodyHtml: function () {
+    var head = HomeLazy.head('最新の身体データ', 'data-act="body"', 'からだ');
+    var m = QA.data.body;
+    if (!m) return head + '<p class="muted small home-wait">' + (HomeLazy.bodyErr ? '読み込めませんでした。「からだ」から見られるよ。' : '読み込み中…') + '</p>';
+    var last = function (arr) { return (arr || []).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }).pop(); };
+    var ib = last(m.inbody), w = last(m.weight);
+    if (!ib && !w) return head + '<p class="muted small home-wait">まだ記録がないよ。</p>';
+    var num = function (v, unit, label) { return v === '' || v === undefined || v === null ? '' : '<div><b>' + esc(v) + '<small>' + unit + '</small></b><span>' + label + '</span></div>'; };
+    var useIb = ib && (!w || ib.date >= w.date);
+    var vals = useIb ? num(ib.weight, 'kg', '体重') + num(ib.lbm, 'kg', '除脂肪体重') + num(ib.ffmi, '', 'FFMI') : num(w.weight, 'kg', '体重');
+    return head + '<button class="home-body-btn" data-act="body"><div class="cond-vals">' + vals + '</div>' +
+      '<span class="muted small">' + esc((useIb ? ib.date : w.date).slice(5).replace('-', '/')) + (useIb ? ' InBody' : ' 体重') + '</span></button>';
+  },
+  colsHtml: function () {
+    var head = HomeLazy.head('お知らせ・コラム', 'data-act="column"', 'すべて');
+    var list = Column.list;
+    if (!list) return head + '<p class="muted small home-wait">' + (HomeLazy.colsErr ? '読み込めませんでした。' : '読み込み中…') + '</p>';
+    if (!list.length) return head + '<p class="muted small home-wait">まだコラムはないよ。</p>';
+    var news = function (c) { return c.tag === 'お知らせ' ? 0 : 1; };
+    var top = list.slice().sort(function (a, b) { return news(a) - news(b) || String(b.updated || '').localeCompare(String(a.updated || '')); }).slice(0, 3);
+    return head + '<ul class="col-list home-col-list">' + top.map(function (c) {
+      return '<li><button data-col="open" data-v="' + esc(c.id) + '">' + (c.tag === 'お知らせ' ? '<span class="tag">お知らせ</span>' : '') +
+        '<span class="col-list-t">' + esc(c.title) + '</span>' + Icon('right', 18) + '</button></li>';
+    }).join('') + '</ul>';
+  },
+  /** 読んでいなければ読む。読めたら、ホームを開いたままのときだけ書き直す */
+  load: function () {
+    var fill = function (id, fn) { var el = document.getElementById(id); if (el && S.view === 'home' && S.tab !== 'training') el.innerHTML = fn(); };
+    if (!QA.data.body && !HomeLazy.bodyBusy && !HomeLazy.bodyErr) {
+      HomeLazy.bodyBusy = true;
+      QA.load('body').then(function () { HomeLazy.bodyBusy = false; fill('homeBody', HomeLazy.bodyHtml); })
+        .catch(function () { HomeLazy.bodyBusy = false; HomeLazy.bodyErr = true; fill('homeBody', HomeLazy.bodyHtml); });
+    }
+    if (!Column.list && !HomeLazy.colsBusy && !HomeLazy.colsErr) {
+      HomeLazy.colsBusy = true;
+      Api.call('columns', { token: S.token, kind: 'page' }).then(function (res) { HomeLazy.colsBusy = false; Column.list = res.columns || []; fill('homeCols', HomeLazy.colsHtml); })
+        .catch(function () { HomeLazy.colsBusy = false; HomeLazy.colsErr = true; fill('homeCols', HomeLazy.colsHtml); });
+    }
+  }
+};
 
 /** ホームの出迎えのひとこと */
 function homeGreeting() {
@@ -376,11 +427,14 @@ function renderSession() {
   }
   html += '</div>';
 
+  // v61：今の種目（sess-main）と、つぎ・終わった種目・追加（sess-side）。768px以上は左に種目、右に今の種目
+  html += '<div class="sess-grid"><div class="sess-main">';
   // 今の種目
   if (cur >= 0) html += exerciseCard(cur, true);
   else if (n) html += '<div class="card soft center"><b>すべての種目が終わったよ！</b><p class="muted small">右上の「おわる」を押して、保存してね。</p>' +
     '<button class="btn btn-pill block" data-act="finish">おわる（保存へ）</button></div>';
 
+  html += '</div><div class="sess-side">';
   // v30：つぎにやる種目・終わった種目・種目を追加 は「種目」の1枚にまとめる
   html += '<div class="group">';
   // つぎにやる種目（押すと、その種目を次にやる）
@@ -417,6 +471,7 @@ function renderSession() {
     '<input id="addName" class="input-pill" list="exList" placeholder="例：デッドリフト" style="flex:1">' +
     '<button class="btn btn-pill" data-act="addItem">追加</button></div><datalist id="exList">' +
     S.home.exercises.map(function (e) { return '<option value="' + esc(e.name) + '">'; }).join('') + '</datalist></div></div>';
+  html += '</div></div>';   // sess-side・sess-grid
   app.innerHTML = html;
 }
 

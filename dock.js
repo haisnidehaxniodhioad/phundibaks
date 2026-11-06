@@ -70,6 +70,7 @@ var Dock = {
     document.body.classList.toggle('has-dock', mode !== 'none');
     document.body.classList.toggle('has-fab', mode === 'tabs');   // v60：右下に浮かべたマイクの分、内容の下に余白を足す
     this.el.className = 'dock mode-' + mode + ' view-' + v;
+    document.body.setAttribute('data-view', v);   // v61：画面ごとのレイアウト（style.css の body[data-view=…]）
 
     // アバターの場所：ホーム・ログインは画面の中の一番上（大きく）、ほかは上の帯の左
     var top = document.getElementById('coachTop');
@@ -139,7 +140,8 @@ var Dock = {
   syncCoach: function () {
     var boxShown = !VoiceUI.box.hidden;
     var home = S.view === 'home' && S.tab !== 'training';   // v60：トレーニングのタブは、ほかの画面と同じく上の帯にひとこと
-    this.coach.hidden = this.el.hidden || (home ? !boxShown : (!boxShown && !this.line.textContent));
+    var sess = S.view === 'session';   // v61：トレーニング中は記録の欄を広く。ひとことは出さず、返事があるときだけ上の帯を出す
+    this.coach.hidden = this.el.hidden || ((home || sess) ? !boxShown : (!boxShown && !this.line.textContent));
     this.coach.classList.toggle('no-avatar', home);
     this.measure();
   },

@@ -1103,3 +1103,86 @@ body.has-fab .wrap { padding-bottom: calc(var(--dock-h, 90px) + 96px); }
   body.is-staff .dock { left: 232px; }
   .manage-list { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* =====================================================================
+ * v61（RIKKIO 段階3-A）：ホーム・トレーニング・実施・完了・コンディションの画面
+ *   この5つの画面（body[data-view]）だけ、地の色 #F5F5F8 に白いカードを並べる。ほかの画面は今のまま
+ * ===================================================================== */
+body:is([data-view="home"], [data-view="session"], [data-view="finish"], [data-view="afterSave"], [data-view="condition"]) .wrap { background: transparent; box-shadow: none; }
+/* カード（白・細い枠） */
+.hcard, body:is([data-view="session"], [data-view="finish"], [data-view="afterSave"], [data-view="condition"]) .wrap > .group,
+body[data-view="session"] .sess-main > *, body[data-view="session"] .sess-side > .group {
+  background: var(--color-paper); border: 1px solid var(--line-strong); border-radius: 16px; padding: 16px; margin: 0 0 14px; }
+body[data-view="session"] .sess-main > .ex-card.current { border: 2px solid var(--color-accent); }
+.hcard > .sec:first-child { margin-top: 0; }
+.hcard-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+.hcard-head .kicker { font-weight: 700; color: var(--label); font-size: 0.82rem; letter-spacing: 0.04em; }
+.hcard-head .btn.ghost { min-height: 44px; font-size: 0.88rem; }
+.hcard h2 { margin-bottom: 6px; }
+/* ホーム */
+.home-alert { margin-top: 0; }
+.coach-hello.home-hello { border-bottom: none; padding: 0; margin: 0 0 12px; align-items: center; }
+.home-hello .avatar.av-big { width: 56px; height: 56px; }
+.home-hello .bubble b { display: block; font-size: 1rem; }
+.home-hello .bubble i { font-style: normal; font-size: 0.86rem; color: var(--color-neutral-700); }
+.home-today { border: 2px solid var(--color-accent); }
+.home-today .today-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.home-today .today-title { font-size: 1.6rem; }
+.home-today .today-items { margin: 8px 0 4px; }
+.cond-vals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; text-align: center; }
+.cond-vals > div { display: flex; flex-direction: column; gap: 2px; padding: 8px 2px; border-radius: 12px; background: var(--color-surface); }
+.cond-vals b { font-size: 1.35rem; font-weight: 900; }
+.cond-vals b small { font-size: 0.7rem; font-weight: 700; margin-left: 1px; }
+.cond-vals span { font-size: 0.72rem; color: var(--color-neutral-700); }
+.home-week .stamp-mark { width: 52px; height: 52px; }
+.home-body, .home-cols { min-height: 132px; }   /* あとから読む欄：先に高さを取って、画面が動かないように */
+.home-wait { padding: 18px 0; }
+.home-body-btn { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 0; border: none; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.home-body-btn .cond-vals { grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+.home-col-list li button { min-height: 48px; }
+.home-col-list .tag { flex: none; }
+.home-draft { box-shadow: inset 4px 0 0 var(--color-accent); }
+/* トレーニングのタブ */
+.tr-days { margin-top: 12px; }
+.tr-day-row.rec .tr-day-text b { color: var(--color-accent-700); }
+.tr-rank { flex: none; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700;
+  background: var(--color-surface); color: var(--color-neutral-700); }
+.tr-rank:empty { visibility: hidden; }
+.tr-day-row.rec .tr-rank { background: var(--color-accent); color: #fff; }
+.tr-day-row .btn { min-height: 44px; }
+.tr-alldone { margin: 4px 0; }
+.tr-sec { margin-top: 14px; }
+.tr-sec:empty { display: none; }
+.tr-detail > .btn.ghost:first-child { margin-left: -10px; }
+/* トレーニング中：記録の欄を広く。返事は上の帯の中に（記録の欄・✓・タイマーに重ねない） */
+.step { height: 44px; }   /* 押せる高さを44pxに（幅は今のまま。重量の欄を狭くしないため） */
+body[data-view="session"] .sess-main > * { padding: 12px 10px; }
+body[data-view="session"] .sess-head .btn { white-space: nowrap; }
+body[data-view="session"] .coach-band .voice-box { position: static; max-height: 32vh; box-shadow: none; padding: 0; left: auto; right: auto; top: auto; }
+body[data-view="session"] .sess-head h1 { font-size: 1.15rem; margin: 2px 0 6px; }
+.sess-grid { display: block; }
+
+/* スマホ：トレーニングのタブで種目の詳しい情報を開いているときは、詳しい情報だけ */
+@media (max-width: 767px) {
+  .tr-has-detail .tr-left { display: none; }
+}
+/* 768px以上：この5つの画面は幅を広く使い、2列に */
+@media (min-width: 768px) {
+  body:not(.is-staff):is([data-view="home"], [data-view="session"], [data-view="finish"], [data-view="afterSave"], [data-view="condition"]) :is(.wrap, .coach-band) {
+    margin-left: max(24px, calc(50% - 480px)); margin-right: max(24px, calc(50% - 480px)); }
+  .home-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; align-items: start; }
+  .home-grid > .home-today { grid-column: 1 / -1; }
+  .tr-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 14px; align-items: start; }
+  .sess-grid { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(0, 1.6fr); gap: 0 14px; align-items: start; }
+  .sess-grid > .sess-side { grid-column: 1; grid-row: 1; }
+  .sess-grid > .sess-main { grid-column: 2; grid-row: 1; }
+}
+/* スマホのトレーニング中：重量の欄が狭くならないよう、外側の余白とボタンを少し小さく（v61） */
+@media (max-width: 480px) {
+  body[data-view="session"] .wrap { padding-left: 8px; padding-right: 8px; }
+  body[data-view="session"] .set-row { gap: 4px; }
+  body[data-view="session"] .step { width: 32px; }
+  body[data-view="session"] .check { width: 48px; height: 48px; }
+  body[data-view="session"] .num.reps { flex: 0 0 52px; }
+  body[data-view="session"] .num input { font-size: 1.15rem; }
+}

@@ -13,7 +13,7 @@ var MyMenu = {
   find: function (id) { return MyMenu.list().filter(function (m) { return m.id === id; })[0] || null; },
 
   // ---------------- ホームのカード ----------------
-  homeCard: function () {
+  homeCard: function (noBlank) {   // v61：noBlank＝「白紙から記録する」を出さない（トレーニングのタブでは別の欄にある）
     var list = MyMenu.list();
     return '<section class="sec"><div class="sec-head"><h2>自分のメニュー</h2><button class="btn ghost small" data-mm="new">' + Icon('plus', 18) + '作る</button></div>' +
       (list.length ? list.map(function (m) {
@@ -22,8 +22,8 @@ var MyMenu = {
           '<button class="btn ghost small" data-mm="edit" data-id="' + esc(m.id) + '">編集</button>' +
           '<button class="btn mm-play" data-mm="start" data-id="' + esc(m.id) + '" aria-label="' + esc(m.name) + 'を始める">' + Icon('play', 22) + '</button></div>';
       }).join('') : '<p class="muted small">よくやるメニューを保存しておくと、次からここで選んで同じ種目・セット数で始められます。</p>') +
-      '<button class="btn ghost block" data-act="startFree">白紙から記録する</button>' +
-      '<p class="muted small">白紙から記録したときも、終わったあとの画面でその内容をメニューとして保存できます。</p></section>';
+      (noBlank ? '' : '<button class="btn ghost block" data-act="startFree">白紙から記録する</button>' +
+      '<p class="muted small">白紙から記録したときも、終わったあとの画面でその内容をメニューとして保存できます。</p>') + '</section>';
   },
 
   /** 保存したメニューで始める（text は音声で始めたときの聞き取った文） */
@@ -207,53 +207,61 @@ MyMenu.onClick = function (t) {
  */
 var Training = {
   ex: null,   // 詳しい情報を開いている種目の名前（null＝種目一覧）
+  statsErr: false,
 
-  /** トレーニングタブを描く */
+  /** トレーニングタブを描く（v61：左＝メニュー（Day・自分のメニュー・白紙から）、右＝種目一覧か種目の詳しい情報。スマホは1列） */
   render: function () {
     S.view = 'home'; S.tab = 'training';
     var h = S.home, html = homeTopHtml();
-    if (Training.ex) { app.innerHTML = html + Training.detailHtml(Training.ex) + '<p class="ver">' + esc(APP_VERSION) + '</p>'; Training.loadStats(); return; }
     if (S.draft) {
-      html += '<div class="card soft"><h2>途中のトレーニングがあります</h2><p class="muted">' + esc(S.draft.title) + '</p>' +
+      html += '<div class="hcard home-draft"><h2>途中のトレーニングがあります</h2><p class="muted">' + esc(S.draft.title) + '</p>' +
         '<div class="row"><button class="btn btn-pill" data-act="resume">' + Icon('play', 20) + '続きから</button>' +
-        '<button class="btn ghost" data-act="discard">記録を破棄</button></div></div>';
+        '<button class="btn ghost" data-act="discard">破棄</button></div></div>';
     }
-    var first = h.suggestion.order[0];
-    // 1. 今日のメニュー（おすすめのDay）
-    if (first) {
-      var d0 = findDay(first);
-      html += '<section class="sec tr-today"><div class="sec-head"><h2>今日のメニュー</h2><span class="accent-text small">おすすめ</span></div>' +
-        '<div class="tr-day-title">Day' + d0.day + (d0.dayName ? '　' + esc(d0.dayName) : '') + '</div>' +
-        '<table class="today-items line-table"><thead><tr><th class="no">No.</th><th>種目</th><th class="r">回数×セット</th></tr></thead><tbody>' +
-        applySavedOrder(d0.items, d0.day).map(function (it, k) {
-          return '<tr><td class="no">' + (k + 1) + '</td><td class="name">' + esc(it.name) + '</td><td class="r">' + (it.reps ? esc(it.reps) + ' × ' + esc(it.sets || 1) : '') + '</td></tr>';
-        }).join('') + '</tbody></table>' +
-        '<button class="btn btn-pill big block" data-act="startDay" data-day="' + d0.day + '">' + Icon('play', 22) + 'はじめる</button></section>';
-    }
-    // 2. Dayを選ぶ（済みのDayも、もう一度できる）
+    var order = h.suggestion.order, first = order[0];
+    var left = '';
+    // 1. 今日のメニュー・各Day（おすすめ順の番号・済み・推奨曜日・始める）
     if (h.days.length) {
-      html += '<section class="sec"><div class="sec-head"><h2>Dayを選ぶ</h2></div><div class="tr-days">' +
-        h.days.map(function (d) {
-          var done = h.doneDays[d.day], rec = d.day === first;
-          return '<div class="tr-day-row"><div class="tr-day-text"><b>Day' + d.day + (d.dayName ? ' ' + esc(d.dayName) : '') + '</b>' +
-            '<span class="small muted">' + esc([rec ? 'おすすめ' : '', done ? '済み（' + esc(String(done).slice(5).replace('-', '/')) + '）' : '', d.weekday ? d.weekday + '曜' : '', d.items.length + '種目'].filter(String).join('・')) + '</span></div>' +
-            '<button class="btn sub btn-pill small" data-act="startDay" data-day="' + d.day + '">' + (done ? 'もう一度' : '始める') + '</button></div>';
-        }).join('') + '</div></section>';
+      left += '<section class="hcard tr-menu"><div class="hcard-head"><span class="kicker">今日のメニュー・各Day</span></div>';
+      if (first) {
+        var d0 = findDay(first);
+        left += '<div class="tr-day-title">Day' + d0.day + (d0.dayName ? '　' + esc(d0.dayName) : '') + '</div><p class="muted small">' + esc(h.suggestion.reason) + '</p>' +
+          '<button class="btn btn-pill big block" data-act="startDay" data-day="' + d0.day + '">' + Icon('play', 22) + 'はじめる</button>';
+      } else {
+        left += '<p class="tr-alldone"><b>今週のメニューは全部できたね！</b><br><span class="muted small">もう一度やるときは、下のDayから始めてね。</span></p>';
+      }
+      left += '<div class="tr-days">' + h.days.map(function (d) {
+        var done = h.doneDays[d.day], rank = order.indexOf(d.day);
+        return '<div class="tr-day-row' + (d.day === first ? ' rec' : '') + '"><span class="tr-rank">' + (rank >= 0 ? rank + 1 : '') + '</span>' +
+          '<div class="tr-day-text"><b>Day' + d.day + (d.dayName ? ' ' + esc(d.dayName) : '') + '</b>' +
+          '<span class="small muted">' + esc([rank === 0 ? 'おすすめ' : rank > 0 ? 'おすすめ' + (rank + 1) + '番め' : '', done ? '済み（' + String(done).slice(5).replace('-', '/') + '）' : '', d.weekday ? '推奨 ' + d.weekday + '曜' : '', d.items.length + '種目'].filter(String).join('・')) + '</span></div>' +
+          '<button class="btn sub btn-pill small" data-act="startDay" data-day="' + d.day + '">' + (done ? 'もう一度' : '始める') + '</button></div>';
+      }).join('') + '</div></section>';
     }
-    // 3・4. 自分のメニューと、白紙から記録する（今までの部品をそのまま使う）
-    html += MyMenu.homeCard();
-    // 5. 種目一覧
-    var list = Training.exercises();
-    if (list.length) {
-      html += '<section class="sec"><div class="sec-head"><h2>種目一覧</h2><span class="small muted">' + list.length + '種目</span></div>' +
-        '<input id="trSearch" type="search" placeholder="種目名で探す" autocomplete="off" aria-label="種目名で探す">' +
-        '<div class="tr-ex-list">' + list.map(function (e) {
-          return '<button class="tr-ex" data-act="trEx" data-name="' + esc(e.name) + '" data-key="' + esc(VoiceParser.norm(e.name + ' ' + (e.aliases || ''))) + '">' +
-            '<span class="tr-ex-name">' + esc(e.name) + '</span><span class="small muted">' + esc([e.part, e.category].filter(String).join('・')) + '</span>' + Icon('right', 16) + '</button>';
-        }).join('') + '</div><p class="muted small tr-ex-none" hidden>見つかりませんでした。</p></section>';
-    }
+    // 2. 自分のメニュー（作る・編集・始めるは今までの部品）
+    left += '<section class="hcard">' + MyMenu.homeCard(true) + '</section>';
+    // 3. 白紙から始める
+    left += '<section class="hcard tr-blank"><div class="hcard-head"><span class="kicker">白紙から始める</span></div>' +
+      '<p class="muted small">メニューを決めずに、やった種目を記録するよ。終わったあとにメニューとして保存もできるよ。</p>' +
+      '<button class="btn sub btn-pill block" data-act="startFree">白紙から記録する</button></section>';
+    // 4. 種目一覧（または種目の詳しい情報）
+    var right = Training.ex ? Training.detailHtml(Training.ex) : Training.listHtml();
+    html += '<div class="tr-grid' + (Training.ex ? ' tr-has-detail' : '') + '"><div class="tr-left">' + left + '</div><div class="tr-right">' + right + '</div></div>';
     html += '<p class="ver">' + esc(APP_VERSION) + '</p>';
     app.innerHTML = html;
+    if (Training.ex) Training.loadStats();
+  },
+
+  /** 種目一覧（名前で探せる） */
+  listHtml: function () {
+    var list = Training.exercises();
+    if (!list.length) return '';
+    return '<section class="hcard tr-list"><div class="hcard-head"><span class="kicker">種目一覧</span><span class="small muted">' + list.length + '種目</span></div>' +
+      '<input id="trSearch" type="search" placeholder="種目名で探す" autocomplete="off" aria-label="種目名で探す">' +
+      '<div class="tr-ex-list">' + list.map(function (e) {
+        return '<button class="tr-ex" data-act="trEx" data-name="' + esc(e.name) + '" data-key="' + esc(VoiceParser.norm(e.name + ' ' + (e.aliases || ''))) + '">' +
+          '<span class="tr-ex-name">' + esc(e.name) + '</span><span class="small muted">' + esc([e.part, e.category].filter(String).join('・')) + '</span>' + Icon('right', 16) + '</button>';
+      }).join('') + '</div><p class="muted small tr-ex-none" hidden>見つかりませんでした。</p></section>';
   },
 
   /** 種目一覧：今のメニューの種目と種目マスタ（同じ名前は1つ）。部位 → 名前 の順 */
@@ -270,35 +278,37 @@ var Training = {
     });
   },
 
-  /** 種目の詳しい情報（今あるデータだけ） */
+  /** 種目の詳しい情報（今あるデータだけ。取れない項目は出さない） */
   detailHtml: function (name) {
     var h = S.home, e = Training.exercises().filter(function (x) { return x.name === name; })[0] || { name: name, part: '', category: '' };
     var uses = [];
     h.days.forEach(function (d) { d.items.forEach(function (it) { if (it.name === name) uses.push({ d: d, it: it }); }); });
     var last = latestOf(name);
-    var html = '<div class="group tr-detail"><button class="btn ghost" data-act="trBack">' + Icon('left', 18) + '種目一覧</button>' +
-      '<h1 class="tr-ex-title">' + esc(name) + '</h1>' +
-      '<p class="muted small">' + esc(['部位：' + (e.part || '―'), 'カテゴリー：' + (e.category || '―')].join('　')) + '</p>';
-    html += '<section class="sec"><h2>メニュー上の回数・セット</h2>' + (uses.length ? uses.map(function (u) {
-      return '<p class="tr-line"><b>Day' + u.d.day + (u.d.dayName ? '（' + esc(u.d.dayName) + '）' : '') + '</b>　' +
-        (u.it.reps ? esc(u.it.reps) + '回 × ' + esc(u.it.sets || 1) + 'セット' : '―') + '</p>';
-    }).join('') : '<p class="muted small">今のメニューには入っていません。</p>') + '</section>';
-    html += '<section class="sec"><h2>前回の記録</h2>' + (last ? '<p class="tr-line">' + esc(last.date) + '　' + esc(last.sets) + '</p>' : '<p class="muted small">まだ記録がありません。</p>') + '</section>';
-    html += '<section class="sec"><h2>自己ベスト・順位</h2><div id="trStats">' + Training.statsHtml(name) + '</div></section>';
+    var meta = [e.part ? '部位：' + e.part : '', e.category ? 'カテゴリー：' + e.category : ''].filter(String).join('　');
+    var html = '<section class="hcard tr-detail"><button class="btn ghost" data-act="trBack">' + Icon('left', 18) + '種目一覧</button>' +
+      '<h1 class="tr-ex-title">' + esc(name) + '</h1>' + (meta ? '<p class="muted small">' + esc(meta) + '</p>' : '');
+    // 説明文・動画は今は無いので出さない（入れるようになったら、この場所に出す）
+    html += '<div class="tr-media" hidden></div>';
     if (uses.length) {
-      html += uses.map(function (u) {
-        return '<button class="btn btn-pill block" data-act="startDay" data-day="' + u.d.day + '">' + Icon('play', 20) + 'この種目があるDay' + u.d.day + 'を始める</button>';
-      }).join('');
+      html += '<div class="tr-sec"><h2>メニュー上の回数・セット</h2>' + uses.map(function (u) {
+        var it = u.it, parts = [it.reps ? it.reps + '回 × ' + (it.sets || 1) + 'セット' : '', it.tempo ? 'テンポ ' + it.tempo : '', it.rest ? 'レスト ' + it.rest + '秒' : '', it.rir && it.rir !== '-' ? 'RIR ' + it.rir : ''].filter(String);
+        return '<p class="tr-line"><b>Day' + u.d.day + (u.d.dayName ? '（' + esc(u.d.dayName) + '）' : '') + '</b><br>' + esc(parts.join('・') || '―') + '</p>';
+      }).join('') + '</div>';
     }
-    return html + '</div>';
+    if (last) html += '<div class="tr-sec"><h2>前回の記録</h2><p class="tr-line">' + esc(last.date) + '　' + esc(last.sets) + '</p></div>';
+    html += '<div class="tr-sec" id="trStats">' + Training.statsHtml(name) + '</div>';
+    html += uses.map(function (u) {
+      return '<button class="btn btn-pill block" data-act="startDay" data-day="' + u.d.day + '">' + Icon('play', 20) + 'この種目があるDay' + u.d.day + 'を始める</button>';
+    }).join('');
+    return html + '</section>';
   },
 
-  /** 自己ベスト・順位（myStats。コーチの質問と同じデータ。無いときは無いと書く） */
+  /** 自己ベスト・順位（myStats。コーチの質問と同じデータ。無いときは何も出さない） */
   statsHtml: function (name) {
-    if (!QA.fresh('stats')) return '<p class="muted small">読み込み中…</p>';
+    if (!QA.fresh('stats')) return Training.statsErr ? '' : '<h2>自己ベスト・順位</h2><p class="muted small">読み込み中…</p>';
     var st = QA.data.stats, e = st.training && st.training.exercises && st.training.exercises[name];
-    if (!e || (!e.best && !e.rank)) return '<p class="muted small">記録がまだありません。</p>';
-    var out = '';
+    if (!e || (!e.best && !e.rank)) return '';
+    var out = '<h2>自己ベスト・順位</h2>';
     if (e.best) out += '<p class="tr-line">自己ベスト　<b>' + esc(e.best.w) + 'kg' + (e.best.r ? ' × ' + esc(e.best.r) + '回' : '') + '</b>（' + esc(e.best.date) + '）</p>';
     if (e.rank) out += '<p class="tr-line">チーム内の順位　<b>' + esc(e.rank.of) + '人中' + esc(e.rank.rank) + '位</b>（最近' + Math.round((st.rankDays || 92) / 30) + 'か月の最高重量）</p>';
     return out;
@@ -312,8 +322,9 @@ var Training = {
       var box = document.getElementById('trStats');
       if (box && Training.ex === name) box.innerHTML = Training.statsHtml(name);
     }).catch(function () {
+      Training.statsErr = true;   // 読めないときは自己ベスト・順位の欄を出さない
       var box = document.getElementById('trStats');
-      if (box) box.innerHTML = '<p class="muted small">読み込めませんでした。</p>';
+      if (box) box.innerHTML = '';
     });
   },
 
