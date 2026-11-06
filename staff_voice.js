@@ -44,6 +44,8 @@ var StaffVoice = {
           Body.explain(Staff.current, 'inbody').replace(/^.*?フィジカルレポートです。/, 'フィジカルデータは、'));
       }
       if (/レポト|フィジカル/.test(t)) return reply(text, '説明するレポートを先に開いてください。「（選手の名前）のフィジカルレポートを開いて」で開けます。', true);
+      // v67：「このページを説明して」「この画面を説明して」は、今のページの見方（Guide.staff）で答える
+      if (/ペジ|画面|がめん/.test(t)) return reply(text, Guide.staff());
     }
     // 画面の操作（言い切りの指示）→ データの質問 → 名前だけ → 雑談 の順
     var people = forced || StaffVoice.findAthletes(text);
@@ -146,7 +148,7 @@ var StaffVoice = {
     if (/コラム/.test(t) && /管理|かんり|追加|ついか|足|作|つく|直|なお|開|ひら|見|み/.test(t) && !people.length) {
       if (!Staff.overview || !Staff.overview.columnEditor) return done('コラムの追加・変更は、管理者とトレーナーだけができます。');
       ColumnEditor.open();
-      return done('コラムの管理を開きました。PDFか手入力で追加できます。');
+      return done('お知らせ・コラムの管理を開きました。PDFか手入力で追加できます。');
     }
     // ログインの管理（v53。管理者だけ。staff.js の Admin.voice）
     var adm = window.Admin && !people.length ? Admin.voice(t) : null;
@@ -218,7 +220,8 @@ var StaffVoice = {
       return done(ptab === 'weight' ? '体重レポートにしました。' : 'InBodyのフィジカルレポートにしました。');
     }
     if (/インボディ|inbody|体組成|たいそせい/.test(t) && !people.length) { Staff.tab = 'inbody'; Staff.render(); return done('InBodyのタブを開きました。'); }
-    if (/体重/.test(t) && /(タブ|一覧|いちらん|にして|に切り替え|開|ひら|見せ|みせ)/.test(t) && !people.length) {
+    // v67：「体重にして」は Chat.clean で「して」が取れて「体重に」になるので、「に」で終わる形も受け付ける（個人ページの切り替えと同じ）
+    if (/体重/.test(t) && /(タブ|一覧|いちらん|にして|に$|に切り替え|開|ひら|見せ|みせ)/.test(t) && !people.length) {
       Staff.tab = 'weight'; Staff.render(); return done('体重のタブを開きました。');
     }
 

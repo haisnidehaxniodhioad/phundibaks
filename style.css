@@ -924,6 +924,7 @@ a.btn { text-decoration: none; justify-content: center; align-items: center; }
 .gb-fig { margin: 10px auto 12px; max-width: 300px; text-align: center; }
 .gb-fig img { display: block; width: 100%; height: auto; border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-sm); }
 .gb-fig figcaption { margin-top: 4px; font-size: 0.8rem; color: var(--muted); }
+.gb-fig.gb-wide { max-width: 640px; }   /* v67：パソコンの画面写真（横長）は大きく */
 .gb-table td, .gb-table th { font-size: 0.88rem; }
 
 /* ===== v53：ログインの管理（管理者。staff.js の Admin） ===== */

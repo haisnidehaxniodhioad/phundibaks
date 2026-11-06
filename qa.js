@@ -387,6 +387,9 @@ var QA = {
         (miss.length ? (miss.length < 4 ? '。' : '') + 'まだ「' + miss.join('」「') + '」を選んでないよ。' : '。全部選んだから、「保存」で保存できるよ。');
     }
     if (v === 'mymenu' && S.edit) return 'メニュー作りの画面だよ。' + (S.edit.name ? '「' + S.edit.name + '」、' : '') + S.edit.items.filter(function (it) { return it.name; }).length + '種目入っているよ。終わったら下の「保存する」を押してね。';
+    // v67：まとめの無い画面（トレーニングのタブ・マイページ・コラム・使い方など）は、その画面の見方（guide.js）で答える
+    if (v === 'home' && S.tab === 'training') return Guide.ATHLETE.training;
+    if (v !== 'home') return Guide.athlete();
     // ホーム
     var left = h.days.filter(function (d) { return !h.doneDays[d.day]; });
     var c = h.condition;

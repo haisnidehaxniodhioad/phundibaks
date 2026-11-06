@@ -267,7 +267,7 @@ var Training = {
     return '<section class="hcard tr-list"><div class="hcard-head"><span class="kicker">種目一覧</span><span class="small muted">' + list.length + '種目</span></div>' +
       '<input id="trSearch" type="search" placeholder="種目名で探す" autocomplete="off" aria-label="種目名で探す">' +
       '<div class="tr-ex-list">' + list.map(function (e) {
-        return '<button class="tr-ex" data-act="trEx" data-name="' + esc(e.name) + '" data-key="' + esc(VoiceParser.norm(e.name + ' ' + (e.aliases || ''))) + '">' +
+        return '<button class="tr-ex" data-act="trEx" data-name="' + esc(e.name) + '" data-key="' + esc(Training.searchKey(e.name + ' ' + (e.aliases || ''))) + '">' +
           '<span class="tr-ex-name">' + esc(e.name) + '</span><span class="small muted">' + esc([e.part, e.category].filter(String).join('・')) + '</span>' + Icon('right', 16) + '</button>';
       }).join('') + '</div><p class="muted small tr-ex-none" hidden>見つかりませんでした。</p></section>';
   },
@@ -336,9 +336,17 @@ var Training = {
     });
   },
 
+  /**
+   * 検索用の文字（v67）：VoiceParser.norm のあと、ひらがなをカタカナにそろえる（「すくわっと」でも「スクワット」が見つかる）。
+   *   種目名・保存データは変えない。漢字の種目名の読みは推測しない（読みのデータが無いので、漢字は漢字で探す）
+   */
+  searchKey: function (s) {
+    return VoiceParser.norm(s).replace(/[\u3041-\u3096]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) + 0x60); });
+  },
+
   /** 種目一覧の絞り込み（画面は描き直さない：入力中の文字が消えないように） */
   filter: function (q) {
-    var key = VoiceParser.norm(q || ''), shown = 0;
+    var key = Training.searchKey(q || ''), shown = 0;
     app.querySelectorAll('.tr-ex').forEach(function (b) { var ok = !key || b.dataset.key.indexOf(key) >= 0; b.hidden = !ok; if (ok) shown++; });
     var none = app.querySelector('.tr-ex-none'); if (none) none.hidden = shown > 0;
   }
