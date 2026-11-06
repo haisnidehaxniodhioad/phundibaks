@@ -521,16 +521,22 @@ var ColumnEditor = {
     ColumnEditor.KINDS.forEach(function (K) {
       var list = d.columns.filter(function (c) { return c.kind === K.k; }), lim = d.limits[K.k] || 100;
       html += '<div class="card"><h2>' + esc(K.label) + (K.k !== 'page' ? '<span class="muted small">（' + list.length + ' / ' + lim + '）</span>' : '') + '</h2><p class="muted small">' + esc(K.note) + '</p>';
-      html += list.length ? '<div class="ce-list">' + list.map(function (c, i) {
+      // v58：タグごとに見出しを付けて並べる（上へ・下へは同じタグの中で動く）
+      var groups = Column.groups(list), tagged = groups.some(function (g) { return g.tag; });
+      html += list.length ? groups.map(function (g) {
+        var gl = g.items;
+        return (tagged ? '<h3 class="ce-tag">' + Icon('book', 16) + esc(g.tag || 'タグなし（その他）') + '<span class="muted small">' + gl.length + '</span></h3>' : '') +
+          '<div class="ce-list">' + gl.map(function (c, i) {
         var open = ColumnEditor.openId === c.id;
         return '<div class="ce-item' + (open ? ' open' : '') + '"><div class="ce-row"><button class="ce-title" data-ce="view" data-v="' + esc(c.id) + '">' + Icon(open ? 'up' : 'down', 18) + '<span>' + esc(c.title) +
           '<span class="muted small">' + esc(c.format) + (c.updated ? '・' + esc(c.updated.replace(/-/g, '/')) : '') + '</span></span></button>' +
           (d.editor ? '<span class="ce-btns"><button class="btn ghost small" data-ce="up" data-v="' + esc(c.id) + '"' + (i ? '' : ' disabled') + ' aria-label="上へ">' + Icon('up', 16) + '</button>' +
-            '<button class="btn ghost small" data-ce="down" data-v="' + esc(c.id) + '"' + (i < list.length - 1 ? '' : ' disabled') + ' aria-label="下へ">' + Icon('down', 16) + '</button>' +
+            '<button class="btn ghost small" data-ce="down" data-v="' + esc(c.id) + '"' + (i < gl.length - 1 ? '' : ' disabled') + ' aria-label="下へ">' + Icon('down', 16) + '</button>' +
             '<button class="btn sub small" data-ce="edit" data-v="' + esc(c.id) + '">直す</button>' +
             '<button class="btn ghost small ce-del" data-ce="del" data-v="' + esc(c.id) + '">' + (ColumnEditor.delArm === c.id ? 'もう一度押すと消す' : '消す') + '</button></span>' : '') + '</div>' +
           (open ? '<div class="ce-preview' + (K.k !== 'page' ? ' as-card' : '') + '">' + Column.bodyHtml(c.blocks) + '</div>' : '') + '</div>';
-      }).join('') + '</div>' : '<p class="muted">まだありません。</p>';
+      }).join('') + '</div>';
+      }).join('') : '<p class="muted">まだありません。</p>';
       if (d.editor) {
         var full = list.length >= lim;
         html += '<div class="row">' + (full ? '<p class="muted small">' + lim + 'つまでです。足すときは、どれかを消してください。</p>' :
@@ -544,12 +550,12 @@ var ColumnEditor = {
   },
 
   // ---------------- 作る・直す ----------------
-  startPdf: function (kind) { ColumnEditor.ed = { kind: kind, title: '', format: '', blocks: [], source: 'pdf', step: 'pick', mode: '文字と図' }; ColumnEditor.msg = ''; ColumnEditor.render(); window.scrollTo(0, 0); },
-  startText: function () { ColumnEditor.ed = { kind: 'page', title: '', format: '手入力', blocks: [], source: 'text', step: 'edit', text: '' }; ColumnEditor.msg = ''; ColumnEditor.render(); window.scrollTo(0, 0); },
+  startPdf: function (kind) { ColumnEditor.ed = { kind: kind, title: '', format: '', blocks: [], source: 'pdf', step: 'pick', mode: '文字と図', tag: '' }; ColumnEditor.msg = ''; ColumnEditor.render(); window.scrollTo(0, 0); },
+  startText: function () { ColumnEditor.ed = { kind: 'page', title: '', format: '手入力', blocks: [], source: 'text', step: 'edit', text: '', tag: '' }; ColumnEditor.msg = ''; ColumnEditor.render(); window.scrollTo(0, 0); },
   startEdit: function (id) {
     var c = ColumnEditor.data.columns.filter(function (x) { return x.id === id; })[0];
     if (!c) return;
-    var ed = { id: c.id, kind: c.kind, title: c.title, format: c.format, blocks: JSON.parse(JSON.stringify(c.blocks || [])), source: c.format === '手入力' ? 'text' : 'pdf', step: 'edit' };
+    var ed = { id: c.id, kind: c.kind, title: c.title, tag: c.tag || '', format: c.format, blocks: JSON.parse(JSON.stringify(c.blocks || [])), source: c.format === '手入力' ? 'text' : 'pdf', step: 'edit' };
     if (ed.source === 'text') ed.text = ColumnEditor.toText(ed.blocks);
     ColumnEditor.ed = ed; ColumnEditor.msg = ''; ColumnEditor.render(); window.scrollTo(0, 0);
   },
@@ -583,6 +589,23 @@ var ColumnEditor = {
     flush();
     return blocks;
   },
+  /** v58：タグの入力欄。今までに使ったタグを押して選べる */
+  usedTags: function () {
+    var seen = {}, out = [];
+    Column.groups((ColumnEditor.data || {}).columns || []).forEach(function (g) { if (g.tag && !seen[g.tag]) { seen[g.tag] = true; out.push(g.tag); } });
+    return out;
+  },
+  tagHtml: function (e) {
+    var tags = ColumnEditor.usedTags();
+    return '<label class="small">タグ（まとまりの名前。1つだけ・空でもよい） <input class="sel ce-titlein" id="ceTag" maxlength="20" value="' + esc(e.tag || '') + '" placeholder="例：体づくり"></label>' +
+      (tags.length ? '<div class="ce-tags"><span class="muted small">今までのタグ：</span>' + tags.map(function (t) {
+        return '<button type="button" class="chip' + (t === (e.tag || '') ? ' on' : '') + '" data-ce="tagpick" data-v="' + esc(t) + '">' + esc(t) + '</button>';
+      }).join('') + '<button type="button" class="chip' + (!e.tag ? ' on' : '') + '" data-ce="tagpick" data-v="">タグなし</button></div>' : '');
+  },
+  markTag: function () {
+    var e = ColumnEditor.ed; if (!e) return;
+    Array.prototype.forEach.call(app.querySelectorAll('[data-ce="tagpick"]'), function (b) { b.classList.toggle('on', b.dataset.v === String(e.tag || '').trim()); });
+  },
   toText: function (blocks) {
     return (blocks || []).map(function (b) { return b.t === 'h' ? '# ' + b.s : b.t === 'li' ? '- ' + b.s : b.t === 'p' ? b.s : ''; })
       .filter(String).join('\n\n').replace(/(- [^\n]*)\n\n(?=- )/g, '$1\n');
@@ -607,6 +630,7 @@ var ColumnEditor = {
       app.innerHTML = ColumnEditor.frame(html); return;
     }
     html += '<label class="small">題名 <input class="sel ce-titlein" id="ceTitle" maxlength="60" value="' + esc(e.title) + '" placeholder="例：FFMIとは"></label>';
+    html += ColumnEditor.tagHtml(e);   // v58
     if (e.id) html += '<div class="ce-reload"><button class="btn sub small" data-ce="repdf">' + Icon('file', 16) + 'PDFを読み込み直す</button>' +
       '<span class="muted small">' + (e.source === 'text' ? '手入力の中身を、PDFの中身に入れ替えます。' : '今の中身を、新しいPDFの中身に入れ替えます。') + '題名はそのままです。</span></div>';   // v57
     if (e.source === 'text') {
@@ -837,6 +861,8 @@ var ColumnEditor = {
     var e = ColumnEditor.ed; if (!e || ColumnEditor.busy) return;
     var title = (document.getElementById('ceTitle') || {}).value || '';
     e.title = title.trim();
+    var tg = document.getElementById('ceTag'); if (tg) e.tag = tg.value;
+    e.tag = String(e.tag || '').replace(/\s+/g, ' ').trim().slice(0, 20);
     if (!e.title) { alert('題名を入れてください。'); return; }
     var blocks = e.source === 'text' ? ColumnEditor.fromText(e.text) : e.blocks;
     if (!blocks.length) { alert('中身がありません。'); return; }
@@ -850,7 +876,7 @@ var ColumnEditor = {
     });
     chain.then(function () {
       ColumnEditor.busy = '保存しています…'; var btn = document.getElementById('ceSave'); if (btn) btn.textContent = ColumnEditor.busy;
-      return Api.call('columnSave', { token: S.token, column: { id: e.id || '', kind: e.kind, title: e.title, format: e.format || '手入力', blocks: blocks } });
+      return Api.call('columnSave', { token: S.token, column: { id: e.id || '', kind: e.kind, title: e.title, format: e.format || '手入力', blocks: blocks, tag: e.tag } });
     }).then(function (res) {
       ColumnEditor.busy = ''; ColumnEditor.ed = null; ColumnEditor.msg = msgHtml('ok', res.message + '（選手の画面には、次にアプリを開いたときに出ます）');
       ColumnEditor.render(); window.scrollTo(0, 0); ColumnEditor.load();
@@ -885,6 +911,7 @@ app.addEventListener('click', function (e) {
   else if (k === 'repdf') ColumnEditor.reloadPdf();   // v57
   else if (k === 'unpdf') ColumnEditor.undoReload();
   else if (k === 'save') ColumnEditor.save();
+  else if (k === 'tagpick' && ed) { ed.tag = v; var ti = document.getElementById('ceTag'); if (ti) ti.value = v; ColumnEditor.markTag(); }   // v58
   else if (k === 'bdel' && ed) { var tt = document.getElementById('ceTitle'); if (tt) ed.title = tt.value; ed.blocks.splice(Number(v), 1); ColumnEditor.render(); }
 });
 app.addEventListener('change', function (e) {
@@ -900,4 +927,5 @@ app.addEventListener('input', function (e) {
   if (t.id === 'ceText') { ed.text = t.value; ColumnEditor.refreshPreview(); }
   if (t.dataset.ceText !== undefined) { ed.blocks[Number(t.dataset.ceText)].s = t.value; ColumnEditor.refreshPreview(); }
   if (t.id === 'ceTitle') ed.title = t.value;
+  if (t.id === 'ceTag') { ed.tag = t.value; ColumnEditor.markTag(); }   // v58
 });

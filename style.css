@@ -1022,3 +1022,19 @@ a.btn { text-decoration: none; justify-content: center; align-items: center; }
 .ce-block.img .col-img { max-height: 220px; overflow: hidden; }
 .ce-btext { width: 100%; font: inherit; font-size: .92rem; line-height: 1.5; padding: 6px 8px; border: 1px solid var(--line-strong, #ccc); border-radius: 8px; background: var(--bg, #fff); color: inherit; }
 
+
+/* ---------- v58：コラムのタグ ---------- */
+.col-groups { display: flex; flex-direction: column; gap: 10px; }
+.col-group { border: 1.5px solid var(--line-strong); border-radius: 14px; overflow: hidden }
+.col-tag { display: flex; width: 100%; align-items: center; gap: 8px; padding: 14px 12px; border: none; background: var(--color-surface); font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.col-tag .ic { color: var(--color-accent); flex: none; }
+.col-tag-t { flex: 1; font-weight: 800; font-size: 1.08rem; overflow-wrap: anywhere; }
+.col-tag-n { flex: none; min-width: 1.8em; padding: 2px 8px; border-radius: 999px; background: var(--color-accent-100); color: var(--color-accent-800); font-weight: 700; font-size: 0.85rem; text-align: center; }
+.col-group .col-list { border-top: 1px solid var(--line); padding: 0 10px; }
+.col-group .col-list li:last-child { border-bottom: none; }
+.ce-tag { display: flex; align-items: center; gap: 6px; margin: 14px 0 0; font-size: 1rem; }
+.ce-tag .ic { color: var(--color-accent); }
+.ce-tag .muted { font-weight: 400; }
+.ce-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin: -4px 0 10px; }
+.ce-tags .chip { border: 1.5px solid var(--line); font: inherit; font-size: 0.88rem; color: inherit; cursor: pointer; padding: 6px 12px; }
+.ce-tags .chip.on { background: var(--color-accent-100); color: var(--color-accent-800); border-color: var(--color-accent); }

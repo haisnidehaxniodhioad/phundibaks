@@ -283,16 +283,44 @@ var Column = {
       app.innerHTML = msgHtml('error', err.message) + '<button class="btn block" data-act="mypage">マイページへ</button>';
     });
   },
+  /** v58：タグごとにまとめる。順番がいちばん小さいコラムのタグから並べ、タグなしは最後（「その他」） */
+  groups: function (list) {
+    var map = {}, out = [];
+    (list || []).slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); }).forEach(function (c) {
+      var t = c.tag || '';
+      if (!map[t]) { map[t] = { tag: t, items: [] }; out.push(map[t]); }
+      map[t].items.push(c);
+    });
+    return out.filter(function (g) { return g.tag; }).concat(out.filter(function (g) { return !g.tag; }));
+  },
+  openTags: null,
   renderList: function () {
     S.view = 'column'; Column.current = null;
-    var list = Column.list || [];
+    var list = Column.list || [], groups = Column.groups(list);
+    if (!Column.openTags) Column.openTags = Store.get('colOpen', {}) || {};
+    var item = function (c) {
+      return '<li><button data-col="open" data-v="' + esc(c.id) + '"><span class="col-list-t">' + esc(c.title) + '</span>' +
+        (c.updated ? '<span class="muted small">' + esc(c.updated.replace(/-/g, '/')) + '</span>' : '') + Icon('right', 18) + '</button></li>';
+    };
+    var body;
+    if (!list.length) body = '<div class="group"><p class="muted">まだコラムはないよ。</p></div>';
+    else if (groups.length === 1 && !groups[0].tag) body = '<div class="group"><ul class="col-list">' + list.map(item).join('') + '</ul></div>';   // タグが1つも無いときは今までどおり
+    else body = '<div class="group col-groups">' + groups.map(function (g) {
+      var key = g.tag || '（その他）', open = !!Column.openTags[key];
+      return '<section class="col-group' + (open ? ' open' : '') + '"><button class="col-tag" data-col="tag" data-v="' + esc(key) + '" aria-expanded="' + open + '">' +
+        Icon(open ? 'up' : 'down', 18) + '<span class="col-tag-t">' + esc(g.tag || 'その他') + '</span><span class="col-tag-n">' + g.items.length + '</span></button>' +
+        (open ? '<ul class="col-list">' + g.items.map(item).join('') + '</ul>' : '') + '</section>';
+    }).join('') + '</div>';
     app.innerHTML = '<div class="group"><div class="topbar"><h1>' + Icon('book', 22) + 'コラム</h1><button class="btn ghost" data-act="mypage">マイページへ</button></div>' +
-      '<p class="muted small">トレーニングや体の用語などを説明しているよ。読みたい題名を押してね。</p></div>' +
-      (list.length ? '<div class="group"><ul class="col-list">' + list.map(function (c) {
-        return '<li><button data-col="open" data-v="' + esc(c.id) + '"><span class="col-list-t">' + esc(c.title) + '</span>' +
-          (c.updated ? '<span class="muted small">' + esc(c.updated.replace(/-/g, '/')) + '</span>' : '') + Icon('right', 18) + '</button></li>';
-      }).join('') + '</ul></div>' : '<div class="group"><p class="muted">まだコラムはないよ。</p></div>');
-    window.scrollTo(0, 0);
+      '<p class="muted small">トレーニングや体の用語などを説明しているよ。' + (groups.length > 1 || (groups[0] && groups[0].tag) ? 'まとまりの名前を押すと開くよ。' : '読みたい題名を押してね。') + '</p></div>' + body;
+    if (!Column.keepScroll) window.scrollTo(0, 0);
+    Column.keepScroll = false;
+  },
+  toggleTag: function (key) {
+    if (!Column.openTags) Column.openTags = {};
+    if (Column.openTags[key]) delete Column.openTags[key]; else Column.openTags[key] = true;
+    Store.set('colOpen', Column.openTags);
+    Column.keepScroll = true; Column.renderList();
   },
   open: function (id) {
     S.view = 'column';
@@ -322,5 +350,6 @@ app.addEventListener('click', function (e) {
   if (!t) return;
   var k = t.dataset.col;
   if (k === 'open') Column.open(t.dataset.v);
+  if (k === 'tag') Column.toggleTag(t.dataset.v);   // v58
   if (k === 'list') { if (Column.list) Column.renderList(); else Column.show(); }
 });
