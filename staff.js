@@ -74,7 +74,7 @@ var Staff = {
     var html = '<div class="manage-list">' +
       item('roster', '', 'person', '選手の登録・取り込み', 'チームのホームページの部員名簿と比べて、選手・スタッフを追加・更新します') +
       item('menuImport', '', 'file', 'メニューの管理', '毎月のメニュー表（PDF）の取り込みと、今あるメニューの中身') +
-      (o.columnEditor ? item('columns', '', 'book', 'コラムの管理', '用語の説明などのコラムを追加・修正します（管理者・トレーナー）') : '') +
+      (o.columnEditor ? item('columns', '', 'book', 'お知らせ・コラムの管理', 'お知らせ・用語の説明などのコラムを追加・修正します（管理者・トレーナー）') : '') +
       (o.admin ? item('admin', '', 'phone', 'ログインの管理', 'ログインしている端末とログインの記録（管理者）') : '') +
       item('guide', 'staff', 'book', '使い方（スタッフ向け）', 'スタッフ画面の使い方') +
       item('guide', 'athlete', 'book', '使い方（選手向け・配る用）', '選手に配る案内') +
@@ -102,21 +102,69 @@ var Staff = {
         .catch(Staff.fail);
       return;
     }
+    // v65：ダッシュボード。KPI・A/B/C は計画書 第8章の定義（判定は staff_qa.js の StaffQA.is。AIの答えと同じもの）
     var o = Staff.overview, f = Staff.filter;
     var teams = uniq(o.athletes.map(function (a) { return a.team; })), grades = uniq(o.athletes.map(function (a) { return a.grade; }));
-    var list = o.athletes.filter(function (a) { return (!f.team || a.team === f.team) && (!f.grade || a.grade === f.grade); });
+    var list = StaffQA.people(o).slice();
     // 未実施 → 実施が少ない順 → 名前順
     list.sort(function (a, b) { return a.sessions - b.sessions || a.daysDone - b.daysDone || String(a.name).localeCompare(b.name, 'ja'); });
-    var notDone = list.filter(function (a) { return !a.sessions; }).length;
+    var n = list.length, notDone = list.filter(StaffQA.is.B2).length, condIn = list.filter(function (a) { return a.condCount; }).length;
+    var ck = StaffQA.checks(o), past = o.weekEnd < Body.today();
 
-    var html = '<div class="card"><div class="row"><button class="btn ghost" data-staff="week" data-v="-7">◀ 前の週</button>' +
+    var html = '<div class="card dash-ctl"><div class="row"><button class="btn ghost" data-staff="week" data-v="-7">◀ 前の週</button>' +
       '<b>' + esc(o.weekStart.slice(5).replace('-', '/')) + '〜' + esc(o.weekEnd.slice(5).replace('-', '/')) + '</b>' +
       '<button class="btn ghost" data-staff="week" data-v="7">次の週 ▶</button></div>' +
       '<div class="row">' + Staff.select('team', 'チーム', teams) + Staff.select('grade', '学年', grades) + '</div>' +
-      '<p class="small">表示 ' + list.length + '人 ／ <b class="ng-text">未実施 ' + notDone + '人</b></p>' +
+      '<p class="small">表示 ' + n + '人 ／ <b class="ng-text">未実施 ' + notDone + '人</b></p>' +
       '<div class="row"><button class="btn sub" data-staff="xOverviewXlsx">Excelで保存</button><button class="btn sub" data-staff="xOverviewPdf">PDFで保存</button></div></div>';
     Staff.overviewList = list;
-    html += '<div class="card"><div class="table-scroll"><table class="tbl"><tr><th>選手</th><th>Day</th><th>回数</th><th>上/下/全</th><th>疲労 全/上/下</th><th>動き</th><th>最終</th></tr>' +
+
+    // ① KPI（分母＝在籍中で、今の絞り込みの選手）
+    var kpi = function (label, val, sub, cls) {
+      return '<div class="kpi' + (cls ? ' ' + cls : '') + '"><span class="small muted">' + label + '</span><b>' + val + '</b>' + (sub ? '<span class="small muted">' + sub + '</span>' : '') + '</div>';
+    };
+    html += '<div class="card"><h2>この週の状況</h2><div class="kpi-grid">' +
+      kpi('今週の実施', (n - notDone) + ' / ' + n + '人', n ? Math.round((n - notDone) / n * 100) + '%' : '') +
+      kpi('コンディション入力', condIn + ' / ' + n + '人', '') +
+      kpi('未実施', notDone + '人', '', notDone ? 'ng' : '') +
+      kpi('コンディション未入力', (n - condIn) + '人', '', n - condIn ? 'ng' : '') +
+      '</div><p class="muted small">在籍中の選手で数えています。</p></div>';
+
+    // ② 確認が必要な選手（A・B・C。重なりがあるので合計しない）
+    var btn = function (k) {
+      return '<button class="check-item chk-' + k.charAt(0) + '" data-staff="check" data-v="' + k + '"><span>' + esc(StaffQA.CHECK_LABELS[k].slice(2)) + '</span><b>' + ck[k].length + '人</b>' + Icon('right', 16) + '</button>';
+    };
+    html += '<div class="card"><h2>確認が必要な選手</h2><div class="check-grid">' +
+      '<div><h3 class="chk-h chk-A">A 体調</h3>' + btn('A1') + btn('A2') + '</div>' +
+      '<div><h3 class="chk-h chk-B">B 入力・実施</h3>' + btn('B1') + btn('B2') + '</div>' +
+      '<div><h3 class="chk-h chk-C">C しばらく未実施</h3>' + btn('C') + '</div></div>' +
+      '<p class="muted small">A・B はこの週のデータ、C は今日から7日で判定します。1人が複数に入ることがあるので、合計はしません。押すと選手管理でその選手を表示します。</p>' +
+      (past ? '<p class="small">表示しているのは過去の週です。C は表示中の週ではなく、今日を基準にしています。</p>' : '') + '</div>';
+
+    // ③ 学年・チーム別（今の絞り込みの中）
+    var groupTable = function (title, key) {
+      var vals = uniq(list.map(function (a) { return a[key]; })).filter(String).sort(function (a, b) { return String(a).localeCompare(String(b), 'ja'); });
+      if (!vals.length) return '';
+      return '<div><h3>' + title + '</h3><div class="table-scroll"><table class="tbl"><tr><th>' + title.replace('別', '') + '</th><th>人数</th><th>実施</th><th>入力</th></tr>' +
+        vals.map(function (v) {
+          var g = list.filter(function (a) { return a[key] === v; }), d = g.filter(function (a) { return a.sessions; }).length, c = g.filter(function (a) { return a.condCount; }).length;
+          return '<tr><td>' + esc(v) + '</td><td>' + g.length + '</td><td' + (d < g.length ? ' class="ng-text"' : '') + '>' + d + '/' + g.length + '</td><td>' + c + '/' + g.length + '</td></tr>';
+        }).join('') + '</table></div></div>';
+    };
+    html += '<div class="card"><h2>学年・チーム別</h2><div class="dash-2col">' + groupTable('学年別', 'grade') + groupTable('チーム別', 'team') + '</div>' +
+      '<p class="muted small">実施＝この週に1回以上トレーニングした人数。入力＝この週にコンディションを入れた人数。</p></div>';
+
+    // ④ 最近のデータ更新（体組成はあとから読み込む。読めなくてもほかはそのまま使える）
+    var maxOf = function (arr) { return arr.filter(String).sort().pop() || ''; };
+    var md = function (d) { return d ? esc(d.slice(5).replace('-', '/')) : 'なし'; };
+    html += '<div class="card"><h2>最近のデータ更新</h2><div class="recent-grid" id="dashRecent">' +
+      '<div><span class="small muted">トレーニング（最新）</span><b>' + md(maxOf(list.map(function (a) { return a.lastDate || ''; }))) + '</b></div>' +
+      '<div><span class="small muted">コンディション（この週）</span><b>' + md(maxOf(list.map(function (a) { return a.cond ? a.cond.date || '' : ''; }))) + '</b></div>' +
+      '<div><span class="small muted">InBody（最新）</span><b data-recent="inbody">…</b></div>' +
+      '<div><span class="small muted">体重（最新）</span><b data-recent="weight">…</b></div></div></div>';
+
+    // ⑤ 選手ごとの表（今までの実施状況）
+    html += '<div class="card"><h2>選手ごとの実施状況</h2><div class="table-scroll"><table class="tbl"><tr><th>選手</th><th>Day</th><th>回数</th><th>上/下/全</th><th>疲労 全/上/下</th><th>動き</th><th>最終</th></tr>' +
       list.map(function (a) {
         var warn = a.sessions && !a.sets['下半身'] ? ' title="下半身のセットがありません"' : '';
         return '<tr class="' + (a.sessions ? '' : 'row-ng') + '"><td><button class="link" data-staff="athlete" data-v="' + esc(a.id) + '">' + esc(a.name) + '</button>' +
@@ -124,32 +172,31 @@ var Staff = {
           '<td>' + (a.menuDays ? a.daysDone + '/' + a.menuDays : '-') + '</td>' +
           '<td>' + a.sessions + (a.freeSessions ? '<span class="muted small">（自' + a.freeSessions + '）</span>' : '') + '</td>' +
           '<td' + warn + '>' + a.sets['上半身'] + '/' + (a.sessions && !a.sets['下半身'] ? '<b class="ng-text">0</b>' : a.sets['下半身']) + '/' + a.sets['全身'] + '</td>' +
-          '<td' + (a.cond && Math.max(a.cond.whole, a.cond.upper, a.cond.lower) >= 8 ? ' class="ng-text"' : '') + '>' + (a.cond ? a.cond.whole + '/' + a.cond.upper + '/' + a.cond.lower : '-') + '</td>' +
-          '<td>' + (a.cond ? a.cond.perf : '-') + '</td>' +
+          '<td' + (StaffQA.is.A1(a) ? ' class="ng-text"' : '') + '>' + (a.cond ? a.cond.whole + '/' + a.cond.upper + '/' + a.cond.lower : '-') + '</td>' +
+          '<td' + (StaffQA.is.A2(a) ? ' class="ng-text"' : '') + '>' + (a.cond ? a.cond.perf : '-') + '</td>' +
           '<td class="small">' + esc(a.lastDate ? a.lastDate.slice(5).replace('-', '/') : '-') + '</td></tr>';
       }).join('') + '</table></div>' +
-      '<p class="muted small">Day＝チームメニューの実施Day数／全Day数。回数＝その週のトレーニング回数（自＝自分のメニュー）。上/下/全＝部位ごとのセット数。疲労・動き＝その週でいちばん新しいコンディション（疲労は1 疲れていない〜10 とても疲れている、8以上は赤。動きは1 とても悪い〜10 とても良い）。</p></div>';
+      '<p class="muted small">Day＝チームメニューの実施Day数／全Day数。回数＝その週のトレーニング回数（自＝自分のメニュー）。上/下/全＝部位ごとのセット数。疲労・動き＝その週でいちばん新しいコンディション（疲労は1 疲れていない〜10 とても疲れている、' + StaffQA.FATIGUE_ALERT + '以上は赤。動きは1 とても悪い〜10 とても良い、' + StaffQA.PERF_LOW + '以下は赤）。</p></div>';
     if (o.unregistered.length) {
       html += '<div class="card"><h2>種目マスタに無い種目</h2><p class="muted small">種目マスタに追加するか、既存の種目の「呼び方の候補」に入れると、部位の集計に入ります。</p>' +
         o.unregistered.map(function (u) { return '<span class="chip">' + esc(u.name) + '（' + u.count + '）</span>'; }).join(' ') + '</div>';
     }
-    // 選手の管理（v44：部員名簿から選手を追加・更新。roster.js）
-    html += '<div class="card"><h2>選手の管理</h2><p class="muted small">チームのホームページの部員名簿と比べて、新しい選手・スタッフ（学生コーチ・トレーナー・アナリスト・指導陣）の追加や、ポジション・ふりがななどの更新ができます。反映する前に確認できます。</p>' +
-      '<button class="btn sub block" data-staff="roster">部員名簿から選手を取り込む</button></div>';
-    // メニューの管理（v50：毎月のメニュー表（PDF）を取り込む。menu_import.js）
-    html += '<div class="card"><h2>メニューの管理</h2><p class="muted small">毎月のメニュー表（Excel から作ったPDF）を読み取って、メニューに足します。開始日から、そのチームの選手を新しいメニューに切り替えられます。</p>' +
-      '<button class="btn sub block" data-staff="menuImport">メニュー表（PDF）を取り込む</button></div>';
-    // 使い方（v52：アプリの中で読む。guidebook.js）
-    html += '<div class="card"><h2>使い方</h2><p class="muted small">スタッフ画面の使い方と、選手に配る案内です。</p><div class="row">' +
-      '<button class="btn sub" data-staff="guide" data-v="staff">' + Icon('book', 18) + 'スタッフ向け</button>' +
-      '<button class="btn sub" data-staff="guide" data-v="athlete">' + Icon('book', 18) + '選手向け（配る用）</button></div></div>';   // v52：アプリの中の使い方（guidebook.js）
-    // ログインの管理（v53：管理者だけ。このファイルの後半の Admin）
-    // コラムの管理（v56：管理者・トレーナーだけ。menu_import.js の後半 ColumnEditor）
-    if (o.columnEditor) html += '<div class="card"><h2>コラムの管理</h2><p class="muted small">用語の説明などのコラムを追加・修正します。選手はマイページの「コラム」から読みます。</p>' +
-      '<button class="btn sub block" data-staff="columns">' + Icon('book', 18) + 'コラムを追加・管理する</button></div>';
-    if (o.admin) html += '<div class="card"><h2>ログインの管理（管理者）</h2><p class="muted small">スマホ・タブレット・PCで、それぞれ何台ログインしているかを確かめられます。知らない端末はログアウトさせられます。ログインの失敗の記録も見られます。</p>' +
-      '<button class="btn sub block" data-staff="admin">' + Icon('phone', 18) + 'ログインしている端末を見る</button></div>';
+    // 選手の登録・メニュー・コラム・ログインの管理・使い方は「管理・設定」にまとめた（v65。権限の条件は renderManage で今までどおり）
     app.innerHTML = Staff.frame(html);
+    Staff.fillRecent();
+  },
+
+  /** v65：最近のデータ更新の InBody・体重（staffBody を読んでから入れる） */
+  fillRecent: function () {
+    var put = function (k, text) { var el = document.querySelector('[data-recent="' + k + '"]'); if (el) el.textContent = text; };
+    Staff.loadBody().then(function (b) {
+      if (Staff.page !== 'overview') return;
+      var people = StaffQA.bodyPeople(b);
+      ['inbody', 'weight'].forEach(function (k) {
+        var d = people.map(function (a) { return a[k].map(function (r) { return r.date; }).sort().pop() || ''; }).filter(String).sort().pop();
+        put(k, d ? d.slice(5).replace('-', '/') : 'なし');
+      });
+    }).catch(function () { put('inbody', '読めませんでした'); put('weight', '読めませんでした'); });
   },
 
   select: function (key, label, values) {
@@ -393,6 +440,7 @@ app.addEventListener('click', function (e) {
       base.setDate(base.getDate() + Number(v));
       Staff.week = base.getFullYear() + '-' + ('0' + (base.getMonth() + 1)).slice(-2) + '-' + ('0' + base.getDate()).slice(-2);
       Staff.overview = null; Staff.renderOverview(); break;
+    case 'check': StaffList.showCheck(v); break;   // v65：ダッシュボードの A・B・C → 選手管理
     case 'athlete': Staff.showAthlete(v); break;
     case 'back': Staff.back(); break;
     case 'phys': Staff.setPhys(v); break;

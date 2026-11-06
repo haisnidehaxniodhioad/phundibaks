@@ -20,6 +20,24 @@ var StaffQA = {
   PERF_LOW: 3,        // 「動きが悪い」とみなす動きやすさの値（以下）
   STALE_DAYS: 7,      // 「しばらくやっていない」とみなす日数
 
+  // ---- v65：確認が必要な選手（A・B・C）の判定。ダッシュボード・選手管理・AIの答えで同じものを使う（計画書 第8章 8-1） ----
+  //   A1 疲労8以上・A2 動きやすさ3以下（表示中の週でいちばん新しいコンディション）、B1 コンディション未入力・B2 今週未実施（表示中の週）、
+  //   C 7日以上未実施（今日が基準。表示中の週とは関係ない）。重なりは許し、項目ごとに数える
+  is: {
+    A1: function (a) { return !!a.cond && Math.max(a.cond.whole, a.cond.upper, a.cond.lower) >= StaffQA.FATIGUE_ALERT; },
+    A2: function (a) { return !!a.cond && a.cond.perf !== '' && a.cond.perf <= StaffQA.PERF_LOW; },
+    B1: function (a) { return !a.condCount; },
+    B2: function (a) { return !a.sessions; },
+    C: function (a, days) { var limit = Body.addDays(Body.today(), -(days || StaffQA.STALE_DAYS)); return !a.lastDate || a.lastDate < limit; }
+  },
+  CHECK_LABELS: { A1: 'A 疲労8以上', A2: 'A 動きやすさ3以下', B1: 'B コンディション未入力', B2: 'B 今週未実施', C: 'C 7日以上未実施' },
+  /** 表示中の週・絞り込み（チーム・学年）での A・B・C の一覧 { A1: [選手…], … } */
+  checks: function (ov) {
+    var list = StaffQA.people(ov), out = {};
+    Object.keys(StaffQA.is).forEach(function (k) { out[k] = list.filter(function (a) { return StaffQA.is[k](a); }); });
+    return out;
+  },
+
   METRICS: [
     { key: 'ffmi', label: 'FFMI', unit: '', re: /ffmi|エフエフエムアイ/ },
     { key: 'lbm', label: '除脂肪体重', unit: 'キロ', re: /除脂肪|じょしぼう|筋肉量/ },
@@ -37,7 +55,7 @@ var StaffQA = {
       test: function (q) { return !q.person && /(やって|実施して|トレニングして|来て|きて|して)(い)?ない|未実施|みじっし|サボ/.test(q.t) && !/下半身|上半身|コンディション|体重|測|はか|最近|しばらく|ずっと|\d+日/.test(q.t); },
       need: ['overview'],
       answer: function (q, d) {
-        var list = StaffQA.people(d.overview), not = list.filter(function (a) { return !a.sessions; });
+        var list = StaffQA.people(d.overview), not = list.filter(function (a) { return StaffQA.is.B2(a); });
         if (!not.length) return StaffQA.weekLabel(d.overview) + StaffQA.scope() + 'は、全員がトレーニングしています。';
         return StaffQA.weekLabel(d.overview) + StaffQA.scope() + '、まだトレーニングしていないのは' + not.length + '人です。' + StaffQA.names(not) + '。';
       }
@@ -59,7 +77,7 @@ var StaffQA = {
       need: ['overview'],
       answer: function (q, d) {
         var A = StaffQA.FATIGUE_ALERT;
-        var hot = StaffQA.people(d.overview).filter(function (a) { return a.cond && Math.max(a.cond.whole, a.cond.upper, a.cond.lower) >= A; })
+        var hot = StaffQA.people(d.overview).filter(function (a) { return StaffQA.is.A1(a); })
           .sort(function (x, y) { return StaffQA.maxF(y.cond) - StaffQA.maxF(x.cond); });
         if (!hot.length) return StaffQA.weekLabel(d.overview) + StaffQA.scope() + 'のコンディションで、疲労が' + A + '以上の選手はいません。';
         return StaffQA.weekLabel(d.overview) + 'のいちばん新しいコンディションで、疲労が' + A + '以上なのは' + hot.length + '人です。' +
@@ -72,7 +90,7 @@ var StaffQA = {
       need: ['overview'],
       answer: function (q, d) {
         var L = StaffQA.PERF_LOW;
-        var low = StaffQA.people(d.overview).filter(function (a) { return a.cond && a.cond.perf !== '' && a.cond.perf <= L; })
+        var low = StaffQA.people(d.overview).filter(function (a) { return StaffQA.is.A2(a); })
           .sort(function (x, y) { return x.cond.perf - y.cond.perf; });
         if (!low.length) return StaffQA.weekLabel(d.overview) + StaffQA.scope() + 'のコンディションで、動きやすさが' + L + '以下の選手はいません。';
         return StaffQA.weekLabel(d.overview) + 'のいちばん新しいコンディションで、動きやすさが' + L + '以下なのは' + low.length + '人です。' +
@@ -84,7 +102,7 @@ var StaffQA = {
       test: function (q) { return !q.person && /コンディション|体調/.test(q.t) && /(入れて|入力して|記録して|つけて|付けて|書いて)(い)?ない|未入力|みにゅうりょく|(何人|なんにん)/.test(q.t); },
       need: ['overview'],
       answer: function (q, d) {
-        var list = StaffQA.people(d.overview), none = list.filter(function (a) { return !a.condCount; });
+        var list = StaffQA.people(d.overview), none = list.filter(function (a) { return StaffQA.is.B1(a); });
         if (/(何人|なんにん)/.test(q.t) && !/ない|未入力/.test(q.t)) return StaffQA.weekLabel(d.overview) + StaffQA.scope() + 'は、' + list.length + '人中' + (list.length - none.length) + '人がコンディションを記録しています。';
         if (!none.length) return StaffQA.weekLabel(d.overview) + StaffQA.scope() + 'は、全員がコンディションを1回以上記録しています。';
         return StaffQA.weekLabel(d.overview) + StaffQA.scope() + '、コンディションを1回も記録していないのは' + none.length + '人です。' + StaffQA.names(none) + '。';
@@ -106,8 +124,8 @@ var StaffQA = {
       test: function (q) { return !q.person && /(しばらく|長い間|ながいあいだ|ずっと|最近|\d+日(以上|間)?)(トレニング)?(を)?(やって|して|来て|きて)(い)?ない/.test(q.t); },
       need: ['overview'],
       answer: function (q, d) {
-        var n = Number((q.t.match(/(\d+)日/) || [])[1]) || StaffQA.STALE_DAYS, limit = Body.addDays(Body.today(), -n);
-        var list = StaffQA.people(d.overview).filter(function (a) { return !a.lastDate || a.lastDate < limit; })
+        var n = Number((q.t.match(/(\d+)日/) || [])[1]) || StaffQA.STALE_DAYS;
+        var list = StaffQA.people(d.overview).filter(function (a) { return StaffQA.is.C(a, n); })
           .sort(function (x, y) { return (x.lastDate || '') < (y.lastDate || '') ? -1 : 1; });
         if (!list.length) return StaffQA.scope('全員') + '、' + n + '日以内にトレーニングしています。';
         return n + '日以上トレーニングの記録が無いのは' + list.length + '人です。' + list.slice(0, 10).map(function (a) {

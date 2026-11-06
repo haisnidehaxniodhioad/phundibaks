@@ -20,7 +20,28 @@ var StaffBody = {
       Staff.loadBody().then(function () { StaffBody.render(kind); }).catch(Staff.fail);
       return;
     }
-    app.innerHTML = Staff.frame(StaffBody.importCard(kind) + (kind === 'weight' ? StaffBody.weightView() : StaffBody.inbodyView() + BodyBase.teamCard()));
+    // v65：いちばん上に最新の状況。記録があるときは取り込みを下へ（まだ無いときは今までどおり上）
+    var has = Staff.body.athletes.some(function (a) { return kind === 'weight' ? a.weight.length : a.inbody.length; });
+    var view = kind === 'weight' ? StaffBody.weightView() : StaffBody.inbodyView() + BodyBase.teamCard();
+    app.innerHTML = Staff.frame(StaffBody.summaryCard(kind) + (has ? view + StaffBody.importCard(kind) : StaffBody.importCard(kind) + view));
+  },
+
+  /** v65：最新の状況（測定日・測った人数・平均）。推移は選手名から開くフィジカルレポートで見る */
+  summaryCard: function (kind) {
+    var people = StaffBody.people(), key = kind === 'weight' ? 'weight' : 'inbody';
+    var last = function (a) { var l = a[key].filter(function (r) { return kind !== 'weight' || r.src !== '本人'; }); return l.length ? l.reduce(function (x, y) { return y.date >= x.date ? y : x; }) : null; };
+    var latest = people.map(last).filter(Boolean);
+    var day = latest.map(function (r) { return r.date; }).sort().pop() || '';
+    var onDay = latest.filter(function (r) { return r.date === day; }).length;
+    var avg = function (k) { var v = latest.map(function (r) { return Body.num(r[k]); }).filter(function (x) { return x !== null; }); return v.length ? (v.reduce(function (s, x) { return s + x; }, 0) / v.length).toFixed(1) : '-'; };
+    var box = function (label, val) { return '<div class="kpi"><span class="small muted">' + label + '</span><b>' + val + '</b></div>'; };
+    var md = day ? esc(day.slice(5).replace('-', '/')) : 'なし';
+    var who = (Staff.filter.grade || '全学年') + (Staff.filter.team ? '・' + Staff.filter.team + 'チーム' : '');
+    return '<div class="card data-sum"><h2>' + (kind === 'weight' ? '体重' : 'InBody') + 'の最新の状況</h2><div class="kpi-grid">' +
+      box('いちばん新しい測定日', md) + box('その日に測った人', onDay + ' / ' + people.length + '人') +
+      (kind === 'weight' ? box('体重の平均（各選手の最新）', avg('weight') + 'kg') :
+        box('FFMIの平均（各選手の最新）', avg('ffmi')) + box('体脂肪率の平均', avg('fat') + '%')) + '</div>' +
+      '<p class="muted small">' + esc(who) + '・在籍中の選手。選手名を押すと、その選手のフィジカルレポート（推移のグラフ）を開きます。' + (kind === 'weight' ? '本人が入れた体重は測定日に数えません。' : '') + '</p></div>';
   },
 
   /** 絞り込み後の選手（在籍中のみ） */
@@ -114,11 +135,11 @@ var StaffBody = {
       '<div class="row"><button class="btn sub" data-sb="xRankPdf">' + Icon('file', 18) + 'ランキングをPDF</button><button class="btn sub" data-sb="xRankXlsx">' + Icon('sheet', 18) + 'ランキングをExcel</button></div>' +
       '<div class="row"><button class="btn sub" data-sb="xReportsPdf">' + Icon('file', 18) + '学年のフィジカルレポートをまとめてPDF保存</button>' +
       '<button class="btn sub" data-sb="xLatestXlsx">' + Icon('sheet', 18) + '表示中の選手のInBody最新値をExcel</button></div></div>';
-    html += '<div class="card"><table class="tbl"><tr><th>順位</th><th>選手</th><th>学年</th><th>' + esc(labels[metric]) + '</th><th>測定日</th></tr>' +
+    html += '<div class="card"><div class="table-scroll"><table class="tbl"><tr><th>順位</th><th>選手</th><th>学年</th><th>' + esc(labels[metric]) + '</th><th>測定日</th></tr>' +
       StaffBody.rankRows.map(function (r) {
         return '<tr><td>' + r.rank + '</td><td><button class="link" data-staff="openReport" data-v="' + esc(r.id) + '" data-tab="inbody">' + esc(r.name) + '</button></td><td>' + esc(r.grade) +
           '</td><td><b>' + esc(r.value) + '</b></td><td class="small">' + esc(r.date) + '</td></tr>';
-      }).join('') + '</table>' + (rows.length ? '' : '<p class="muted">InBodyの記録がありません。上の「取り込む」から体組成Excelを取り込んでください。</p>') + '</div>';
+      }).join('') + '</table></div>' + (rows.length ? '' : '<p class="muted">InBodyの記録がありません。「取り込む」から体組成Excelを取り込んでください。</p>') + '</div>';
     return html;
   },
 
@@ -164,7 +185,7 @@ var StaffBody = {
         var fmt = function (d) { return d === '' ? '-' : (d > 0 ? '▲' : d < 0 ? '▼' : '±') + Math.abs(d); };
         return '<tr class="' + (r.weight === null ? 'row-ng' : '') + '"><td><button class="link" data-staff="openReport" data-v="' + esc(r.id) + '" data-tab="weight">' + esc(r.name) + '</button></td><td>' + esc(r.grade) +
           '</td><td><b>' + (r.weight === null ? '未測定' : esc(r.weight)) + '</b></td><td>' + fmt(r.diff) + '</td><td>' + fmt(r.diff4w) + '</td><td class="small">' + esc(r.date || '-') + '</td></tr>';
-      }).join('') + '</table></div>' + (dates.length ? '' : '<p class="muted">体重の記録がありません。上の「取り込む」から体重管理表を取り込んでください。</p>') + '</div>';
+      }).join('') + '</table></div>' + (dates.length ? '' : '<p class="muted">体重の記録がありません。「取り込む」から体重管理表を取り込んでください。</p>') + '</div>';
     return html;
   }
 };
