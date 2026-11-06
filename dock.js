@@ -4,7 +4,8 @@
  *   画面の上の帯（#dockCoach）：コーチ（アバター）と吹き出し。吹き出しには返事（#voiceBox）か、その画面のひとこと（#coachLine）が出る。
  *     返事は帯の下に重ねて出す（画面の内容を押し下げない）。
  *   画面の下のバー（#dockBar）：画面によって中身が変わる。
- *       ホーム・記録・体組成・マイページ … タブ（ホーム／記録／話す／からだ／マイページ）。真ん中の「話す」がマイク
+ *       ホーム・記録・体組成・マイページ … タブ（ホーム／トレーニング／記録／からだ／マイページ）。マイク（話す）はバーの右上に浮かべた小さな丸（v60）
+ *         v60：トレーニングはホームの中のタブ（S.view＝'home' のまま S.tab＝'training'。mymenu.js の Training）
  *         v47：右端は「コーチ」（設定パネル）から「マイページ」（mypage.js）に変えた。コーチの設定はマイページの「設定」から開く
  *       トレーニング中       … レストタイマー（#timer）とマイク
  *       終了画面             … 「記録を保存する」とマイク
@@ -31,6 +32,7 @@ var Dock = {
     mymenu: '数字をタップすると変えられるよ。',
     guide: '上のもくじから、見たい所を押してね。',
     mypage: '「3か月にして」でコンディションのグラフが変わるよ。PINは画面で変えてね。',
+    training: '「デイ2を始める」「マイメニューは？」のように話しても始められるよ。',   // v60：ホームの中のトレーニングタブ
     staff: '「今週やってないのは誰？」「（選手の名前）を開いて」のように話しかけてください。'
   },
 
@@ -43,8 +45,9 @@ var Dock = {
     // バーの高さを CSS の --dock-h に入れる（画面の一番下の内容がバーに隠れないように）
     if (window.ResizeObserver) new ResizeObserver(function () { self.measure(); }).observe(this.el);
     this.el.addEventListener('click', function (e) {
-      var t = e.target.closest('[data-act], [data-mm]');
+      var t = e.target.closest('[data-act], [data-mm], [data-staffnav]');
       if (!t || t.disabled) return;
+      if (t.dataset.staffnav) { Staff.go(t.dataset.staffnav); return; }   // v60：スタッフの下のナビ
       if (t.dataset.mm) MyMenu.onClick(t); else onAct(t);
     });
     this.update();
@@ -65,19 +68,23 @@ var Dock = {
     var mode = staff ? 'staff' : !athlete ? 'none' : (v === 'home' || v === 'history' || v === 'body' || v === 'mypage' || v === 'guide' || v === 'column') ? 'tabs' : v;
     this.el.hidden = mode === 'none';
     document.body.classList.toggle('has-dock', mode !== 'none');
+    document.body.classList.toggle('has-fab', mode === 'tabs');   // v60：右下に浮かべたマイクの分、内容の下に余白を足す
     this.el.className = 'dock mode-' + mode + ' view-' + v;
 
     // アバターの場所：ホーム・ログインは画面の中の一番上（大きく）、ほかは上の帯の左
     var top = document.getElementById('coachTop');
-    if (top) Avatar.mount(top, 'big');
+    if (top) Avatar.mount(top, 'big');   // ホームのタブだけ（トレーニングのタブには coachTop が無いので、上の帯に出る）
     else Avatar.mount(document.getElementById('dockAvatarSlot'), 'dock');
     Avatar.show(athlete || staff || !!top);
 
     // ひとこと
-    this.line.textContent = this.HINTS[v] || '';
+    var trainTab = v === 'home' && S.tab === 'training';   // v60
+    this.line.textContent = this.HINTS[trainTab ? 'training' : v] || '';
+    // v60：スタッフ画面の下のナビ（スマホ）の「今のカテゴリー」
+    var sn = staff && typeof Staff !== 'undefined' ? Staff.navKey() : '';
 
     // 下の段（同じ内容なら描き直さない）
-    var key = mode + '|' + v + '|' + this.saveDisabled();
+    var key = mode + '|' + v + '|' + this.saveDisabled() + '|' + (trainTab ? 't' : '') + '|' + sn;
     if (key !== this.key) { this.key = key; this.renderBar(mode, v); }
     this.syncCoach();
     this.measure();
@@ -92,10 +99,12 @@ var Dock = {
       var tab = function (act, icon, label, on) {
         return '<button class="dock-tab' + (on ? ' on' : '') + '" data-act="' + act + '"' + (on ? ' aria-current="page"' : '') + '>' + Icon(icon, 28) + '<span>' + label + '</span></button>';
       };
-      html = '<nav class="dock-tabs" aria-label="画面の切り替え">' +
-        tab('home', 'house', 'ホーム', v === 'home') +
+      var tr = v === 'home' && S.tab === 'training';
+      html = '<div class="dock-ai"><span data-slot="mic"></span><span class="dock-mic-label">話す</span></div>' +   // v60：AI（話す）はタブから外し、小さな丸で右上に
+        '<nav class="dock-tabs" aria-label="画面の切り替え">' +
+        tab('home', 'house', 'ホーム', v === 'home' && !tr) +
+        tab('trainingTab', 'barbell', 'トレーニング', tr) +
         tab('records', 'calendar', '記録', v === 'history') +
-        '<div class="dock-mic"><span data-slot="mic"></span><span class="dock-mic-label">話す</span></div>' +
         tab('body', 'heart', 'からだ', v === 'body') +
         tab('mypage', 'person', 'マイページ', v === 'mypage' || v === 'guide' || v === 'column') + '</nav>';
     } else if (mode === 'session') {
@@ -108,7 +117,8 @@ var Dock = {
     } else if (mode === 'afterSave') {   // v33：トレーニングを保存したあと
       html = '<div class="dock-row"><div class="dock-hint">声でも選べるよ</div><span data-slot="mic"></span></div>';
     } else if (mode === 'staff') {   // v35：スタッフ画面
-      html = '<div class="dock-row"><div class="dock-hint">操作も質問も、話しかけてできます</div>' +
+      html = Staff.navHtml('staff-nav-bottom') +   // v60：スマホでは下のナビ（PCでは隠し、左のサイドバーを使う）
+        '<div class="dock-row staff-voice-row"><div class="dock-hint">操作も質問も、話しかけてできます</div>' +
         '<button class="btn sub btn-pill" data-typevoice="1" aria-label="文字で入力する">' + Icon('keyboard', 18) + '文字で</button><span data-slot="mic"></span></div>';   // v37：パソコンでは文字でも入れられる
     } else if (mode === 'mymenu') {
       html = '<div class="dock-row"><button class="btn btn-primary btn-pill dock-main" data-mm="save">' + Icon('check', 22) + '保存する</button><span data-slot="mic"></span></div>';
@@ -128,7 +138,7 @@ var Dock = {
   /** 上の帯：返事があれば返事、なければその画面のひとこと。ホームはコーチが画面の中にいるので、返事があるときだけ（吹き出しだけ）出す */
   syncCoach: function () {
     var boxShown = !VoiceUI.box.hidden;
-    var home = S.view === 'home';
+    var home = S.view === 'home' && S.tab !== 'training';   // v60：トレーニングのタブは、ほかの画面と同じく上の帯にひとこと
     this.coach.hidden = this.el.hidden || (home ? !boxShown : (!boxShown && !this.line.textContent));
     this.coach.classList.toggle('no-avatar', home);
     this.measure();

@@ -8,12 +8,12 @@
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v59 2026-11-06';
+var APP_VERSION = 'v60 2026-11-06';
 // 利用者に見せるアプリの名前（v59）。config.js の APP_NAME は変えずに残し、画面の表示にはこちらを使う
 var BRAND = 'RIKKIO';
 // 記録し忘れた日の分を、何日前まで遡って入力できるか（v26）。Apps Script の 設定.gs の MAX_BACKDATE_DAYS と同じ数字にする
 var MAX_BACKDATE_DAYS = 3;
-var S = { token: null, home: null, draft: null, view: 'loading' };
+var S = { token: null, home: null, draft: null, view: 'loading', tab: 'home' };   // tab：ホームの中のタブ（'home' / 'training'。v60）
 var app = document.getElementById('app');
 
 // ---------------- 共通の小さな道具 ----------------
@@ -113,13 +113,14 @@ function loadHome(notice) {
   // 前回のデータが端末にあれば、まずそれですぐ表示し、裏で最新のデータを取りに行く（待ち時間を感じにくくする）
   var cached = Store.get('home', null);
   if (cached && !S.home) S.home = cached;
-  if (S.home && S.home.role === 'athlete') { renderHome(notice); showSyncing(true); }
+  if (S.home && S.home.role === 'athlete') { if (S.view === 'home' && S.tab === 'training') Training.render(); else renderHome(notice); showSyncing(true); }   // v60：トレーニングのタブはそのまま
   else app.innerHTML = '<div class="loading">読み込み中…</div>';
   Api.call('home', { token: S.token }).then(function (res) {
     if (res.role === 'staff') { Staff.start(res.name); return; }
     S.home = res;
     Store.set('home', res);
-    if (S.view === 'home' || S.view === 'loading' || S.view === 'login') renderHome(notice);   // トレーニングを始めていたら描き直さない
+    if (S.view === 'home' && S.tab === 'training') Training.render();   // v60：トレーニングのタブを開いていたら、そのタブのまま描き直す
+    else if (S.view === 'home' || S.view === 'loading' || S.view === 'login') renderHome(notice);   // トレーニングを始めていたら描き直さない
     showSyncing(false);
   }).catch(function (err) {
     showSyncing(false);
@@ -137,8 +138,17 @@ function showSyncing(on) {
   if (!on && el) el.remove();
 }
 
+/** ホームの上の段：日付・ログアウトと、「ホーム／トレーニング」の切り替え（v60。トレーニングタブと共通） */
+function homeTopHtml() {
+  var now = new Date(), tr = S.tab === 'training';
+  return '<div class="home-top"><span class="kicker">' + (now.getMonth() + 1) + '月' + now.getDate() + '日（' + '日月火水木金土'.charAt(now.getDay()) + '）</span>' +
+    '<button class="btn ghost" data-act="logout">ログアウト</button></div>' +
+    '<div class="tabs home-tabs" role="tablist"><button class="tab' + (tr ? '' : ' on') + '" data-act="home" role="tab" aria-selected="' + !tr + '">ホーム</button>' +
+    '<button class="tab' + (tr ? ' on' : '') + '" data-act="trainingTab" role="tab" aria-selected="' + tr + '">トレーニング</button></div>';
+}
+
 function renderHome(notice, warning) {
-  S.view = 'home';
+  S.view = 'home'; S.tab = 'home';
   var h = S.home;
   var pending = Store.get('pending', []);
   var now = new Date(), hour = now.getHours();
@@ -146,8 +156,7 @@ function renderHome(notice, warning) {
   var first = h.suggestion.order[0];
 
   // いちばん上：日付と、コーチの出迎え（coachTop にアバターが大きく出る。dock.js が移動する）
-  var html = '<div class="home-top"><span class="kicker">' + (now.getMonth() + 1) + '月' + now.getDate() + '日（' + '日月火水木金土'.charAt(now.getDay()) + '）</span>' +
-    '<button class="btn ghost" data-act="logout">ログアウト</button></div>';
+  var html = homeTopHtml();
   html += '<div class="coach-hello"><span id="coachTop" class="coach-top"></span>' +
     '<div class="bubble bubble-left"><h1>' + hello + '、' + esc(h.name) + 'さん！</h1><i>' + esc(homeGreeting()) + '</i></div></div>';
   html += msgHtml('ok', notice) + msgHtml('warn', warning);
@@ -704,6 +713,10 @@ function onAct(t) {
     case 'avatarSettings': if (window.Avatar && typeof Avatar.openAppearancePicker === 'function') Avatar.openAppearancePicker(); else alert('トレーナー設定を読み込めませんでした。ページを再読み込みしてください。'); break;
     case 'home': if (S.view === 'session') S.reorder = false;
       Timer.stop(); Speech.stop(); Body.closeHistory(); renderHome(); break;
+    // v60：ホームの中のトレーニングタブ（mymenu.js の後半 Training）
+    case 'trainingTab': Body.closeHistory(); Training.ex = null; Training.render(); window.scrollTo(0, 0); break;
+    case 'trEx': Training.ex = t.dataset.name; Training.render(); window.scrollTo(0, 0); break;
+    case 'trBack': Training.ex = null; Training.render(); break;
     case 'speakItem': Speech.speak(Speech.exerciseText(dr.items[i], latestOf(dr.items[i].name), true)); break;   // 🔊 は短めの設定でも全部読む
     case 'speakCurrent': var c = currentIndex();
       Speech.speak(c < 0 ? 'すべての種目が終わっています。' : Speech.exerciseText(dr.items[c], latestOf(dr.items[c].name), true)); break;

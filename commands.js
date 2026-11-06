@@ -41,7 +41,7 @@ var VoiceUI = {
                 S.view === 'staff' && !!S.token);   // v35：スタッフ画面でも話しかけられる（staff_voice.js）
     this.btn.hidden = !show;
     // アバターの表示と置き場所は dock.js（画面の下のバー）が決める
-    if (S.view === 'home') Avatar.greet();
+    if (S.view === 'home' && S.tab !== 'training') Avatar.greet();   // v60：トレーニングのタブではあいさつしない
     var picker = document.getElementById('avatarAppearancePicker');
     if (picker && ['home', 'history', 'body'].indexOf(S.view) < 0) picker.hidden = true;   // タブの無い画面では見た目の選択を閉じる
     document.body.classList.toggle('has-mic', show);
@@ -189,7 +189,7 @@ var Chooser = {
     else opts.push(['openBody', 'inbody', 'InBodyレポートを開く'], ['openBody', 'weight', '体重レポートを開く']);
     if (S.view !== 'history') opts.push(['openRecords', '', 'トレーニング記録を開く']);
     opts.push(['countTraining', 'week', '今週の回数を聞く']);
-    if (S.view !== 'home') opts.push(['goHome', '', 'ホームに戻る']);
+    if (S.view !== 'home' || S.tab === 'training') opts.push(['goHome', '', 'ホームに戻る']);   // v60
     if (S.view === 'home') opts.push(['myMenuList', '', '保存したメニューを聞く'], ['newMyMenu', '', '新しいメニューを作る'], ['startFree', '', '白紙から記録する']);
     opts.push(['help', '', '何ができるか聞く']);
     this.render('どの操作ですか？ 選ぶと、次からはこの言い方で動きます。', opts);
@@ -786,7 +786,7 @@ function doNav(text, cmd) {
   var inSession = S.view === 'session' || S.view === 'finish';
   switch (cmd.type) {
     case 'goHome':
-      if (S.view === 'home') return reply(text, 'もうホームだよ。');
+      if (S.view === 'home' && S.tab !== 'training') return reply(text, 'もうホームだよ。');   // v60：トレーニングのタブからはホームのタブへ
       Body.closeHistory(); Timer.stop(); renderHome(); Avatar.feedback('success');
       return reply(text, Talk.ok() + 'ホームに戻ったよ。' + (S.draft ? 'トレーニングの続きは「続きから」でできるよ。' : ''));
     case 'openBody': case 'bodyTab':

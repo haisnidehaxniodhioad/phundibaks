@@ -196,3 +196,132 @@ MyMenu.onClick = function (t) {
     case 'saveFinish': MyMenu.saveFromFinish(t.dataset.over === '1'); break;
   }
 };
+
+/**
+ * ===== v60：ホームの中の「トレーニング」タブ（RIKKIO 段階2） =====
+ *   画面名（S.view）は 'home' のまま。S.tab（'home' / 'training'）で描き分ける。
+ *   こうすると、声の操作・覚えた言い回し（画面＝home）・Apps Script は今のまま使える。
+ *   中身：今日のメニュー → Dayを選ぶ → 自分のメニュー（白紙から記録するも含む）→ 種目一覧 → 種目の詳しい情報
+ *   始める・記録・保存は、今までの startDay・startFree・MyMenu.start をそのまま使う。
+ *   種目の情報は、今あるデータ（ホームのデータ・前回の記録・myStats の自己ベストと順位）だけを出す。
+ */
+var Training = {
+  ex: null,   // 詳しい情報を開いている種目の名前（null＝種目一覧）
+
+  /** トレーニングタブを描く */
+  render: function () {
+    S.view = 'home'; S.tab = 'training';
+    var h = S.home, html = homeTopHtml();
+    if (Training.ex) { app.innerHTML = html + Training.detailHtml(Training.ex) + '<p class="ver">' + esc(APP_VERSION) + '</p>'; Training.loadStats(); return; }
+    if (S.draft) {
+      html += '<div class="card soft"><h2>途中のトレーニングがあります</h2><p class="muted">' + esc(S.draft.title) + '</p>' +
+        '<div class="row"><button class="btn btn-pill" data-act="resume">' + Icon('play', 20) + '続きから</button>' +
+        '<button class="btn ghost" data-act="discard">記録を破棄</button></div></div>';
+    }
+    var first = h.suggestion.order[0];
+    // 1. 今日のメニュー（おすすめのDay）
+    if (first) {
+      var d0 = findDay(first);
+      html += '<section class="sec tr-today"><div class="sec-head"><h2>今日のメニュー</h2><span class="accent-text small">おすすめ</span></div>' +
+        '<div class="tr-day-title">Day' + d0.day + (d0.dayName ? '　' + esc(d0.dayName) : '') + '</div>' +
+        '<table class="today-items line-table"><thead><tr><th class="no">No.</th><th>種目</th><th class="r">回数×セット</th></tr></thead><tbody>' +
+        applySavedOrder(d0.items, d0.day).map(function (it, k) {
+          return '<tr><td class="no">' + (k + 1) + '</td><td class="name">' + esc(it.name) + '</td><td class="r">' + (it.reps ? esc(it.reps) + ' × ' + esc(it.sets || 1) : '') + '</td></tr>';
+        }).join('') + '</tbody></table>' +
+        '<button class="btn btn-pill big block" data-act="startDay" data-day="' + d0.day + '">' + Icon('play', 22) + 'はじめる</button></section>';
+    }
+    // 2. Dayを選ぶ（済みのDayも、もう一度できる）
+    if (h.days.length) {
+      html += '<section class="sec"><div class="sec-head"><h2>Dayを選ぶ</h2></div><div class="tr-days">' +
+        h.days.map(function (d) {
+          var done = h.doneDays[d.day], rec = d.day === first;
+          return '<div class="tr-day-row"><div class="tr-day-text"><b>Day' + d.day + (d.dayName ? ' ' + esc(d.dayName) : '') + '</b>' +
+            '<span class="small muted">' + esc([rec ? 'おすすめ' : '', done ? '済み（' + esc(String(done).slice(5).replace('-', '/')) + '）' : '', d.weekday ? d.weekday + '曜' : '', d.items.length + '種目'].filter(String).join('・')) + '</span></div>' +
+            '<button class="btn sub btn-pill small" data-act="startDay" data-day="' + d.day + '">' + (done ? 'もう一度' : '始める') + '</button></div>';
+        }).join('') + '</div></section>';
+    }
+    // 3・4. 自分のメニューと、白紙から記録する（今までの部品をそのまま使う）
+    html += MyMenu.homeCard();
+    // 5. 種目一覧
+    var list = Training.exercises();
+    if (list.length) {
+      html += '<section class="sec"><div class="sec-head"><h2>種目一覧</h2><span class="small muted">' + list.length + '種目</span></div>' +
+        '<input id="trSearch" type="search" placeholder="種目名で探す" autocomplete="off" aria-label="種目名で探す">' +
+        '<div class="tr-ex-list">' + list.map(function (e) {
+          return '<button class="tr-ex" data-act="trEx" data-name="' + esc(e.name) + '" data-key="' + esc(VoiceParser.norm(e.name + ' ' + (e.aliases || ''))) + '">' +
+            '<span class="tr-ex-name">' + esc(e.name) + '</span><span class="small muted">' + esc([e.part, e.category].filter(String).join('・')) + '</span>' + Icon('right', 16) + '</button>';
+        }).join('') + '</div><p class="muted small tr-ex-none" hidden>見つかりませんでした。</p></section>';
+    }
+    html += '<p class="ver">' + esc(APP_VERSION) + '</p>';
+    app.innerHTML = html;
+  },
+
+  /** 種目一覧：今のメニューの種目と種目マスタ（同じ名前は1つ）。部位 → 名前 の順 */
+  exercises: function () {
+    var h = S.home, map = {};
+    (h.exercises || []).forEach(function (e) { if (e.name) map[e.name] = { name: e.name, part: e.part || '', category: e.category || '', aliases: e.aliases || '' }; });
+    h.days.forEach(function (d) { d.items.forEach(function (it) {
+      var e = map[it.name] || (map[it.name] = { name: it.name, part: '', category: '', aliases: '' });
+      if (!e.category && it.category) e.category = it.category;
+    }); });
+    var order = { '下半身': 1, '上半身': 2, '全身': 3 };
+    return Object.keys(map).map(function (k) { return map[k]; }).sort(function (a, b) {
+      return (order[a.part] || 9) - (order[b.part] || 9) || String(a.name).localeCompare(b.name, 'ja');
+    });
+  },
+
+  /** 種目の詳しい情報（今あるデータだけ） */
+  detailHtml: function (name) {
+    var h = S.home, e = Training.exercises().filter(function (x) { return x.name === name; })[0] || { name: name, part: '', category: '' };
+    var uses = [];
+    h.days.forEach(function (d) { d.items.forEach(function (it) { if (it.name === name) uses.push({ d: d, it: it }); }); });
+    var last = latestOf(name);
+    var html = '<div class="group tr-detail"><button class="btn ghost" data-act="trBack">' + Icon('left', 18) + '種目一覧</button>' +
+      '<h1 class="tr-ex-title">' + esc(name) + '</h1>' +
+      '<p class="muted small">' + esc(['部位：' + (e.part || '―'), 'カテゴリー：' + (e.category || '―')].join('　')) + '</p>';
+    html += '<section class="sec"><h2>メニュー上の回数・セット</h2>' + (uses.length ? uses.map(function (u) {
+      return '<p class="tr-line"><b>Day' + u.d.day + (u.d.dayName ? '（' + esc(u.d.dayName) + '）' : '') + '</b>　' +
+        (u.it.reps ? esc(u.it.reps) + '回 × ' + esc(u.it.sets || 1) + 'セット' : '―') + '</p>';
+    }).join('') : '<p class="muted small">今のメニューには入っていません。</p>') + '</section>';
+    html += '<section class="sec"><h2>前回の記録</h2>' + (last ? '<p class="tr-line">' + esc(last.date) + '　' + esc(last.sets) + '</p>' : '<p class="muted small">まだ記録がありません。</p>') + '</section>';
+    html += '<section class="sec"><h2>自己ベスト・順位</h2><div id="trStats">' + Training.statsHtml(name) + '</div></section>';
+    if (uses.length) {
+      html += uses.map(function (u) {
+        return '<button class="btn btn-pill block" data-act="startDay" data-day="' + u.d.day + '">' + Icon('play', 20) + 'この種目があるDay' + u.d.day + 'を始める</button>';
+      }).join('');
+    }
+    return html + '</div>';
+  },
+
+  /** 自己ベスト・順位（myStats。コーチの質問と同じデータ。無いときは無いと書く） */
+  statsHtml: function (name) {
+    if (!QA.fresh('stats')) return '<p class="muted small">読み込み中…</p>';
+    var st = QA.data.stats, e = st.training && st.training.exercises && st.training.exercises[name];
+    if (!e || (!e.best && !e.rank)) return '<p class="muted small">記録がまだありません。</p>';
+    var out = '';
+    if (e.best) out += '<p class="tr-line">自己ベスト　<b>' + esc(e.best.w) + 'kg' + (e.best.r ? ' × ' + esc(e.best.r) + '回' : '') + '</b>（' + esc(e.best.date) + '）</p>';
+    if (e.rank) out += '<p class="tr-line">チーム内の順位　<b>' + esc(e.rank.of) + '人中' + esc(e.rank.rank) + '位</b>（最近' + Math.round((st.rankDays || 92) / 30) + 'か月の最高重量）</p>';
+    return out;
+  },
+
+  /** 自己ベスト・順位のデータを読み込んで、開いたままなら書き直す */
+  loadStats: function () {
+    if (QA.fresh('stats')) return;
+    var name = Training.ex;
+    QA.load('stats').then(function () {
+      var box = document.getElementById('trStats');
+      if (box && Training.ex === name) box.innerHTML = Training.statsHtml(name);
+    }).catch(function () {
+      var box = document.getElementById('trStats');
+      if (box) box.innerHTML = '<p class="muted small">読み込めませんでした。</p>';
+    });
+  },
+
+  /** 種目一覧の絞り込み（画面は描き直さない：入力中の文字が消えないように） */
+  filter: function (q) {
+    var key = VoiceParser.norm(q || ''), shown = 0;
+    app.querySelectorAll('.tr-ex').forEach(function (b) { var ok = !key || b.dataset.key.indexOf(key) >= 0; b.hidden = !ok; if (ok) shown++; });
+    var none = app.querySelector('.tr-ex-none'); if (none) none.hidden = shown > 0;
+  }
+};
+app.addEventListener('input', function (e) { if (e.target.id === 'trSearch') Training.filter(e.target.value); });

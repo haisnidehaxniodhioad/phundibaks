@@ -3,6 +3,9 @@
  * スタッフIDでログインすると、この画面になる。タブは3つ:
  *   実施状況 … 週ごとの選手一覧（未実施の選手が上）
  *   選手一覧 … 全選手を学年・ポジション・チームで絞り込み、学年別／ポジション別にまとめる（v46。staff_list.js）
+ * v60（RIKKIO 段階2）：4つのカテゴリー ダッシュボード（overview）・選手管理（list）・データ分析（inbody／weight）・管理・設定（manage）。
+ *   PC は左のサイドバー、スマホは下のナビ（dock.js）。管理・設定は Staff.tab＝'manage'（Staff.render で Staff.page も 'manage'）。
+ *   管理・設定から開いた各ページの「戻る」は、開いたときのタブ（Staff.returnTo）＝管理・設定に戻る。
  * 選手の名前を押すと、タブの外の「個人ページ」に移る（v37）。上から トレーニング記録 → コンディション記録 → フィジカルデータ（最新の値）。
  * 個人ページの「フィジカルレポート」から、別のページ「フィジカルレポート」（InBody／体重の切り替え）に移る（v38）。
  *   「← 戻る」（またはブラウザの戻る）で、開く前の画面に戻る
@@ -20,12 +23,63 @@ var Staff = {
     Staff.render();
   },
 
+  // ---- v60：4つのカテゴリー（PC＝左のサイドバー、スマホ＝下のナビ。どちらも navHtml） ----
+  //   ダッシュボード＝tab 'overview'、選手管理＝'list'、データ分析＝'inbody'・'weight'、管理・設定＝'manage'（Staff.page も 'manage'。新しいページは作らない）
+  NAV: [['overview', 'ダッシュボード', 'house'], ['list', '選手管理', 'person'], ['data', 'データ分析', 'sheet'], ['manage', '管理・設定', 'book']],
+  /** 今のカテゴリー（個人ページなどでは、開く前のタブ） */
+  navKey: function () { return Staff.tab === 'inbody' || Staff.tab === 'weight' ? 'data' : Staff.tab; },
+  navHtml: function (cls) {
+    var on = Staff.navKey();
+    return '<nav class="staff-nav ' + cls + '" aria-label="スタッフ画面の切り替え">' + Staff.NAV.map(function (n) {
+      return '<button class="staff-nav-item' + (on === n[0] ? ' on' : '') + '" data-staffnav="' + n[0] + '"' + (on === n[0] ? ' aria-current="page"' : '') + '>' +
+        Icon(n[2], 22) + '<span>' + n[1] + '</span></button>';
+    }).join('') + '</nav>';
+  },
+  /** PC の左のサイドバー（スマホでは CSS で隠す） */
+  sideHtml: function () {
+    return '<aside class="staff-side"><div class="staff-brand">' + esc(BRAND) + '</div>' + Staff.navHtml('staff-nav-side') +
+      '<div class="staff-side-foot"><span class="small">' + esc(Staff.name) + 'さん</span><button class="btn ghost small" data-act="logout">ログアウト</button></div></aside>';
+  },
+  /** カテゴリーを切り替える（データ分析は、前に見ていた InBody／体重のほう） */
+  go: function (key) {
+    if (S.view !== 'staff') return;
+    Body.closeHistory();
+    Staff.tab = key === 'data' ? (Staff.tab === 'weight' || Staff.lastData === 'weight' ? 'weight' : 'inbody') : key;
+    Staff.render();
+    window.scrollTo(0, 0);
+  },
+
   frame: function (inner) {
-    var tabs = [['overview', '実施状況'], ['list', '選手一覧'], ['inbody', 'InBody'], ['weight', '体重']];   // 選手一覧は v46（staff_list.js）
-    return '<div class="group"><div class="topbar"><h1>スタッフ画面</h1><button class="btn ghost" data-act="logout">ログアウト</button></div>' +
-      '<p class="muted small">' + esc(Staff.name) + 'さん　<span class="ver">' + esc(APP_VERSION) + '</span></p><div class="tabs">' +
-      tabs.map(function (t) { return '<button class="tab' + (Staff.tab === t[0] ? ' on' : '') + '" data-staff="tab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') +
-      '</div></div>' + inner;
+    var key = Staff.navKey(), title = { overview: 'ダッシュボード', list: '選手管理', data: 'データ分析', manage: '管理・設定' }[key] || 'スタッフ画面';
+    // データ分析の中だけ、InBody／体重の切り替え（今までのタブと同じ data-staff="tab"）
+    var sub = key === 'data' ? '<div class="tabs">' + [['inbody', 'InBody'], ['weight', '体重']].map(function (t) {
+      return '<button class="tab' + (Staff.tab === t[0] ? ' on' : '') + '" data-staff="tab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' : '';
+    return Staff.sideHtml() + '<div class="group"><div class="topbar"><h1>' + title + '</h1><button class="btn ghost staff-logout" data-act="logout">ログアウト</button></div>' +
+      '<p class="muted small">' + esc(Staff.name) + 'さん　<span class="ver">' + esc(APP_VERSION) + '</span></p>' + sub + '</div>' + inner;
+  },
+
+  // ---- v60：管理・設定（今ある管理のページへの入り口をまとめた一覧。権限は実施状況のデータ columnEditor・admin で今までどおり） ----
+  renderManage: function () {
+    if (!Staff.overview) {
+      app.innerHTML = Staff.frame('<div class="loading">読み込み中…</div>');
+      Api.call('staffOverview', { token: S.token, weekStart: Staff.week }).then(function (res) { Staff.overview = res; if (Staff.tab === 'manage' && Staff.page === 'manage') Staff.renderManage(); })
+        .catch(Staff.fail);
+      return;
+    }
+    var o = Staff.overview;
+    var item = function (act, v, icon, title, text) {
+      return '<button class="manage-item" data-staff="' + act + '"' + (v ? ' data-v="' + v + '"' : '') + '>' + Icon(icon, 24) +
+        '<span class="manage-text"><b>' + title + '</b><span class="small muted">' + text + '</span></span>' + Icon('right', 18) + '</button>';
+    };
+    var html = '<div class="manage-list">' +
+      item('roster', '', 'person', '選手の登録・取り込み', 'チームのホームページの部員名簿と比べて、選手・スタッフを追加・更新します') +
+      item('menuImport', '', 'file', 'メニューの管理', '毎月のメニュー表（PDF）の取り込みと、今あるメニューの中身') +
+      (o.columnEditor ? item('columns', '', 'book', 'コラムの管理', '用語の説明などのコラムを追加・修正します（管理者・トレーナー）') : '') +
+      (o.admin ? item('admin', '', 'phone', 'ログインの管理', 'ログインしている端末とログインの記録（管理者）') : '') +
+      item('guide', 'staff', 'book', '使い方（スタッフ向け）', 'スタッフ画面の使い方') +
+      item('guide', 'athlete', 'book', '使い方（選手向け・配る用）', '選手に配る案内') +
+      '</div>';
+    app.innerHTML = Staff.frame(html);
   },
 
   render: function () {
@@ -35,6 +89,8 @@ var Staff = {
     Staff.page = Staff.tab;   // 今の画面（overview / inbody / weight / athlete）。音声の操作で使う（v35）
     if (Staff.tab === 'overview') return Staff.renderOverview();
     if (Staff.tab === 'list') return StaffList.render();
+    if (Staff.tab === 'manage') return Staff.renderManage();   // v60：管理・設定（これが無いと InBody の画面になる）
+    Staff.lastData = Staff.tab;   // v60：データ分析で最後に見たほう
     return StaffBody.render(Staff.tab === 'weight' ? 'weight' : 'inbody');
   },
 
@@ -131,7 +187,7 @@ var Staff = {
 
   /** 個人ページの枠（上にタイトルと「← 戻る」。タブは出さない） */
   athleteFrame: function (title, inner, kicker) {
-    return '<div class="group"><div class="topbar ath-top"><button class="btn ghost" data-staff="back">' + Icon('left', 20) + '戻る</button>' +
+    return Staff.sideHtml() + '<div class="group"><div class="topbar ath-top"><button class="btn ghost" data-staff="back">' + Icon('left', 20) + '戻る</button>' +
       '<span class="kicker">' + (kicker || '選手の個人ページ') + '</span></div>' + (title || '') + '</div>' + inner;
   },
 
@@ -318,6 +374,8 @@ function uniq(arr) { var o = []; arr.forEach(function (v) { if (o.indexOf(v) < 0
 
 // スタッフ画面の操作の振り分け
 app.addEventListener('click', function (e) {
+  var nav = e.target.closest('[data-staffnav]');   // v60：PC の左のサイドバー
+  if (nav && S.view === 'staff') { Staff.go(nav.dataset.staffnav); return; }
   var t = e.target.closest('[data-staff]');
   if (!t || S.view !== 'staff' || t.tagName === 'SELECT' || t.tagName === 'INPUT') return;
   var v = t.dataset.v;

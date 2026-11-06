@@ -1039,3 +1039,67 @@ a.btn { text-decoration: none; justify-content: center; align-items: center; }
 .ce-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin: -4px 0 10px; }
 .ce-tags .chip { border: 1.5px solid var(--line); font: inherit; font-size: 0.88rem; color: inherit; cursor: pointer; padding: 6px 12px; }
 .ce-tags .chip.on { background: var(--color-accent-100); color: var(--color-accent-800); border-color: var(--color-accent); }
+
+/* =====================================================================
+ * v60（RIKKIO 段階2）：選手のトレーニングタブ・AIの丸いボタン、スタッフの4カテゴリー（PC＝左のサイドバー／スマホ＝下のナビ）
+ *   新しい部品のクラスだけを足している（今までのクラスは書き換えていない）
+ * ===================================================================== */
+/* ---- 選手：ホームの中の「ホーム／トレーニング」 ---- */
+.home-tabs { margin: 4px 0 18px; }
+/* ---- 選手：AI（話す）は下のバーの右上に浮かべた小さな丸。タブは5つ ---- */
+.dock-ai { position: absolute; right: 14px; bottom: calc(100% + 10px); display: flex; flex-direction: column; align-items: center; gap: 2px; margin: 0; max-width: none; }
+.dock-ai .mic-btn { width: 56px; height: 56px; }
+.dock-ai .dock-mic-label { font-size: 0.7rem; padding: 0 6px; border-radius: 999px; background: var(--color-paper); }
+body.has-fab .wrap { padding-bottom: calc(var(--dock-h, 90px) + 96px); }
+.dock-tab { min-width: 0; }
+.dock-tab span { white-space: nowrap; font-size: 0.7rem; }
+/* ---- 選手：トレーニングタブの中身 ---- */
+.tr-day-title { font-size: 1.4rem; font-weight: 900; margin: 2px 0 8px; }
+.tr-day-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.tr-day-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tr-ex-list { display: flex; flex-direction: column; margin-top: 8px; }
+.tr-ex { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 52px; padding: 8px 4px; border: none; border-bottom: 1px solid var(--line);
+  background: none; font: inherit; color: var(--color-text); text-align: left; cursor: pointer; }
+.tr-ex[hidden] { display: none; }
+.tr-ex-name { flex: 1; min-width: 0; font-weight: 700; }
+.tr-ex .ic { color: var(--color-neutral-600); }
+.tr-ex-title { margin: 6px 0 4px; }
+.tr-line { margin: 4px 0; }
+
+/* ---- スタッフ：4つのカテゴリー（下のナビ・サイドバー共通の形） ---- */
+.staff-nav-item { display: flex; align-items: center; gap: 10px; border: none; background: none; font: inherit; color: var(--color-neutral-700); cursor: pointer; }
+.staff-nav-item.on { color: var(--color-accent-700); font-weight: 700; }
+.staff-nav-bottom { display: grid; grid-template-columns: repeat(4, 1fr); }
+.staff-nav-bottom .staff-nav-item { flex-direction: column; justify-content: center; gap: 2px; min-height: 56px; padding: 0; font-size: 0.72rem; white-space: nowrap; }
+.staff-side { display: none; }
+/* 管理・設定の一覧 */
+.manage-list { display: grid; gap: 10px; }
+.manage-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 72px; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 14px;
+  background: var(--color-paper); font: inherit; color: var(--color-text); text-align: left; cursor: pointer; }
+.manage-item > .ic:first-child { color: var(--color-accent-700); }
+.manage-item:active { background: var(--color-accent-100); }
+.manage-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+
+/* スマホ・タブレット：下のナビ。話す・文字では右上に浮かべる */
+@media (max-width: 1023px) {
+  body.is-staff .staff-voice-row { position: absolute; right: 14px; bottom: calc(100% + 10px); min-height: 0; gap: 8px; margin: 0; max-width: none; }
+  body.is-staff .staff-voice-row .dock-hint { display: none; }
+  body.is-staff .staff-voice-row .btn.sub { background: var(--color-paper); min-height: 44px; }
+  body.is-staff .staff-voice-row .mic-btn { width: 56px; height: 56px; }
+  body.is-staff.has-dock .wrap { padding-bottom: calc(var(--dock-h, 90px) + 96px); }
+}
+/* PC：左のサイドバー、内容は広く */
+@media (min-width: 1024px) {
+  body.is-staff .staff-nav-bottom { display: none; }
+  body.is-staff .staff-side { display: flex; flex-direction: column; position: fixed; top: 0; bottom: 0; left: 0; width: 232px; z-index: 1003;
+    padding: 24px 14px; background: var(--color-paper); border-right: 1px solid var(--line-strong); }
+  .staff-brand { font-size: 1.3rem; font-weight: 900; color: var(--color-accent-700); padding: 0 10px 20px; letter-spacing: 0.04em; }
+  .staff-nav-side { display: flex; flex-direction: column; gap: 4px; }
+  .staff-nav-side .staff-nav-item { width: 100%; min-height: 48px; padding: 8px 12px; border-radius: 12px; font-size: 0.98rem; text-align: left; }
+  .staff-nav-side .staff-nav-item.on { background: var(--color-accent-100); }
+  .staff-side-foot { margin-top: auto; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 0 10px; color: var(--color-neutral-700); }
+  body.is-staff .staff-logout { display: none; }
+  body.is-staff .wrap, body.is-staff .coach-band { margin-left: 256px; margin-right: 24px; max-width: 1200px; }
+  body.is-staff .dock { left: 232px; }
+  .manage-list { grid-template-columns: repeat(2, 1fr); }
+}
