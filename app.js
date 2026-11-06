@@ -8,7 +8,7 @@
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v62 2026-11-06';
+var APP_VERSION = 'v63 2026-11-06';
 // 利用者に見せるアプリの名前（v59）。config.js の APP_NAME は変えずに残し、画面の表示にはこちらを使う
 var BRAND = 'RIKKIO';
 // 記録し忘れた日の分を、何日前まで遡って入力できるか（v26）。Apps Script の 設定.gs の MAX_BACKDATE_DAYS と同じ数字にする
@@ -94,6 +94,7 @@ function doLogin() {
   Api.call('login', { id: id, pin: pin, device: deviceInfo() }).then(function (res) {
     S.token = res.token;
     Store.set('token', res.token);
+    S.cond = null; Condition.draftFor('');   // v63：前にログインしていた人のコンディションの途中の内容は消す（ログアウトし忘れのとき）
     if (res.role === 'staff') { Staff.start(res.name); return; }   // スタッフはスタッフ画面へ（staff.js）
     if (res.home) { S.home = res.home; Store.set('home', res.home); renderHome(); return; }   // ホームのデータも一緒に届く
     loadHome();

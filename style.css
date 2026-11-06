@@ -1247,3 +1247,8 @@ body[data-view="body"] svg { max-width: 100%; height: auto; }
   body:not(.is-staff):is([data-view="history"], [data-view="body"], [data-view="mypage"]) :is(.wrap, .coach-band) {
     margin-left: calc(50% - 560px); margin-right: calc(50% - 560px); }
 }
+/* v63：コンディションの画面の上の段（戻る・日付・あとで） */
+.cond-top { display: flex; align-items: center; gap: 4px; }
+.cond-top .kicker { flex: 1; min-width: 0; text-align: center; }
+.cond-top .btn.ghost { min-height: 44px; padding-left: 6px; padding-right: 6px; }
+.cond-item h2 .cond-state { white-space: nowrap; flex: none; }

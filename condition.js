@@ -43,12 +43,13 @@ var Condition = {
   open: function (date) {
     var d = date || S.condDate || Body.today();
     // v62：入力の途中で画面を離れたとき（「あとで」・アプリを閉じたときも）は、同じ日なら途中の内容から続ける
-    if (!S.cond) { var kept = Store.get('condDraft', null); if (kept && kept.touched) S.cond = kept; }
+    if (S.cond && S.cond.owner && S.cond.owner !== S.token) S.cond = null;   // v63：ほかのログインの途中の内容は使わない
+    if (!S.cond) S.cond = Condition.draftFor(d);   // v63：端末に残した途中の内容（同じログイン・同じ日だけ）
     if (S.cond && S.cond.date === d && S.cond.touched) { S.cond.from = S.view; S.condTalk = null; Condition.render(); return; }
     var cur = S.home && S.home.condition && S.home.condition.date === d ? S.home.condition : null;
     S.cond = { date: d, whole: cur ? cur.whole : '', upper: cur ? cur.upper : '', lower: cur ? cur.lower : '', perf: cur ? cur.perf : '',
                comment: cur ? cur.comment : '', weight: cur && cur.weight !== undefined ? cur.weight : '', method: 'タップ', fresh: !cur,
-               from: S.view };   // v62：開いた画面（記録の画面から開いたら、終わったら記録の画面に戻る）
+               from: S.view, owner: S.token };   // v62：開いた画面（記録の画面から開いたら、終わったら記録の画面に戻る）。v63：owner＝入れている人のログイン
     S.condTalk = null;
     Condition.render();
   },
@@ -58,7 +59,8 @@ var Condition = {
     var c = S.cond;
     // v62：4つのうち、いくつ選んだか（入力済み・未入力をわかりやすく）
     var doneN = Condition.ITEMS.filter(function (it) { return c[it.key] >= 1; }).length;
-    var html = '<div class="group"><div class="topbar"><span class="kicker">' + Condition.dateLabel(c.date) + 'のコンディション</span>' +
+    var html = '<div class="group"><div class="topbar cond-top"><button class="btn ghost" data-cond="back" aria-label="前の画面に戻る（入力した内容は残るよ）">' + Icon('left', 20) + '戻る</button>' +   // v63
+      '<span class="kicker">' + Condition.dateLabel(c.date) + 'のコンディション</span>' +
       '<button class="btn ghost" data-act="condLater">あとで</button></div>' +
       '<p class="cond-progress' + (doneN === 4 ? ' ok' : '') + '"><b>' + doneN + ' / 4</b> 項目を選んだよ' + (doneN === 4 ? '。下の「コンディションを保存」で保存してね' : '') + '</p>' + msgHtml('error', error);
     Condition.ITEMS.forEach(function (it) {
@@ -111,20 +113,44 @@ var Condition = {
         S.cond = null;
         Store.remove('condDraft');   // v62：保存できたら、途中の内容は消す
         Speech.speak('コンディションを記録したよ。' + Condition.advice(res.condition));
-        if (from === 'history') { History.show(History.data ? History.data.month : ''); return; }   // v62：記録の画面から開いたときは、記録の画面を読み直す
+        if (from === 'history') { History.show(); return; }   // v62：記録の画面から開いたときは、記録の画面を読み直す
         loadHome(res.message);
       }).catch(function (err) { Condition.render(err.message); });
   },
 
   /** v62：途中の内容を端末に残す（アプリを閉じても続きから。保存できたら消す） */
-  keep: function () { if (S.cond && S.cond.touched) Store.set('condDraft', S.cond); },
+  keep: function () { if (S.cond && S.cond.touched) { S.cond.owner = S.token; Store.set('condDraft', S.cond); } },
+
+  /**
+   * v63：端末に残した途中の内容を、使ってよいときだけ返す（使えないものは消す）
+   *   使える＝同じログイン（owner が今のトークン）・同じ日・その日が今日から MAX_BACKDATE_DAYS 日前まで・何か選んでいる
+   *   ログアウトし忘れても、別の人がログインするとトークンが変わるので、前の人の内容は出ない
+   */
+  draftFor: function (date) {
+    var k = Store.get('condDraft', null);
+    if (!k) return null;
+    var ago = Math.round((new Date(Body.today().replace(/-/g, '/')) - new Date(String(k.date).replace(/-/g, '/'))) / 86400000);
+    var usable = k.touched && k.owner && k.owner === S.token && ago >= 0 && ago <= MAX_BACKDATE_DAYS;
+    if (!usable) { Store.remove('condDraft'); return null; }   // ほかの人・古い日・壊れたものは残さない
+    return k.date === date ? k : null;   // 別の日（3日前までの、まだ使える日）の内容は残しておく
+  },
+
+  /** v63：「戻る」…入力の途中の内容は残したまま、開いた画面に戻る（保存はしない） */
+  back: function () {
+    var from = S.cond ? S.cond.from : '';
+    Condition.readComment(); Condition.keep();
+    if (from === 'history') { History.show(); return; }
+    if (from === 'afterSave') { Condition.askAfterSave(S.condAfterMsg, S.condDate); return; }
+    if (from === 'home' && S.tab === 'training') { Training.render(); return; }
+    renderHome();   // ホームから開いたとき・開いた画面がわからないとき（今までの「あとで」と同じくホームへ）
+  },
 
   /** あとで入力する（ホームに戻る） */
   later: function () {
     var from = S.cond && S.cond.from;
     // v62：選んだ途中の内容は消さずに残す（次に同じ日を開くと続きから）。何も触っていなければ今までどおり捨てる
     if (S.cond && S.cond.touched) { Condition.readComment(); Condition.keep(); } else S.cond = null;
-    if (from === 'history' && S.view === 'condition') { History.show(History.data ? History.data.month : ''); return; }   // v62：記録の画面から開いたときは記録の画面へ
+    if (from === 'history' && S.view === 'condition') { History.show(); return; }   // v62：記録の画面から開いたときは記録の画面へ
     loadHome(S.view === 'afterSave' ? S.condAfterMsg : null);
   },
 
@@ -343,4 +369,9 @@ app.addEventListener('input', function (e) {
 });
 app.addEventListener('click', function (e) {
   if (S.view === 'condition' && S.cond && e.target.closest('[data-act="condPick"]')) { S.cond.touched = true; Condition.keep(); }
+});
+
+// v63：コンディションの画面の「戻る」
+app.addEventListener('click', function (e) {
+  if (S.view === 'condition' && e.target.closest('[data-cond="back"]')) Condition.back();
 });
