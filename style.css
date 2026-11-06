@@ -1186,3 +1186,64 @@ body[data-view="session"] .sess-head h1 { font-size: 1.15rem; margin: 2px 0 6px;
   body[data-view="session"] .num.reps { flex: 0 0 52px; }
   body[data-view="session"] .num input { font-size: 1.15rem; }
 }
+
+/* =====================================================================
+ * v62（RIKKIO 段階3-B）：コンディション・記録・身体データ・マイページ
+ *   この4つの画面も、地の色に白いカード（3-A と同じ形）。768px以上は幅を広く・2列
+ * ===================================================================== */
+body:is([data-view="history"], [data-view="body"], [data-view="mypage"]) .wrap { background: transparent; box-shadow: none; }
+body:is([data-view="history"], [data-view="body"], [data-view="mypage"]) .wrap > .group,
+body[data-view="history"] .hist-col > :is(.group, .card),
+body[data-view="body"] .wrap > .report-card, body[data-view="mypage"] .mp-grid > .group {
+  background: var(--color-paper); border: 1px solid var(--line-strong); border-radius: 16px; padding: 16px; margin: 0 0 14px; }
+body[data-view="history"] .hist-col > .hist-detail { border-left: 4px solid var(--color-accent); }
+body[data-view="body"] .wrap > .report-card { border-top: 4px solid var(--color-accent); }
+body:is([data-view="history"], [data-view="body"], [data-view="mypage"]) .wrap .group > .topbar { margin-bottom: 8px; }
+
+/* コンディション：入力済み・未入力。スマホは5つずつ2段（押しやすい大きさ） */
+.cond-progress { margin: 0 0 12px; padding: 8px 12px; border-radius: 12px; background: var(--color-surface); font-size: 0.9rem; }
+.cond-progress.ok { background: var(--color-accent-100); color: var(--color-accent-900); }
+.cond-item h2 .cond-state { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; font-size: 0.78rem; font-weight: 700; padding: 2px 10px; border-radius: 999px;
+  background: var(--color-surface); color: var(--color-neutral-700); order: 3; }
+.cond-item h2 { flex-wrap: nowrap; }
+.cond-item.has h2 .cond-state { background: var(--color-accent); color: #fff; }
+.cond-item h2::after { order: 2; }
+@media (max-width: 767px) {
+  .cond-scale { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .cond-scale button { min-height: 48px; }
+  .cond-scale button:nth-child(6) { border-left: none; }
+  .cond-scale button:nth-child(n+6) { border-top: 1px solid var(--line); }
+}
+.cond-comment { width: 100%; font: inherit; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--line-strong); background: var(--color-surface); color: var(--color-text); }
+
+/* 記録：コンディションの印・前後の日・コンディションの一覧 */
+.hist-day.has-cond::after { content: ''; position: absolute; left: 50%; bottom: 3px; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: var(--color-process-yellow); }
+.hist-legend i.cond { background: var(--color-process-yellow); }
+.hist-daynav { display: flex; justify-content: space-between; gap: 8px; margin: 0 0 10px; }
+.hist-daynav .btn { min-height: 44px; }
+.cond-hist th, .cond-hist td { padding: 6px 4px; }
+.cond-hist tr.sel td { background: var(--color-accent-100); }
+.cond-hist .link { min-height: 40px; padding: 0 4px; }
+/* 身体データ：いちばん新しい測定日 */
+.body-latest { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 8px; font-size: 0.88rem; }
+.body-latest > span { display: inline-flex; gap: 6px; align-items: baseline; }
+body[data-view="body"] .report-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+body[data-view="body"] svg { max-width: 100%; height: auto; }
+/* マイページ */
+.mp-theme { margin: 4px 0 6px; }
+.mp-contact { margin: 10px 0; padding: 10px 12px; border-radius: 12px; background: var(--color-surface); }
+.mp-contact p { margin: 4px 0 0; }
+
+@media (min-width: 768px) {
+  body:not(.is-staff):is([data-view="history"], [data-view="body"], [data-view="mypage"]) :is(.wrap, .coach-band) {
+    margin-left: max(24px, calc(50% - 480px)); margin-right: max(24px, calc(50% - 480px)); }
+  .hist-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 14px; align-items: start; }
+  .mp-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; align-items: start; }
+  .mp-grid > #mpCondition, .mp-grid > #mpSettings { grid-column: 1 / -1; }
+  body[data-view="body"] .report-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+/* PC（1200px以上）：もう少し広く */
+@media (min-width: 1200px) {
+  body:not(.is-staff):is([data-view="history"], [data-view="body"], [data-view="mypage"]) :is(.wrap, .coach-band) {
+    margin-left: calc(50% - 560px); margin-right: calc(50% - 560px); }
+}

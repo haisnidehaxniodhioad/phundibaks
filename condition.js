@@ -42,9 +42,13 @@ var Condition = {
   /** 入力の画面を開く（date を省略すると今日。その日の記録があれば、それを入れておく） */
   open: function (date) {
     var d = date || S.condDate || Body.today();
+    // v62：入力の途中で画面を離れたとき（「あとで」・アプリを閉じたときも）は、同じ日なら途中の内容から続ける
+    if (!S.cond) { var kept = Store.get('condDraft', null); if (kept && kept.touched) S.cond = kept; }
+    if (S.cond && S.cond.date === d && S.cond.touched) { S.cond.from = S.view; S.condTalk = null; Condition.render(); return; }
     var cur = S.home && S.home.condition && S.home.condition.date === d ? S.home.condition : null;
     S.cond = { date: d, whole: cur ? cur.whole : '', upper: cur ? cur.upper : '', lower: cur ? cur.lower : '', perf: cur ? cur.perf : '',
-               comment: cur ? cur.comment : '', weight: cur && cur.weight !== undefined ? cur.weight : '', method: 'タップ', fresh: !cur };
+               comment: cur ? cur.comment : '', weight: cur && cur.weight !== undefined ? cur.weight : '', method: 'タップ', fresh: !cur,
+               from: S.view };   // v62：開いた画面（記録の画面から開いたら、終わったら記録の画面に戻る）
     S.condTalk = null;
     Condition.render();
   },
@@ -52,10 +56,14 @@ var Condition = {
   render: function (error) {
     S.view = 'condition';
     var c = S.cond;
+    // v62：4つのうち、いくつ選んだか（入力済み・未入力をわかりやすく）
+    var doneN = Condition.ITEMS.filter(function (it) { return c[it.key] >= 1; }).length;
     var html = '<div class="group"><div class="topbar"><span class="kicker">' + Condition.dateLabel(c.date) + 'のコンディション</span>' +
-      '<button class="btn ghost" data-act="condLater">あとで</button></div>' + msgHtml('error', error);
+      '<button class="btn ghost" data-act="condLater">あとで</button></div>' +
+      '<p class="cond-progress' + (doneN === 4 ? ' ok' : '') + '"><b>' + doneN + ' / 4</b> 項目を選んだよ' + (doneN === 4 ? '。下の「コンディションを保存」で保存してね' : '') + '</p>' + msgHtml('error', error);
     Condition.ITEMS.forEach(function (it) {
-      html += '<section class="sec cond-item"><h2>' + it.label + '</h2><div class="cond-scale" role="group" aria-label="' + it.label + '">';
+      var has = c[it.key] >= 1;
+      html += '<section class="sec cond-item' + (has ? ' has' : '') + '"><h2>' + it.label + '<span class="cond-state">' + (has ? Icon('check', 14) + c[it.key] : '未選択') + '</span></h2><div class="cond-scale" role="group" aria-label="' + it.label + '">';
       for (var v = 1; v <= 10; v++) {
         html += '<button class="' + (c[it.key] === v ? 'on' : '') + '" data-act="condPick" data-k="' + it.key + '" data-v="' + v + '" aria-label="' + it.label + v + '">' + v + '</button>';
       }
@@ -99,15 +107,24 @@ var Condition = {
       .then(function (res) {
         if (S.home && res.condition && res.condition.date === Body.today()) S.home.condition = res.condition;
         QA.reset();
+        var from = S.cond && S.cond.from;
         S.cond = null;
+        Store.remove('condDraft');   // v62：保存できたら、途中の内容は消す
         Speech.speak('コンディションを記録したよ。' + Condition.advice(res.condition));
+        if (from === 'history') { History.show(History.data ? History.data.month : ''); return; }   // v62：記録の画面から開いたときは、記録の画面を読み直す
         loadHome(res.message);
       }).catch(function (err) { Condition.render(err.message); });
   },
 
+  /** v62：途中の内容を端末に残す（アプリを閉じても続きから。保存できたら消す） */
+  keep: function () { if (S.cond && S.cond.touched) Store.set('condDraft', S.cond); },
+
   /** あとで入力する（ホームに戻る） */
   later: function () {
-    S.cond = null;
+    var from = S.cond && S.cond.from;
+    // v62：選んだ途中の内容は消さずに残す（次に同じ日を開くと続きから）。何も触っていなければ今までどおり捨てる
+    if (S.cond && S.cond.touched) { Condition.readComment(); Condition.keep(); } else S.cond = null;
+    if (from === 'history' && S.view === 'condition') { History.show(History.data ? History.data.month : ''); return; }   // v62：記録の画面から開いたときは記録の画面へ
     loadHome(S.view === 'afterSave' ? S.condAfterMsg : null);
   },
 
@@ -310,9 +327,20 @@ var Condition = {
       .then(function (res) {
         if (S.home && res.condition && res.condition.date === Body.today()) S.home.condition = res.condition;
         QA.reset();
+        if (S.cond && S.cond.date === c.date) S.cond = null;   // v62：声で保存できたら、画面の途中の内容（同じ日）は使わない
+        var kd = Store.get('condDraft', null); if (kd && kd.date === c.date) Store.remove('condDraft');
         reply(text, 'コンディションを記録したよ。' + Condition.advice(res.condition));
         if (S.view === 'home') renderHome();
       }).catch(function (err) { S.condTalk = c; reply(text, '保存できなかったよ（' + err.message + '）。もう一度「はい」って言うと、保存し直すよ。', true); });
     return true;
   }
 };
+
+// v62：入力の途中の内容を S.cond に残す（体重・コメントは打つたびに。ほかの画面へ移っても、同じ日を開き直せば続きから）
+app.addEventListener('input', function (e) {
+  if (S.view !== 'condition' || !S.cond) return;
+  if (e.target.id === 'condComment' || e.target.id === 'condWeight') { Condition.readComment(); S.cond.touched = true; Condition.keep(); }
+});
+app.addEventListener('click', function (e) {
+  if (S.view === 'condition' && S.cond && e.target.closest('[data-act="condPick"]')) { S.cond.touched = true; Condition.keep(); }
+});

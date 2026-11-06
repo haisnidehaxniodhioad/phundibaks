@@ -17,8 +17,12 @@ var History = {
   /** 記録の画面を開く。after: 表示し終わったあとにすること（音声で開いたときの読み上げなど） */
   show: function (month, after) {
     S.view = 'history';
+    // v62：下のバーなどから開き直したとき（month を渡さないとき）は、前に見ていた月と日をそのまま出す
+    var keep = month === undefined && History.data ? { month: History.data.month, sel: History.selected } : null;
+    if (keep) month = keep.month === History.data.current ? '' : keep.month;
     app.innerHTML = '<div class="loading">読み込み中…</div>';
     History.load(month).then(function () {
+      if (keep && keep.sel && keep.sel.slice(0, 7) === History.data.month) History.selected = keep.sel;
       if (S.view !== 'history') return;   // 読み込み中にほかの画面へ移ったときは描かない
       History.render();
       if (after) after();
@@ -63,7 +67,7 @@ var History = {
     var monthCount = d.sessions.length, dayCount = Object.keys(days).length;
     // いちばん上：その月に何日やったか（v20：レイアウト案 2a）
     // v30：見出し・回数のまとめ・今年度の月ごとの回数 は1枚にまとめる（似た内容なので）
-    var html = '<div class="group"><div class="topbar"><span class="kicker">トレーニング記録</span><button class="btn ghost" data-act="home">ホームへ</button></div>' +
+    var html = '<div class="group hist-top"><div class="topbar"><span class="kicker">トレーニング記録</span><button class="btn ghost" data-act="home">ホームへ</button></div>' +
       '<div class="hist-summary"><span class="big-num">' + (d.month === d.current ? '今月' : m + '月') + 'は<em> ' + dayCount + '日 </em>' +
       (dayCount ? 'がんばったね' : 'まだ記録がないよ') + '</span>' +
       '<span class="muted small">' + (monthCount !== dayCount ? 'この月 ' + monthCount + '回・' : '') + '今週 ' + d.weekCount + '回・今年度 ' + d.yearCount + '回</span></div>' +
@@ -73,7 +77,7 @@ var History = {
       }).join('') + '</div></div>';
     // 月の切り替え
     // カレンダーと、選んだ日の記録は1枚にまとめる（v30）
-    html += '<div class="group"><div class="hist-month">' +
+    html += '<div class="hist-grid"><div class="hist-col"><div class="group hist-calcard"><div class="hist-month">' +
       '<button class="btn ghost hist-nav" data-hist-month="' + History.shift(d.month, -1) + '"' + (d.month <= d.fyStart ? ' disabled' : '') + ' aria-label="前の月">‹</button>' +
       '<div class="hist-title">' + y + '年' + m + '月</div>' +
       '<button class="btn ghost hist-nav" data-hist-month="' + History.shift(d.month, 1) + '"' + (d.month >= d.current ? ' disabled' : '') + ' aria-label="次の月">›</button></div>';
@@ -89,19 +93,53 @@ var History = {
       var key = d.month + '-' + ('0' + day).slice(-2), list = days[key];
       // 丸の色：チームメニューがあった日は青、自分のメニュー・白紙だけの日は赤
       var mineOnly = list && list.every(function (s) { return s.type !== 'チーム'; });
-      var cls = 'hist-day' + (list ? ' done' : '') + (mineOnly ? ' mine-only' : '') + (key === today ? ' today' : '') + (key === History.selected ? ' sel' : '') + (key > today ? ' future' : '');
+      var cond = History.data.conditions && History.data.conditions[key];   // v62：コンディションを記録した日には小さな印
+      var cls = 'hist-day' + (list ? ' done' : '') + (mineOnly ? ' mine-only' : '') + (key === today ? ' today' : '') + (key === History.selected ? ' sel' : '') + (key > today ? ' future' : '') + (cond ? ' has-cond' : '');
       var addable = History.canAdd(key);   // 記録が無くても、3日前までは押して追加できる
       if (addable && !list) cls += ' addable';
-      html += '<button class="' + cls + '" data-hist-day="' + key + '"' + (list || addable ? '' : ' disabled') + '>' +
+      html += '<button class="' + cls + '" data-hist-day="' + key + '"' + (list || addable || cond ? '' : ' disabled') + '>' +
         '<span class="hist-num">' + day + '</span>' +
         (list && list.length > 1 ? '<span class="hist-mark">' + list.map(function (s) { return '<i class="' + History.kindClass(s) + '"></i>'; }).join('') + '</span>' : '') +
         '</button>';
     }
     html += '</div>';
-    html += '<div class="hist-legend muted small"><span><i class="team"></i>チームメニュー</span><span><i class="mine"></i>自分のメニュー・白紙</span><span><i class="add"></i>追加できる日（' + MAX_BACKDATE_DAYS + '日前まで）</span></div>';
-    // 選んだ日の詳しい記録
-    html += History.detailHtml(History.selected, days[History.selected]) + '</div>';
+    html += '<div class="hist-legend muted small"><span><i class="team"></i>チームメニュー</span><span><i class="mine"></i>自分のメニュー・白紙</span><span><i class="cond"></i>コンディション</span><span><i class="add"></i>追加できる日（' + MAX_BACKDATE_DAYS + '日前まで）</span></div>';
+    html += '</div></div><div class="hist-col">';
+    // 選んだ日の詳しい記録（v62：前後の記録のある日へ移れる）
+    html += History.dayNavHtml() + History.detailHtml(History.selected, days[History.selected]);
+    // v62：この月のコンディションの一覧（新しい順。押すとその日を選ぶ）
+    html += History.condListHtml();
+    html += '</div></div>';
     app.innerHTML = html;
+  },
+
+  /** v62：記録（トレーニングかコンディション）のある日の一覧（古い順） */
+  recordDays: function () {
+    var map = History.trainedDays(), c = (History.data && History.data.conditions) || {};
+    Object.keys(c).forEach(function (k) { if (k.slice(0, 7) === History.data.month) map[k] = map[k] || []; });
+    return Object.keys(map).sort();
+  },
+  /** v62：前・次の記録のある日へ */
+  dayNavHtml: function () {
+    var all = History.recordDays(), sel = History.selected;
+    if (!all.length) return '';
+    var prev = all.filter(function (k) { return k < sel; }).pop(), next = all.filter(function (k) { return k > sel; })[0];
+    var b = function (k, label, cls) { return k ? '<button class="btn ghost small ' + cls + '" data-hist-day="' + k + '">' + label + '</button>' : '<span></span>'; };
+    return '<div class="hist-daynav">' + b(prev, '‹ 前の記録（' + (prev ? Number(prev.slice(5, 7)) + '/' + Number(prev.slice(8)) : '') + '）', 'prev') +
+      b(next, '次の記録（' + (next ? Number(next.slice(5, 7)) + '/' + Number(next.slice(8)) : '') + '） ›', 'next') + '</div>';
+  },
+  /** v62：この月のコンディション（myHistory の conditions。新しい順） */
+  condListHtml: function () {
+    var c = (History.data && History.data.conditions) || {}, keys = Object.keys(c).filter(function (k) { return k.slice(0, 7) === History.data.month; }).sort().reverse();
+    var html = '<div class="group hist-condlist"><h2>この月のコンディション</h2>';
+    if (!keys.length) return html + '<p class="muted small">この月のコンディションの記録はまだないよ。</p></div>';
+    html += '<table class="line-table cond-hist"><thead><tr><th>日付</th><th class="r">全身</th><th class="r">上</th><th class="r">下</th><th class="r">動き</th></tr></thead><tbody>' +
+      keys.map(function (k) {
+        var x = c[k], v = function (n) { return n === '' || n === undefined ? '-' : esc(n); };
+        return '<tr class="' + (k === History.selected ? 'sel' : '') + '"><td><button class="link" data-hist-day="' + k + '">' + Number(k.slice(5, 7)) + '/' + Number(k.slice(8)) + '</button></td>' +
+          '<td class="r">' + v(x.whole) + '</td><td class="r">' + v(x.upper) + '</td><td class="r">' + v(x.lower) + '</td><td class="r">' + v(x.perf) + '</td></tr>';
+      }).join('') + '</tbody></table><p class="muted small">疲労は1 疲れていない〜10 とても疲れている、動きは1 とても悪い〜10 とても良い。</p></div>';
+    return html;
   },
 
   /** 選んだ日の記録（種目とセット） */
@@ -116,6 +154,10 @@ var History = {
     if (date && !list && History.canAdd(date)) {   // 記録が無い日（3日前まで）→ 追加だけ出す
       var m0 = /^(\d{4})-(\d{2})-(\d{2})/.exec(date), wd0 = '日月火水木金土'.charAt(new Date(Number(m0[1]), Number(m0[2]) - 1, Number(m0[3])).getDay());
       return '<div class="card hist-detail"><h2>' + Number(m0[2]) + '月' + Number(m0[3]) + '日（' + wd0 + '）</h2><p class="muted small">この日の記録はまだありません。</p>' + History.addHtml(date) + History.condHtml(date) + '</div>';
+    }
+    if (date && !list && History.data.conditions && History.data.conditions[date]) {   // v62：トレーニングは無く、コンディションだけある日
+      var m1 = /^(\d{4})-(\d{2})-(\d{2})/.exec(date), wd1 = '日月火水木金土'.charAt(new Date(Number(m1[1]), Number(m1[2]) - 1, Number(m1[3])).getDay());
+      return '<div class="card hist-detail"><h2>' + Number(m1[2]) + '月' + Number(m1[3]) + '日（' + wd1 + '）</h2><p class="muted small">この日のトレーニングの記録はありません。</p>' + History.condHtml(date) + '</div>';
     }
     if (!date || !list) {
       return '<div class="card muted">' + (History.data.sessions.length ? '印の付いた日をタップすると、その日の記録が出ます。' : 'この月のトレーニングの記録はまだありません。') + '</div>';

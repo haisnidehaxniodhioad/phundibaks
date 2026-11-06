@@ -12,6 +12,9 @@
  */
 var MyPage = {
   data: null,   // myPage の結果
+  // v62：サポートの「スタッフへの連絡方法」と「アンケート」。決まったら、ここに書く（空のあいだは画面に出さない）
+  //   contact … 連絡のしかた（例：「LINEのトレーニング係のグループに書いてね」）。surveyUrl … アンケートのURL（https:// で始まるもの）
+  SUPPORT: { contact: '', surveyUrl: '' },
 
   show: function (after) {
     S.view = 'mypage';
@@ -30,17 +33,38 @@ var MyPage = {
     });
   },
 
+  /**
+   * v62：上から プロフィール → 表示モード → サポート → トレーニング・フィジカルのまとめ → コンディションの推移 → 設定（いちばん下）
+   *   768px以上は2列（style.css の .mp-grid）。今までの部品・id（mpProfile など）・声の操作はそのまま
+   */
   render: function (pinMsg) {
     S.view = 'mypage';
     var p = (MyPage.data && MyPage.data.profile) || {};
-    var html = '<div class="group"><div class="topbar"><h1>マイページ</h1><button class="btn ghost" data-act="home">ホームへ</button></div>' +
-      '<p class="mp-name"><b>' + esc(p.name || '') + '</b>' + (p.kana ? ' <span class="muted small">' + esc(p.kana) + '</span>' : '') + '</p>' +
-      '<button class="btn sub block mp-column" data-act="column">' + Icon('book', 20) + 'コラム（用語の説明など）を読む</button></div>';   // v56
-    html += MyPage.profileHtml(p) + MyPage.trainingHtml() + MyPage.physicalHtml() +
+    var html = '<div class="group mp-top"><div class="topbar"><h1>マイページ</h1><button class="btn ghost" data-act="home">ホームへ</button></div>' +
+      '<p class="mp-name"><b>' + esc(p.name || '') + '</b>' + (p.kana ? ' <span class="muted small">' + esc(p.kana) + '</span>' : '') + '</p></div>';
+    html += '<div class="mp-grid">' + MyPage.profileHtml(p) + MyPage.themeHtml() + MyPage.supportHtml() + MyPage.trainingHtml() + MyPage.physicalHtml() +
       '<div class="group" id="mpCondition"><h2 class="mp-h">コンディションの推移</h2>' + CondChart.html() +
       '<p class="muted small">疲労は上ほど疲れていて、点線の8が注意の目安だよ。動きやすさは上ほど良い状態。「3か月」は週ごとの平均だよ。</p></div>' +
-      MyPage.settingsHtml(pinMsg);
+      MyPage.settingsHtml(pinMsg) + '</div>';
     app.innerHTML = html;
+  },
+
+  // ---------------- v62：表示モード（自動・昼・夜。theme.js の Theme.set。コーチの設定の「画面の色」と同じ） ----------------
+  themeHtml: function () {
+    var cur = Theme.get();
+    return '<div class="group" id="mpTheme"><h2 class="mp-h">表示モード</h2><div class="tabs mp-theme" role="radiogroup" aria-label="表示モード">' +
+      Theme.MODES.map(function (m) {
+        return '<button class="tab' + (cur === m.key ? ' on' : '') + '" data-mp="theme" data-v="' + m.key + '" role="radio" aria-checked="' + (cur === m.key) + '">' + m.label + '</button>';
+      }).join('') + '</div><p class="muted small">「自動」はスマホのダークモードに合わせるよ。この端末だけの設定だよ。</p></div>';
+  },
+
+  // ---------------- v62：サポート（使い方・スタッフへの連絡・アンケート。連絡とアンケートは MyPage.SUPPORT に書いたときだけ出す） ----------------
+  supportHtml: function () {
+    var sp = MyPage.SUPPORT, html = '<div class="group" id="mpSupport"><h2 class="mp-h">サポート</h2>' +
+      '<button class="btn sub block" data-act="guide">' + Icon('book', 18) + '使い方を見る</button>';
+    if (sp.contact) html += '<div class="mp-contact"><b>スタッフへの連絡</b><p class="small">' + esc(sp.contact) + '</p></div>';
+    if (/^https:\/\//.test(sp.surveyUrl)) html += '<a class="btn sub block" href="' + esc(sp.surveyUrl) + '" target="_blank" rel="noopener">' + Icon('file', 18) + 'アンケートに答える</a>';
+    return html + '<p class="muted small">わからないことや、プロフィールの間違いは、スタッフに伝えてね。</p></div>';
   },
 
   // ---------------- プロフィール ----------------
@@ -101,7 +125,7 @@ var MyPage = {
     return '<div class="group" id="mpSettings"><h2 class="mp-h">設定</h2>' +
       '<button class="btn sub block" data-act="avatarSettings">' + Icon('smiley', 20) + 'コーチの設定（種類・声・話す速さ・画面の色）</button>' +
       '<button class="btn sub block" data-typevoice="1">' + Icon('keyboard', 18) + '文字で話しかける</button>' +
-      '<button class="btn sub block" data-act="guide">' + Icon('book', 18) + '使い方を見る</button>' +   // v52：アプリの中の使い方（guidebook.js）
+      '<button class="btn sub block mp-column" data-act="column">' + Icon('book', 18) + 'コラム（用語の説明など）を読む</button>' +   // v56（v62：設定のまとまりへ。使い方はサポートへ）
       '<h3 class="mp-sub">PINの変更</h3>' + (pinMsg || '') +
       '<form class="mp-pin" data-mp-form="pin" autocomplete="off">' +
       '<label>今のPIN<input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" id="pinCur" autocomplete="current-password"></label>' +
@@ -172,6 +196,7 @@ app.addEventListener('click', function (e) {
   var t = e.target.closest('[data-mp]');
   if (!t || S.view !== 'mypage') return;
   if (t.dataset.mp === 'body') { Body.tab = t.dataset.v; Body.showMine(); }
+  if (t.dataset.mp === 'theme') { Theme.set(t.dataset.v); var y = window.scrollY; MyPage.render(); window.scrollTo(0, y); return; }   // v62：表示モード
   if (t.dataset.mp === 'allEx') { MyPage.showAll = !MyPage.showAll; MyPage.render(); MyPage.scrollTo('mpTraining'); }
 });
 app.addEventListener('submit', function (e) {
