@@ -7,26 +7,27 @@
  *   ・背景はユニフォームの縦じま（24px ごとに 4px の線。左右対称になるよう真ん中から並べる）
  *   ・文字は角ゴシック（Zen Kaku Gothic New。index.html で読み込む）
  *   ・画面の下のバー（dock.js）の高さは --dock-h に入る
+ *   ・v59（RIKKIO）：昼の地を #F5F5F8、紫を #63349A にし、縦じまは消した（--stripe を透明に）。夜の色は今のまま
  */
 :root {
   color-scheme: light;
   /* 昼の色：生成りの地に紺の縦じま、内容は白い「紙」、ボタンはチームカラーの紫 */
-  --color-bg: #F1F0EC;        /* 縦じまの地の色 */
-  --stripe: rgba(31,42,90,0.11);   /* 縦じまの線の色（薄い紺） */
+  --color-bg: #F5F5F8;        /* 地の色（v59：RIKKIO の背景色） */
+  --stripe: transparent;      /* 縦じまの線の色（v59：飾りを減らすため線なし。透明にしているだけで、仕組みは残している） */
   --color-paper: #FFFFFF;     /* 紙の色 */
-  --color-surface: #F5F4F8;   /* 入力欄・小さな面の色 */
+  --color-surface: #F5F5F8;   /* 入力欄・小さな面の色 */
   --color-text: #20264A;      /* 文字（紺） */
   --line: #EEECF2;            /* 表の行の間の薄い線 */
   --line-strong: #DCD8E6;     /* 枠・区切りの線 */
   --rule: #20264A;            /* 表の上と下の濃い線 */
   --label: #7A6E98;           /* 小さな見出しの色 */
   --mark: #E4D7F5;            /* マーカーの色 */
-  --color-accent: #5B2A9B; --color-accent-2: #C2185B; --color-process-yellow: #edbb00;
+  --color-accent: #63349A; --color-accent-2: #C2185B; --color-process-yellow: #edbb00;
   --color-divider: var(--line-strong);
   --color-neutral-100: #F7F6FB; --color-neutral-200: #EEEDF5; --color-neutral-300: #D9D8E6; --color-neutral-400: #B9BACF;
   --color-neutral-500: #9497B3; --color-neutral-600: #8C90A8; --color-neutral-700: #5A5F80; --color-neutral-800: #3A3F63; --color-neutral-900: #20264A;
   --color-accent-100: #F3EDFB; --color-accent-200: #DCCBF2; --color-accent-300: #B99BE3; --color-accent-400: #9C7FCC;
-  --color-accent-500: #7A4FBF; --color-accent-600: #5B2A9B; --color-accent-700: #5B2A9B; --color-accent-800: #3E1A6E; --color-accent-900: #24104A;
+  --color-accent-500: #7A4FBF; --color-accent-600: #63349A; --color-accent-700: #63349A; --color-accent-800: #3E1A6E; --color-accent-900: #24104A;
   --color-accent-2-100: #FDE8EF; --color-accent-2-200: #F9C6D7; --color-accent-2-300: #F29BB9; --color-accent-2-400: #E2588A;
   --color-accent-2-500: #D33A73; --color-accent-2-600: #AD1457; --color-accent-2-700: #8E1048; --color-accent-2-800: #6E0C38;
   --nav-bg: #FFFFFF; --nav-text: #8C90A8; --nav-on: #20264A;
@@ -46,7 +47,7 @@
  *   同じ色を2回書いているのは、「スマホの設定に合わせる」場合と「夜を選んだ」場合の両方に効かせるため。色を変えるときは両方そろえて変える */
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   color-scheme: dark;
-  --color-bg: #0F1433; --stripe: rgba(255,255,255,0.10);
+  --color-bg: #0F1433; --stripe: transparent;
   --color-paper: #1A2148; --color-surface: #232B5A; --color-text: #EEF0FA;
   --line: rgba(255,255,255,0.10); --line-strong: rgba(255,255,255,0.20); --rule: #C9CEEA; --label: #AFA6CC; --mark: rgba(122,69,200,0.55);
   --color-accent: #7A45C8; --color-accent-2: #FF6F9C;
@@ -62,7 +63,7 @@
 } }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --color-bg: #0F1433; --stripe: rgba(255,255,255,0.10);
+  --color-bg: #0F1433; --stripe: transparent;
   --color-paper: #1A2148; --color-surface: #232B5A; --color-text: #EEF0FA;
   --line: rgba(255,255,255,0.10); --line-strong: rgba(255,255,255,0.20); --rule: #C9CEEA; --label: #AFA6CC; --mark: rgba(122,69,200,0.55);
   --color-accent: #7A45C8; --color-accent-2: #FF6F9C;

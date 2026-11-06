@@ -8,7 +8,9 @@
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v58 2026-11-06';
+var APP_VERSION = 'v59 2026-11-06';
+// 利用者に見せるアプリの名前（v59）。config.js の APP_NAME は変えずに残し、画面の表示にはこちらを使う
+var BRAND = 'RIKKIO';
 // 記録し忘れた日の分を、何日前まで遡って入力できるか（v26）。Apps Script の 設定.gs の MAX_BACKDATE_DAYS と同じ数字にする
 var MAX_BACKDATE_DAYS = 3;
 var S = { token: null, home: null, draft: null, view: 'loading' };
@@ -51,7 +53,7 @@ function renderLogin(error) {
     '<div class="login">' +
     '<div class="login-hero"><span id="coachTop" class="coach-top coach-login"></span>' +
     '<div class="bubble bubble-center"><i>おかえり！IDとPINを入れてね。</i></div>' +
-    '<h1>' + esc(window.APP_CONFIG.APP_NAME) + '</h1></div>' +
+    '<h1>' + esc(BRAND) + '</h1></div>' +
     '<label for="lid">ID（英字と数字の6文字）</label><input id="lid" class="input-pill input-id" inputmode="text" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="12" autocomplete="username" placeholder="例：K7M2QX">' +
     '<label for="lpin">PIN（6けたの数字）</label><input id="lpin" class="input-pill input-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="current-password">' +
     msgHtml('error', error) +
