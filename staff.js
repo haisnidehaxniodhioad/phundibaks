@@ -421,6 +421,18 @@ function uniq(arr) { var o = []; arr.forEach(function (v) { if (o.indexOf(v) < 0
 
 // スタッフ画面の操作の振り分け
 app.addEventListener('click', function (e) {
+  // v66：個人ページの上の「トレーニング記録・コンディション記録・フィジカルデータ」は、同じページの中を動くだけにする
+  //   （#〜 のリンクのままだとブラウザの履歴が変わり、popstate で「戻る」と同じ扱いになって元の画面に戻ってしまっていた）
+  var jump = e.target.closest('.ath-jump a');
+  if (jump && S.view === 'staff') {
+    e.preventDefault();
+    var sec = document.getElementById((jump.getAttribute('href') || '').slice(1));
+    if (sec) {   // 上に重なる AIアシスタントの帯の下に見出しが来るように
+      var band = document.querySelector('.coach-band'), bb = band ? band.getBoundingClientRect().bottom : 0;
+      window.scrollTo(0, Math.max(0, sec.getBoundingClientRect().top + window.scrollY - Math.max(0, bb) - 8));
+    }
+    return;
+  }
   var nav = e.target.closest('[data-staffnav]');   // v60：PC の左のサイドバー
   if (nav && S.view === 'staff') { Staff.go(nav.dataset.staffnav); return; }
   var t = e.target.closest('[data-staff]');
