@@ -268,6 +268,19 @@ var StaffQA = {
         var a = d.overview.athletes.filter(function (x) { return x.id === q.person.id; })[0];
         return q.person.name + 'さんは、' + StaffQA.weekLabel(d.overview) + (a && a.sessions ? a.sessions + '回トレーニングしています。' : 'まだトレーニングしていません。') + StaffQA.athleteBrief(q.person.id, d.detail);
       }
+    },
+    {
+      // v68：「今週の状況をまとめて」＝ダッシュボードの「この週の状況」と「確認が必要な選手」を声で。ほかの話題に当てはまらないときだけ（いちばん最後）
+      examples: ['今週の状況をまとめて'],
+      test: function (q) { return !q.person && /状況|じょうきょう|様子|ようす/.test(q.t) && /まとめ|教えて|おしえて|どう|知りたい|しりたい|は$/.test(q.t); },
+      need: ['overview'],
+      answer: function (q, d) {
+        var list = StaffQA.people(d.overview), n = list.length, ck = StaffQA.checks(d.overview);
+        var done = list.filter(function (a) { return a.sessions; }).length, cond = list.filter(function (a) { return a.condCount; }).length;
+        return StaffQA.weekLabel(d.overview) + StaffQA.scope() + 'は、' + n + '人中' + done + '人がトレーニングしています（' + (n ? Math.round(done / n * 100) : 0) + 'パーセント）。' +
+          'コンディションを入れたのは' + cond + '人です。確認が必要な選手は、' + Object.keys(ck).map(function (k) { return StaffQA.CHECK_LABELS[k] + 'が' + ck[k].length + '人'; }).join('、') +
+          'です。1人が複数に入ることがあるので、合計はしません。';
+      }
     }
   ],
 
