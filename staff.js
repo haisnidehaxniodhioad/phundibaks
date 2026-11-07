@@ -78,8 +78,82 @@ var Staff = {
       (o.admin ? item('admin', '', 'phone', 'ログインの管理', 'ログインしている端末とログインの記録（管理者）') : '') +
       item('guide', 'staff', 'book', '使い方（スタッフ向け）', 'スタッフ画面の使い方') +
       item('guide', 'athlete', 'book', '使い方（選手向け・配る用）', '選手に配る案内') +
-      '</div>' + (o.columnEditor ? Staff.addStaffHtml() : '');
+      '</div>' + (o.columnEditor ? Staff.gradHtml() + Staff.addStaffHtml() : '');
     app.innerHTML = Staff.frame(html);
+    if (o.columnEditor) Staff.gradFill();
+  },
+
+  // ---- v70：4年生（卒業する学年）の選手の在籍を外す（管理者・トレーナーの画面だけ） ----
+  //   「在籍」を FALSE にするだけ（トレーニング記録・体組成・コンディションは消さない。スプレッドシートで TRUE にすれば戻る）。
+  //   保存は今ある rosterApply に retire（選手IDの一覧）だけを送る（名簿.gs。Apps Script は変えていない。選手マスタは学年・ふりがなの順に並べ直される）
+  //   対象：在籍中で、学年が「4年」の選手。年度が変わったあと（入学年度から数えて5年目以上で学年が空になった選手）も出す
+  gradMsg: '', gradBusy: false, gradList: null,
+  gradHtml: function () {
+    var msg = Staff.gradMsg; Staff.gradMsg = '';
+    return '<details class="card grad-card"' + (msg ? ' open' : '') + '><summary><b>' + Icon('person', 18) + ' 4年生（卒業する選手）の在籍を外す</b></summary>' +
+      '<p class="muted small">チェックした選手の「在籍」を外します。ログイン・選手の一覧・ダッシュボードの人数から外れます。<b>トレーニング記録・体組成・コンディションは消えません</b>（スプレッドシートの選手マスタで「在籍」を TRUE にすると戻ります）。管理者・トレーナーだけが使えます。</p>' +
+      (msg || '') + '<div id="gradList"><div class="loading">読み込み中…</div></div></details>';
+  },
+  /** 対象の選手を選ぶ一覧（体組成のデータ staffBody の学年・入学年度を使う） */
+  gradTargets: function () {
+    var now = new Date(), fy = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;   // 年度（4月始まり。名簿.gs の currentFiscalYear_ と同じ）
+    return (Staff.body ? Staff.body.athletes : []).filter(function (a) {
+      if (!a.active) return false;
+      if (String(a.grade) === '4年') return true;
+      return !a.grade && a.enrollYear && fy - Number(a.enrollYear) + 1 >= 5;   // 年度が変わって学年が空になった人
+    }).map(function (a) {
+      return { id: a.id, name: a.name, kana: a.kana, team: a.team, label: a.grade || (Number(a.enrollYear) + '年度入学') };
+    }).sort(function (x, y) { return String(x.kana || x.name).localeCompare(String(y.kana || y.name), 'ja'); });
+  },
+  gradFill: function () {
+    Staff.loadBody().then(function () {
+      var box = document.getElementById('gradList');
+      if (!box || Staff.page !== 'manage') return;
+      var list = Staff.gradList = Staff.gradTargets();
+      if (!list.length) { box.innerHTML = '<p class="muted">在籍中の4年生の選手はいません。</p>'; return; }
+      box.innerHTML = '<label class="check-line small"><input type="checkbox" data-grad="all" checked> 全員を選ぶ（' + list.length + '人）</label>' +
+        '<ul class="grad-list">' + list.map(function (a) {
+          return '<li><label class="check-line"><input type="checkbox" data-grad="pick" value="' + esc(a.id) + '" checked> ' + esc(a.name) +
+            ' <span class="muted small">' + esc([a.label, a.team ? a.team + 'チーム' : ''].filter(String).join('・')) + '</span></label></li>';
+        }).join('') + '</ul>' +
+        '<button class="btn block grad-btn" data-staff="gradApply"></button>';
+      Staff.gradCount();
+    }).catch(function (err) {
+      var box = document.getElementById('gradList');
+      if (box) box.innerHTML = msgHtml('error', err.message);
+    });
+  },
+  gradPicked: function () {
+    return Array.prototype.map.call(document.querySelectorAll('[data-grad="pick"]:checked'), function (c) { return c.value; });
+  },
+  gradCount: function () {
+    var n = Staff.gradPicked().length, btn = document.querySelector('[data-staff="gradApply"]'), all = document.querySelector('[data-grad="all"]');
+    if (btn && !Staff.gradBusy) { btn.textContent = n ? 'チェックした' + n + '人の在籍を外す' : '選手を選んでください'; btn.disabled = !n; }
+    if (all) all.checked = n > 0 && n === document.querySelectorAll('[data-grad="pick"]').length;
+  },
+  gradApply: function () {
+    if (Staff.gradBusy) return;
+    var ids = Staff.gradPicked();
+    if (!ids.length) return;
+    var names = (Staff.gradList || []).filter(function (a) { return ids.indexOf(a.id) >= 0; }).map(function (a) { return a.name; });
+    if (!confirm(ids.length + '人（' + names.slice(0, 5).join('、') + (names.length > 5 ? ' ほか' : '') + '）の在籍を外します。\n' +
+      'ログインできなくなり、選手の一覧・ダッシュボードの人数から外れます。記録は消えません。\nよろしいですか？')) return;
+    Staff.gradBusy = true;
+    var btn = document.querySelector('[data-staff="gradApply"]');
+    if (btn) { btn.disabled = true; btn.textContent = '在籍を外しています…'; }
+    Api.call('rosterApply', { token: S.token, retire: ids }).then(function (res) {
+      Staff.gradBusy = false;
+      Staff.gradMsg = msgHtml('ok', (res.retired || 0) + '人の在籍を外しました。記録はそのまま残っています。戻すときは、スプレッドシートの選手マスタで「在籍」を TRUE にしてください。');
+      Staff.body = null; Staff.overview = null;   // 選手の一覧・人数を読み直す
+      if (Staff.tab === 'manage' && Staff.page === 'manage') Staff.renderManage();
+    }).catch(function (err) {
+      Staff.gradBusy = false;
+      if (err.needLogin) return Staff.fail(err);
+      Staff.gradCount();
+      var box = document.getElementById('gradList'), old = box && box.querySelector('.msg');
+      if (old) old.remove();
+      if (box) box.insertAdjacentHTML('afterbegin', msgHtml('error', err.message));
+    });
   },
 
   // ---- v69：部員名簿にいないスタッフを1人ずつ追加する（管理者・トレーナーの画面だけ） ----
@@ -512,10 +586,18 @@ app.addEventListener('click', function (e) {
     case 'menuImport': MenuImport.open(); break;
     case 'admin': Admin.show('accounts'); break;
     case 'columns': ColumnEditor.open(); break;   // コラムの管理（v56）   // ログインの管理（v53）
+    case 'gradApply': Staff.gradApply(); break;   // v70：4年生の在籍を外す（管理・設定）
     case 'addStaff': Staff.addStaff(); break;   // v69：スタッフを1人追加する（管理・設定）
     case 'guide': Guidebook.showStaff(v); break;   // 使い方（v52。guidebook.js）   // メニュー表の取り込み（v50。menu_import.js）   // 部員名簿から取り込む（v44。roster.js）
     case 'reload': Staff.overview = null; Staff.body = null; Staff.render(); break;
   }
+});
+// v70：4年生の在籍を外す一覧のチェック
+app.addEventListener('change', function (e) {
+  var t = e.target;
+  if (S.view !== 'staff' || !t.dataset || !t.dataset.grad) return;
+  if (t.dataset.grad === 'all') document.querySelectorAll('[data-grad="pick"]').forEach(function (c) { c.checked = t.checked; });
+  Staff.gradCount();
 });
 app.addEventListener('change', function (e) {
   var t = e.target;

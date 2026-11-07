@@ -1317,3 +1317,10 @@ body[data-view="body"] svg { max-width: 100%; height: auto; }
 .add-staff summary { cursor: pointer; }
 .add-staff .sel { display: block; width: 100%; max-width: 420px; margin-top: 6px; box-sizing: border-box; min-height: 44px; font-size: 1rem; }
 .add-staff .btn.block { max-width: 420px; margin-top: 14px; }
+/* v70：管理・設定の「4年生の在籍を外す」 */
+.grad-card summary { cursor: pointer; }
+.grad-list { list-style: none; margin: 6px 0; padding: 0; max-height: 360px; overflow-y: auto; border-top: 1px solid var(--line); }
+.grad-list li { border-bottom: 1px solid var(--line); }
+.grad-list .check-line { display: flex; align-items: center; gap: 8px; min-height: 44px; margin: 0; font-weight: 600; }
+.grad-list .check-line .muted { font-weight: 400; }
+.grad-card .btn.block { max-width: 420px; margin-top: 12px; }
