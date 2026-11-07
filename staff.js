@@ -78,8 +78,52 @@ var Staff = {
       (o.admin ? item('admin', '', 'phone', 'ログインの管理', 'ログインしている端末とログインの記録（管理者）') : '') +
       item('guide', 'staff', 'book', '使い方（スタッフ向け）', 'スタッフ画面の使い方') +
       item('guide', 'athlete', 'book', '使い方（選手向け・配る用）', '選手に配る案内') +
-      '</div>';
+      '</div>' + (o.columnEditor ? Staff.addStaffHtml() : '');
     app.innerHTML = Staff.frame(html);
+  },
+
+  // ---- v69：部員名簿にいないスタッフを1人ずつ追加する（管理者・トレーナーの画面だけ） ----
+  //   保存は今ある rosterApply（名簿.gs の rosterApplyStaff_）に staffAdd だけを送る（Apps Script は変えていない）。
+  //   スタッフマスタのいちばん下に1行足し、スタッフID（英字と数字の6文字）とPIN（6けた）を発行する。PINはスタッフマスタで確かめる
+  //   役職は決まった中から選ぶ（「管理者」は選べない。ログインの管理などの権限につながるため、スプレッドシートで入れる）
+  STAFF_ROLES: ['トレーナー', '学生コーチ', 'アナリスト', 'コーチ', 'ヘッドコーチ', '助監督', '監督', '部長', 'スタッフ'],
+  addMsg: '', addBusy: false,
+  addStaffHtml: function () {
+    var msg = Staff.addMsg; Staff.addMsg = '';   // 結果のお知らせは1回だけ出す
+    return '<details class="card add-staff"' + (msg ? ' open' : '') + '><summary><b>' + Icon('person', 18) + ' スタッフを1人追加する（部員名簿にいない人）</b></summary>' +
+      '<p class="muted small">外部のトレーナーなど、部員名簿に載っていないスタッフを追加します。追加すると、スタッフIDとPINを発行します（管理者・トレーナーだけが使えます）。</p>' +
+      (msg || '') +
+      '<label>名前（必須）<input class="sel" id="addStaffName" maxlength="40" autocomplete="off" placeholder="例：山田 太郎"></label>' +
+      '<label>ふりがな<input class="sel" id="addStaffKana" maxlength="40" autocomplete="off" placeholder="例：やまだ たろう"></label>' +
+      '<label>役職<select class="sel" id="addStaffRole">' + Staff.STAFF_ROLES.map(function (r) { return '<option>' + esc(r) + '</option>'; }).join('') + '</select></label>' +
+      '<p class="muted small">役職が「トレーナー」の人は、お知らせ・コラムの管理とスタッフの追加も使えるようになります。「管理者」にするときは、スプレッドシートのスタッフマスタで役職を書きかえてください。</p>' +
+      '<button class="btn block" data-staff="addStaff">このスタッフを追加する</button></details>';
+  },
+  addStaff: function () {
+    if (Staff.addBusy) return;
+    var val = function (id) { var el = document.getElementById(id); return el ? String(el.value || '').replace(/\s+/g, ' ').trim() : ''; };
+    var name = val('addStaffName').slice(0, 40), kana = val('addStaffKana').slice(0, 40), role = val('addStaffRole');
+    var box = document.querySelector('.add-staff');
+    var show = function (html) { var old = box && box.querySelector('.msg'); if (old) old.remove(); if (box) box.querySelector('summary').insertAdjacentHTML('afterend', html); };
+    show('');   // 前のお知らせを消す
+    if (!name) { show(msgHtml('error', '名前を入れてください。')); return; }
+    if (Staff.STAFF_ROLES.indexOf(role) < 0) { show(msgHtml('error', '役職を選んでください。')); return; }
+    if (!confirm('スタッフ「' + name + '」（' + role + '）をスタッフマスタに追加して、スタッフIDとPINを発行します。\nよろしいですか？')) return;
+    Staff.addBusy = true;
+    var btn = box && box.querySelector('[data-staff="addStaff"]');
+    if (btn) { btn.disabled = true; btn.textContent = '追加しています…'; }
+    Api.call('rosterApply', { token: S.token, staffAdd: [{ rosterId: '', name: name, kana: kana, role: role }] }).then(function (res) {
+      Staff.addBusy = false;
+      var a = (res.staffAdded || [])[0];
+      Staff.addMsg = a ? msgHtml('ok', '「' + a.name + '」（' + (a.role || role) + '）を追加しました。スタッフID：' + a.id + '。PINはスタッフマスタの「PIN」の列で確かめて、本人に渡してください。')
+        : msgHtml('warn', '追加できたか確かめられませんでした。スタッフマスタを確認してください。');
+      if (Staff.tab === 'manage' && Staff.page === 'manage') Staff.renderManage();
+    }).catch(function (err) {
+      Staff.addBusy = false;
+      if (err.needLogin) return Staff.fail(err);
+      if (btn) { btn.disabled = false; btn.textContent = 'このスタッフを追加する'; }
+      show(msgHtml('error', err.message));
+    });
   },
 
   render: function () {
@@ -468,6 +512,7 @@ app.addEventListener('click', function (e) {
     case 'menuImport': MenuImport.open(); break;
     case 'admin': Admin.show('accounts'); break;
     case 'columns': ColumnEditor.open(); break;   // コラムの管理（v56）   // ログインの管理（v53）
+    case 'addStaff': Staff.addStaff(); break;   // v69：スタッフを1人追加する（管理・設定）
     case 'guide': Guidebook.showStaff(v); break;   // 使い方（v52。guidebook.js）   // メニュー表の取り込み（v50。menu_import.js）   // 部員名簿から取り込む（v44。roster.js）
     case 'reload': Staff.overview = null; Staff.body = null; Staff.render(); break;
   }

@@ -1313,3 +1313,7 @@ body[data-view="body"] svg { max-width: 100%; height: auto; }
   .sl-table tr.sl-row.sl-picked { background: var(--color-accent-100); }
   .sl-table tr.sl-row.sl-picked td { background: none; }
 }
+/* v69：管理・設定の「スタッフを1人追加する」 */
+.add-staff summary { cursor: pointer; }
+.add-staff .sel { display: block; width: 100%; max-width: 420px; margin-top: 6px; box-sizing: border-box; min-height: 44px; font-size: 1rem; }
+.add-staff .btn.block { max-width: 420px; margin-top: 14px; }
