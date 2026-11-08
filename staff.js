@@ -74,6 +74,8 @@ var Staff = {
     var html = '<div class="manage-list">' +
       item('roster', '', 'person', '選手の登録・取り込み', 'チームのホームページの部員名簿と比べて、選手・スタッフを追加・更新します') +
       item('menuImport', '', 'file', 'メニューの管理', '毎月のメニュー表（PDF）の取り込みと、今あるメニューの中身') +
+      item('bodyImport', 'inbody', 'download', '体組成（InBody）の取り込み', '体組成Excel（InBody結果）を取り込みます（データ分析のInBodyが開きます）') +
+      item('bodyImport', 'weight', 'download', '体重の取り込み', '体重管理表を取り込みます（データ分析の体重が開きます）') +
       (o.columnEditor ? item('columns', '', 'book', 'お知らせ・コラムの管理', 'お知らせ・用語の説明などのコラムを追加・修正します（管理者・トレーナー）') : '') +
       (o.admin ? item('admin', '', 'phone', 'ログインの管理', 'ログインしている端末とログインの記録（管理者）') : '') +
       item('guide', 'staff', 'book', '使い方（スタッフ向け）', 'スタッフ画面の使い方') +
@@ -587,7 +589,8 @@ app.addEventListener('click', function (e) {
     case 'admin': Admin.show('accounts'); break;
     case 'columns': ColumnEditor.open(); break;   // コラムの管理（v56）   // ログインの管理（v53）
     case 'gradApply': Staff.gradApply(); break;   // v70：4年生の在籍を外す（管理・設定）
-    case 'addStaff': Staff.addStaff(); break;   // v69：スタッフを1人追加する（管理・設定）
+    case 'addStaff': Staff.addStaff(); break;
+    case 'bodyImport': StaffBody.openImport = true; Staff.tab = v === 'weight' ? 'weight' : 'inbody'; Staff.render(); window.scrollTo(0, 0); break;   // v71：管理・設定から体組成・体重の取り込みへ   // v69：スタッフを1人追加する（管理・設定）
     case 'guide': Guidebook.showStaff(v); break;   // 使い方（v52。guidebook.js）   // メニュー表の取り込み（v50。menu_import.js）   // 部員名簿から取り込む（v44。roster.js）
     case 'reload': Staff.overview = null; Staff.body = null; Staff.render(); break;
   }

@@ -10,7 +10,7 @@
  * 取り込みは、それぞれのタブで対応するファイルだけを受け付ける（違うファイルを選ぶと知らせる）。
  */
 var StaffBody = {
-  kind: 'inbody', parsed: null, fileName: '', importDate: '', result: '',
+  kind: 'inbody', parsed: null, fileName: '', importDate: '', result: '', openImport: false,
   metric: 'ffmi', rankDate: '', weightDate: '', weightSort: 'roster',
 
   render: function (kind) {
@@ -20,10 +20,14 @@ var StaffBody = {
       Staff.loadBody().then(function () { StaffBody.render(kind); }).catch(Staff.fail);
       return;
     }
-    // v65：いちばん上に最新の状況。記録があるときは取り込みを下へ（まだ無いときは今までどおり上）
-    var has = Staff.body.athletes.some(function (a) { return kind === 'weight' ? a.weight.length : a.inbody.length; });
+    // v65：いちばん上に最新の状況。v71：取り込みはそのすぐ下（いちばん下だと見つけにくかったため）
     var view = kind === 'weight' ? StaffBody.weightView() : StaffBody.inbodyView() + BodyBase.teamCard();
-    app.innerHTML = Staff.frame(StaffBody.summaryCard(kind) + (has ? view + StaffBody.importCard(kind) : StaffBody.importCard(kind) + view));
+    app.innerHTML = Staff.frame(StaffBody.summaryCard(kind) + StaffBody.importCard(kind) + view);
+    if (StaffBody.openImport) {   // v71：管理・設定の「取り込み」から来たときは、取り込みを開いてそこまで動く
+      StaffBody.openImport = false;
+      var card = document.querySelector('.import-card');
+      if (card) { card.open = true; setTimeout(function () { card.scrollIntoView({ block: 'start' }); window.scrollBy(0, -130); }, 0); }
+    }
   },
 
   /** v65：最新の状況（測定日・測った人数・平均）。推移は選手名から開くフィジカルレポートで見る */
@@ -56,7 +60,7 @@ var StaffBody = {
     var p = StaffBody.parsed && StaffBody.parsed.kind === kind ? StaffBody.parsed : null;
     var hasData = Staff.body.athletes.some(function (a) { return kind === 'weight' ? a.weight.length : a.inbody.length; });
     var open = p || StaffBody.result || !hasData ? ' open' : '';   // まだ記録が無いときは最初から開いておく
-    var html = '<details class="card"' + open + '><summary><b>' + Icon('download', 18) + ' ' + label + 'を取り込む</b></summary>' +
+    var html = '<details class="card import-card"' + open + '><summary><b>' + Icon('download', 18) + ' ' + label + 'を取り込む</b></summary>' +
       '<p class="muted small">ファイルを選ぶと読み取り、Excelに入っているすべての測定日を取り込みます（同じ選手・同じ日は上書き）。ファイルはこの端末の中で読むだけで、保存はしません。</p>' +
       '<input type="file" accept=".xlsx,.xls" data-sb="file">';
     if (StaffBody.result) html += '<div class="msg ok">' + esc(StaffBody.result) + '</div>';
