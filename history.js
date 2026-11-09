@@ -94,16 +94,17 @@ var History = {
       // 丸の色：チームメニューがあった日は青、自分のメニュー・白紙だけの日は赤
       var mineOnly = list && list.every(function (s) { return s.type !== 'チーム'; });
       var cond = History.data.conditions && History.data.conditions[key];   // v62：コンディションを記録した日には小さな印
-      var cls = 'hist-day' + (list ? ' done' : '') + (mineOnly ? ' mine-only' : '') + (key === today ? ' today' : '') + (key === History.selected ? ' sel' : '') + (key > today ? ' future' : '') + (cond ? ' has-cond' : '');
+      var liked = History.likedDays()[key];   // v73：スタッフのいいねがある日
+      var cls = 'hist-day' + (list ? ' done' : '') + (mineOnly ? ' mine-only' : '') + (key === today ? ' today' : '') + (key === History.selected ? ' sel' : '') + (key > today ? ' future' : '') + (cond ? ' has-cond' : '') + (liked ? ' has-like' : '');
       var addable = History.canAdd(key);   // 記録が無くても、3日前までは押して追加できる
       if (addable && !list) cls += ' addable';
       html += '<button class="' + cls + '" data-hist-day="' + key + '"' + (list || addable || cond ? '' : ' disabled') + '>' +
-        '<span class="hist-num">' + day + '</span>' +
+        '<span class="hist-num">' + day + '</span>' + (liked ? '<span class="hist-like" aria-label="いいねあり">♥</span>' : '') +
         (list && list.length > 1 ? '<span class="hist-mark">' + list.map(function (s) { return '<i class="' + History.kindClass(s) + '"></i>'; }).join('') + '</span>' : '') +
         '</button>';
     }
     html += '</div>';
-    html += '<div class="hist-legend muted small"><span><i class="team"></i>チームメニュー</span><span><i class="mine"></i>自分のメニュー・白紙</span><span><i class="cond"></i>コンディション</span><span><i class="add"></i>追加できる日（' + MAX_BACKDATE_DAYS + '日前まで）</span></div>';
+    html += '<div class="hist-legend muted small"><span><i class="team"></i>チームメニュー</span><span><i class="mine"></i>自分のメニュー・白紙</span><span><i class="cond"></i>コンディション</span><span><i class="add"></i>追加できる日（' + MAX_BACKDATE_DAYS + '日前まで）</span><span><b class="hist-like-legend">♥</b>スタッフのいいね</span></div>';
     html += '</div></div><div class="hist-col">';
     // 選んだ日の詳しい記録（v62：前後の記録のある日へ移れる）
     html += History.dayNavHtml() + History.detailHtml(History.selected, days[History.selected]);
@@ -111,6 +112,28 @@ var History = {
     html += History.condListHtml();
     html += '</div></div>';
     app.innerHTML = html;
+  },
+
+  // ---- v73：スタッフのいいね（myHistory の likes。トレーニング＝セッションID、コンディション＝日付） ----
+  likesFor: function (kind, target) {
+    return ((History.data && History.data.likes) || []).filter(function (l) { return l.kind === kind && l.target === String(target); });
+  },
+  /** いいねのある日 { 'yyyy-MM-dd': true } */
+  likedDays: function () {
+    var out = {}, d = History.data;
+    if (!d || !d.likes) return out;
+    var dateOf = {};
+    (d.sessions || []).forEach(function (s) { dateOf[s.id] = s.date; });
+    d.likes.forEach(function (l) { var k = l.kind === 'training' ? dateOf[l.target] : l.target; if (k) out[k] = true; });
+    return out;
+  },
+  /** いいねの一覧（だれが・ひとこと） */
+  likeHtml: function (kind, target) {
+    var list = History.likesFor(kind, target);
+    if (!list.length) return '';
+    return '<ul class="like-list like-mine">' + list.map(function (l) {
+      return '<li>♥ <b>' + esc(l.staffName || 'スタッフ') + '</b>さんがいいね' + (l.comment ? '「' + esc(l.comment) + '」' : '') + '</li>';
+    }).join('') + '</ul>';
   },
 
   /** v62：記録（トレーニングかコンディション）のある日の一覧（古い順） */
@@ -146,7 +169,7 @@ var History = {
   /** その日のコンディション（v33）。記録が無ければ、3日前までなら「記録する」ボタン */
   condHtml: function (date) {
     var c = History.data && History.data.conditions && History.data.conditions[date];
-    if (c) return '<h2 style="margin-top:18px">コンディション</h2>' + Condition.tableHtml(c);
+    if (c) return '<h2 style="margin-top:18px">コンディション</h2>' + Condition.tableHtml(c) + History.likeHtml('condition', date);   // v73：いいね
     return History.canAdd(date) ? '<button class="btn ghost block" data-act="condOpenDate" data-date="' + date + '">この日のコンディションを記録する</button>' : '';
   },
 
@@ -174,7 +197,7 @@ var History = {
           return '<tr><th>' + esc(it.name) + '</th><td>' + esc(History.setsText(it.sets)) + '</td></tr>';
         }).join('') + '</tbody></table>';
       }
-      html += '</div>';
+      html += History.likeHtml('training', s.id) + '</div>';   // v73：いいね
     });
     html += History.condHtml(date);   // その日のコンディション（v33）
     // 記録がある日は「メニューを追加」のボタンだけ。押すとメニューのボタンが出る（v29）

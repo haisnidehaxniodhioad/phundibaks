@@ -1329,3 +1329,18 @@ body[data-view="body"] svg { max-width: 100%; height: auto; }
 .quit-card .quit-search { display: block; width: 100%; max-width: 420px; margin: 8px 0; box-sizing: border-box; min-height: 44px; font-size: 1rem; }
 .quit-card .btn.block { max-width: 420px; margin-top: 8px; }
 .quit-card .btn.quit-danger { background: var(--danger); }
+/* v73：いいね（スタッフの個人ページ・選手の記録・ホーム） */
+.like-box { margin: 10px 0 6px; padding-top: 8px; border-top: 1px dashed var(--line-strong); }
+.like-list { list-style: none; margin: 6px 0; padding: 0; }
+.like-list li { margin: 4px 0; font-size: 0.92rem; color: var(--color-text); }
+.like-list li, .like-count, .hist-like, .hist-like-legend { overflow-wrap: anywhere; }
+.like-list.like-mine li { color: var(--color-accent-2-700); }
+.like-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; }
+.like-input { flex: 1 1 200px; min-width: 0; min-height: 44px; font-size: 1rem; }
+.like-btn, .like-send { min-height: 44px; }
+.like-count { color: var(--color-accent-2-700); font-weight: 700; font-size: 0.85rem; white-space: nowrap; }
+.like-h { margin: 14px 0 4px; font-size: 0.95rem; }
+.hist-like { position: absolute; top: 1px; right: 3px; font-size: 0.6rem; line-height: 1; color: var(--color-accent-2-600); }
+.hist-day.done .hist-like { color: #fff; }
+.hist-like-legend { color: var(--color-accent-2-600); margin-right: 4px; }
+.home-likes .link-row { display: block; width: 100%; padding: 6px 0; border: none; background: none; font: inherit; text-align: left; color: var(--color-accent-2-700); cursor: pointer; }

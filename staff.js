@@ -428,6 +428,72 @@ var Staff = {
     }).catch(Staff.fail);
   },
 
+  // ---- v73：いいね（トレーニングの記録・コンディションに、スタッフが「いいね」とひとことを送る。選手は記録の画面とホームで見る） ----
+  //   保存は likeSet（スタッフ.gs の後半）。1つの記録にスタッフ1人1回（もう一度送ると、ひとことを上書き）。取り消しもできる
+  likeKeys: [], likeBusy: {},
+  likesFor: function (kind, target) {
+    return ((Staff.detail && Staff.detail.likes) || []).filter(function (l) { return l.kind === kind && l.target === String(target); });
+  },
+  /** 記録の見出しの横の ♥ の数 */
+  likeCountHtml: function (kind, target) {
+    var n = Staff.likesFor(kind, target).length;
+    return '<span class="like-count" data-lkn="' + Staff.likeKey(kind, target) + '">' + (n ? '♥ ' + n : '') + '</span>';
+  },
+  /** 記録ごとの番号（id に記録のIDをそのまま使わないため） */
+  likeKey: function (kind, target) {
+    var k = kind + '|' + target, i = Staff.likeKeys.indexOf(k);
+    if (i < 0) { Staff.likeKeys.push(k); i = Staff.likeKeys.length - 1; }
+    return 'lk' + i;
+  },
+  /** いいねの欄（だれがいいねしたか・ひとこと・自分のいいね／取り消し・ひとことを送る） */
+  likeBox: function (kind, target) {
+    var key = Staff.likeKey(kind, target), list = Staff.likesFor(kind, target), me = String((Staff.detail && Staff.detail.me) || '').toUpperCase();
+    var mine = list.filter(function (l) { return String(l.staffId).toUpperCase() === me; })[0];
+    return '<div class="like-box" id="' + key + '">' +
+      (list.length ? '<ul class="like-list">' + list.map(function (l) {
+        return '<li>♥ <b>' + esc(l.staffName || 'スタッフ') + '</b>' + (l.comment ? '「' + esc(l.comment) + '」' : '') + '</li>'; }).join('') + '</ul>' : '') +
+      '<div class="like-row"><button class="btn ' + (mine ? 'sub' : '') + ' like-btn" data-staff="like" data-v="' + key + '">' + (mine ? '♥ いいね済み（取り消す）' : '♡ いいね') + '</button></div>' +
+      '<div class="like-row"><input class="sel like-input" id="' + key + 'c" maxlength="50" placeholder="ひとこと（なくてもOK・50文字まで）" value="' + esc(mine ? mine.comment : '') + '">' +
+      '<button class="btn ghost like-send" data-staff="likeSend" data-v="' + key + '">' + (mine ? 'ひとことを直す' : 'ひとことを付けていいね') + '</button></div></div>';
+  },
+  /** 個人ページのコンディション：直近7回の記録（日ごとに開いて、いいね） */
+  condLikesHtml: function () {
+    var list = ((Staff.detail && Staff.detail.conditions) || []).slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; }).slice(0, 7);
+    if (!list.length) return '';
+    return '<h3 class="like-h">最近のコンディション（いいね）</h3><div class="ath-sessions">' + list.map(function (c) {
+      var v = function (n) { return n === '' || n === undefined ? '-' : esc(n); };
+      return '<details class="ath-session"><summary><span class="ath-date">' + esc(Number(c.date.slice(5, 7)) + '/' + Number(c.date.slice(8, 10))) + '</span>' +
+        '<span class="ath-title small">疲労 ' + v(c.whole) + '/' + v(c.upper) + '/' + v(c.lower) + '・動き ' + v(c.perf) + '</span>' +
+        Staff.likeCountHtml('condition', c.date) + '</summary>' + (c.comment ? '<p class="small">選手のコメント：' + esc(c.comment) + '</p>' : '') +
+        Staff.likeBox('condition', c.date) + '</details>';
+    }).join('') + '</div>';
+  },
+  /** いいねする・ひとことを送る・取り消す（on=false で取り消し） */
+  like: function (key, withComment) {
+    var k = Staff.likeKeys[Number(String(key).slice(2))];
+    if (!k || Staff.likeBusy[key] || !Staff.detail) return;
+    var kind = k.split('|')[0], target = k.slice(kind.length + 1), me = String(Staff.detail.me || '').toUpperCase();
+    var mine = Staff.likesFor(kind, target).some(function (l) { return String(l.staffId).toUpperCase() === me; });
+    var input = document.getElementById(key + 'c'), comment = input ? String(input.value || '').trim() : '';
+    var on = withComment ? true : !mine;   // ♥ ボタンは切り替え、「ひとこと」はいいね＋ひとこと
+    var box = document.getElementById(key);
+    Staff.likeBusy[key] = true;
+    if (box) box.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+    Api.call('likeSet', { token: S.token, athleteId: Staff.detail.athlete.id, kind: kind, target: target, on: on, comment: on ? comment : '' }).then(function (res) {
+      Staff.likeBusy[key] = false;
+      Staff.detail.likes = res.likes || [];
+      var b2 = document.getElementById(key);
+      if (b2) b2.outerHTML = Staff.likeBox(kind, target);
+      var cnt = document.querySelector('[data-lkn="' + key + '"]');
+      if (cnt) { var n = Staff.likesFor(kind, target).length; cnt.textContent = n ? '♥ ' + n : ''; }
+    }).catch(function (err) {
+      Staff.likeBusy[key] = false;
+      if (err.needLogin) return Staff.fail(err);
+      var b3 = document.getElementById(key);
+      if (b3) { b3.querySelectorAll('button').forEach(function (b) { b.disabled = false; }); var old = b3.querySelector('.msg'); if (old) old.remove(); b3.insertAdjacentHTML('beforeend', msgHtml('error', err.message)); }
+    });
+  },
+
   /** 個人ページの枠（上にタイトルと「← 戻る」。タブは出さない） */
   athleteFrame: function (title, inner, kicker) {
     return Staff.sideHtml() + '<div class="group"><div class="topbar ath-top"><button class="btn ghost" data-staff="back">' + Icon('left', 20) + '戻る</button>' +
@@ -446,10 +512,11 @@ var Staff = {
     else html += '<div class="ath-sessions">' + d.sessions.map(function (s) {
       return '<details class="ath-session"><summary><span class="ath-date">' + esc(Number(s.date.slice(5, 7)) + '/' + Number(s.date.slice(8, 10))) + '</span>' +
         '<span class="ath-title">' + esc(s.type === 'チーム' ? 'Day' + s.day : '自分のメニュー' + (s.myMenu ? '「' + s.myMenu + '」' : '')) + (s.part ? '<span class="muted small">（' + esc(s.part) + '）</span>' : '') + '</span>' +
-        '<span class="muted small">' + (s.records.length ? s.records.length + '種目' : '') + (s.minutes !== '' && s.minutes !== undefined ? '・' + esc(s.minutes) + '分' : '') + '</span></summary>' +
+        '<span class="muted small">' + (s.records.length ? s.records.length + '種目' : '') + (s.minutes !== '' && s.minutes !== undefined ? '・' + esc(s.minutes) + '分' : '') + '</span>' +
+        Staff.likeCountHtml('training', s.id) + '</summary>' +
         '<table class="tbl">' + s.records.map(function (r) {
           return '<tr><td>' + esc(r.name) + (r.kind !== 'メニュー通り' ? ' <span class="tag off">' + esc(r.kind) + '</span>' : '') + '</td><td class="small">' + esc(r.sets) + '</td></tr>';
-        }).join('') + '</table></details>';
+        }).join('') + '</table>' + Staff.likeBox('training', s.id) + '</details>';   // v73：いいね
     }).join('') + '</div>';
     // 選手が保存した自分のメニュー（見るだけ）
     var mm = d.myMenus || [];
@@ -462,7 +529,7 @@ var Staff = {
       }).join('') : '<p class="muted small">まだありません。</p>') + '</details></section>';
 
     // 2. コンディション記録（1週間の毎日／3か月の週平均。condchart.js）
-    html += '<section class="sec" id="athCondition"><h2>コンディション記録</h2>' + CondChart.html() + '</section>';
+    html += '<section class="sec" id="athCondition"><h2>コンディション記録</h2>' + CondChart.html() + Staff.condLikesHtml() + '</section>';
 
     // 3. フィジカルデータ（v38：最新の値だけ。くわしいレポートは別のページ「フィジカルレポート」で見る）
     html += '<section class="sec" id="athPhysical"><h2>フィジカルデータ</h2>' + Staff.physSummary() + '</section>';
@@ -668,6 +735,8 @@ app.addEventListener('click', function (e) {
     case 'quitMode': Staff.quit.mode = v === 'back' ? 'back' : 'quit'; Staff.quitPicked = {}; Staff.quit.open = true; Staff.renderManage(); break;
     case 'gradApply': Staff.gradApply(); break;   // v70：4年生の在籍を外す（管理・設定）
     case 'addStaff': Staff.addStaff(); break;
+    case 'like': Staff.like(v, false); break;   // v73：いいね（個人ページ）
+    case 'likeSend': Staff.like(v, true); break;
     case 'bodyImport': StaffBody.openImport = true; Staff.tab = v === 'weight' ? 'weight' : 'inbody'; Staff.render(); window.scrollTo(0, 0); break;   // v71：管理・設定から体組成・体重の取り込みへ   // v69：スタッフを1人追加する（管理・設定）
     case 'guide': Guidebook.showStaff(v); break;   // 使い方（v52。guidebook.js）   // メニュー表の取り込み（v50。menu_import.js）   // 部員名簿から取り込む（v44。roster.js）
     case 'reload': Staff.overview = null; Staff.body = null; Staff.render(); break;
