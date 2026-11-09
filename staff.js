@@ -80,9 +80,85 @@ var Staff = {
       (o.admin ? item('admin', '', 'phone', 'ログインの管理', 'ログインしている端末とログインの記録（管理者）') : '') +
       item('guide', 'staff', 'book', '使い方（スタッフ向け）', 'スタッフ画面の使い方') +
       item('guide', 'athlete', 'book', '使い方（選手向け・配る用）', '選手に配る案内') +
-      '</div>' + (o.columnEditor ? Staff.gradHtml() + Staff.addStaffHtml() : '');
+      '</div>' + (o.columnEditor ? Staff.quitHtml() + Staff.gradHtml() + Staff.addStaffHtml() : '');
     app.innerHTML = Staff.frame(html);
-    if (o.columnEditor) Staff.gradFill();
+    if (o.columnEditor) { Staff.quitFill(); Staff.gradFill(); }
+  },
+
+  // ---- v72：選手を選んで「退部」にする（アカウントの停止）・在籍に戻す（管理者・トレーナーの画面だけ） ----
+  //   選手マスタの「在籍」に「退部」と書く（今ある rosterApply の update。Apps Script は変えていない）。
+  //   在籍でない人はログインできない（使っている端末も、次に操作したときにログイン画面に戻る）。記録は消さない。
+  //   戻すときは同じく update で「在籍」を TRUE にする（卒業・退部・FALSE のどれで外れた人も戻せる）
+  quit: { mode: 'quit', q: '', msg: '', busy: false },
+  quitHtml: function () {
+    var Q = Staff.quit, msg = Q.msg; Q.msg = '';
+    var tab = function (k, label) { return '<button class="tab' + (Q.mode === k ? ' on' : '') + '" data-staff="quitMode" data-v="' + k + '">' + label + '</button>'; };
+    return '<details class="card quit-card"' + (msg || Q.open ? ' open' : '') + '><summary><b>' + Icon('person', 18) + ' 退部の手続き（アカウントの停止）</b></summary>' +
+      '<p class="muted small">選手を選んで「退部」にします。その選手はログインできなくなり、選手の一覧・ダッシュボードの人数から外れます。<b>記録は消えません</b>。間違えたときは「在籍に戻す」で戻せます。管理者・トレーナーだけが使えます。</p>' +
+      (msg || '') + '<div class="tabs quit-tabs">' + tab('quit', '退部にする') + tab('back', '在籍に戻す') + '</div>' +
+      '<input class="sel quit-search" type="search" id="quitSearch" placeholder="名前・ふりがなで探す" value="' + esc(Q.q) + '" autocomplete="off">' +
+      '<div id="quitList"><div class="loading">読み込み中…</div></div></details>';
+  },
+  /** 一覧に出す選手（退部にする＝在籍中の人、在籍に戻す＝在籍でない人）。学年（4年→1年）→ ふりがなの順 */
+  quitTargets: function () {
+    var Q = Staff.quit, q = VoiceParser.norm(Q.q);
+    var gnum = function (a) { var m = /(\d)/.exec(a.grade || ''); return m ? Number(m[1]) : 0; };
+    return (Staff.body ? Staff.body.athletes : []).filter(function (a) {
+      if (Q.mode === 'quit' ? !a.active : a.active) return false;
+      return !q || VoiceParser.norm(a.name).indexOf(q) >= 0 || VoiceParser.norm(a.kana).indexOf(q) >= 0;
+    }).sort(function (x, y) { return gnum(y) - gnum(x) || String(x.kana || x.name).localeCompare(String(y.kana || y.name), 'ja'); });
+  },
+  quitPicked: {},
+  quitFill: function () {
+    Staff.loadBody().then(function () {
+      var box = document.getElementById('quitList');
+      if (!box || Staff.page !== 'manage') return;
+      var Q = Staff.quit, list = Staff.quitTargets();
+      if (!list.length) { box.innerHTML = '<p class="muted">' + (Q.q ? '当てはまる選手がいません。' : Q.mode === 'quit' ? '在籍中の選手がいません。' : '在籍でない選手はいません。') + '</p>'; Staff.quitCount(); return; }
+      box.innerHTML = '<ul class="grad-list quit-list">' + list.map(function (a) {
+        return '<li><label class="check-line"><input type="checkbox" data-quit="pick" value="' + esc(a.id) + '"' + (Staff.quitPicked[a.id] ? ' checked' : '') + '> ' + esc(a.name) +
+          ' <span class="muted small">' + esc([a.grade || (a.enrollYear ? a.enrollYear + '年度入学' : ''), a.position, a.team ? a.team + 'チーム' : ''].filter(String).join('・')) + '</span></label></li>';
+      }).join('') + '</ul><p class="small" id="quitCount"></p>' +
+        '<button class="btn block' + (Q.mode === 'quit' ? ' quit-danger' : '') + '" data-staff="quitApply"></button>';
+      Staff.quitCount();
+    }).catch(function (err) {
+      var box = document.getElementById('quitList');
+      if (box) box.innerHTML = msgHtml('error', err.message);
+    });
+  },
+  /** 選んだ選手（探す文字を変えても、選んだままにする） */
+  quitIds: function () { return Object.keys(Staff.quitPicked); },
+  quitCount: function () {
+    var Q = Staff.quit, ids = Staff.quitIds(), n = ids.length, btn = document.querySelector('[data-staff="quitApply"]'), c = document.getElementById('quitCount');
+    var names = (Staff.body ? Staff.body.athletes : []).filter(function (a) { return Staff.quitPicked[a.id]; }).map(function (a) { return a.name; });
+    if (c) c.textContent = n ? '選んだ選手：' + names.join('、') : '選手を選んでください（何人でも選べます）';
+    if (btn && !Q.busy) { btn.textContent = n ? (Q.mode === 'quit' ? '選んだ' + n + '人を退部にする' : '選んだ' + n + '人を在籍に戻す') : '選手を選んでください'; btn.disabled = !n; }
+  },
+  quitApply: function () {
+    var Q = Staff.quit;
+    if (Q.busy) return;
+    var ids = Staff.quitIds();
+    if (!ids.length) return;
+    var names = (Staff.body ? Staff.body.athletes : []).filter(function (a) { return Staff.quitPicked[a.id]; }).map(function (a) { return a.name; });
+    var quit = Q.mode === 'quit';
+    if (!confirm((quit ? ids.length + '人（' + names.slice(0, 5).join('、') + (names.length > 5 ? ' ほか' : '') + '）を退部にします。\nログインできなくなり、選手の一覧・ダッシュボードの人数から外れます。記録は消えません。'
+                       : ids.length + '人（' + names.slice(0, 5).join('、') + (names.length > 5 ? ' ほか' : '') + '）を在籍に戻します。\nもう一度ログインできるようになります。') + '\nよろしいですか？')) return;
+    Q.busy = true;
+    var btn = document.querySelector('[data-staff="quitApply"]');
+    if (btn) { btn.disabled = true; btn.textContent = quit ? '退部にしています…' : '在籍に戻しています…'; }
+    Api.call('rosterApply', { token: S.token, update: ids.map(function (id) { return { id: id, changes: { '在籍': quit ? '退部' : true } }; }) }).then(function (res) {
+      Q.busy = false; Staff.quitPicked = {}; Q.open = true;
+      Q.msg = msgHtml('ok', (res.updated || 0) + '人を' + (quit ? '退部にしました（' + names.join('、') + '）。記録はそのまま残っています。' : '在籍に戻しました（' + names.join('、') + '）。もう一度ログインできます。'));
+      Staff.body = null; Staff.overview = null;   // 選手の一覧・人数を読み直す
+      if (Staff.tab === 'manage' && Staff.page === 'manage') Staff.renderManage();
+    }).catch(function (err) {
+      Q.busy = false;
+      if (err.needLogin) return Staff.fail(err);
+      Staff.quitCount();
+      var box = document.getElementById('quitList'), old = box && box.querySelector('.msg');
+      if (old) old.remove();
+      if (box) box.insertAdjacentHTML('afterbegin', msgHtml('error', err.message));
+    });
   },
 
   // ---- v70：4年生（卒業する学年）の選手の在籍を外す（管理者・トレーナーの画面だけ） ----
@@ -588,12 +664,26 @@ app.addEventListener('click', function (e) {
     case 'menuImport': MenuImport.open(); break;
     case 'admin': Admin.show('accounts'); break;
     case 'columns': ColumnEditor.open(); break;   // コラムの管理（v56）   // ログインの管理（v53）
+    case 'quitApply': Staff.quitApply(); break;   // v72：退部にする・在籍に戻す（管理・設定）
+    case 'quitMode': Staff.quit.mode = v === 'back' ? 'back' : 'quit'; Staff.quitPicked = {}; Staff.quit.open = true; Staff.renderManage(); break;
     case 'gradApply': Staff.gradApply(); break;   // v70：4年生の在籍を外す（管理・設定）
     case 'addStaff': Staff.addStaff(); break;
     case 'bodyImport': StaffBody.openImport = true; Staff.tab = v === 'weight' ? 'weight' : 'inbody'; Staff.render(); window.scrollTo(0, 0); break;   // v71：管理・設定から体組成・体重の取り込みへ   // v69：スタッフを1人追加する（管理・設定）
     case 'guide': Guidebook.showStaff(v); break;   // 使い方（v52。guidebook.js）   // メニュー表の取り込み（v50。menu_import.js）   // 部員名簿から取り込む（v44。roster.js）
     case 'reload': Staff.overview = null; Staff.body = null; Staff.render(); break;
   }
+});
+// v72：退部の手続きの一覧のチェックと、名前で探す
+app.addEventListener('change', function (e) {
+  var t = e.target;
+  if (S.view !== 'staff' || !t.dataset || t.dataset.quit !== 'pick') return;
+  if (t.checked) Staff.quitPicked[t.value] = true; else delete Staff.quitPicked[t.value];
+  Staff.quitCount();
+});
+app.addEventListener('input', function (e) {
+  if (S.view !== 'staff' || e.target.id !== 'quitSearch') return;
+  Staff.quit.q = e.target.value;
+  Staff.quitFill();
 });
 // v70：4年生の在籍を外す一覧のチェック
 app.addEventListener('change', function (e) {

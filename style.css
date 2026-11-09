@@ -1324,3 +1324,8 @@ body[data-view="body"] svg { max-width: 100%; height: auto; }
 .grad-list .check-line { display: flex; align-items: center; gap: 8px; min-height: 44px; margin: 0; font-weight: 600; }
 .grad-list .check-line .muted { font-weight: 400; }
 .grad-card .btn.block { max-width: 420px; margin-top: 12px; }
+/* v72：管理・設定の「退部の手続き」 */
+.quit-card summary { cursor: pointer; }
+.quit-card .quit-search { display: block; width: 100%; max-width: 420px; margin: 8px 0; box-sizing: border-box; min-height: 44px; font-size: 1rem; }
+.quit-card .btn.block { max-width: 420px; margin-top: 8px; }
+.quit-card .btn.quit-danger { background: var(--danger); }
