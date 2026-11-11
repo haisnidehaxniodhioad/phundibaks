@@ -250,13 +250,18 @@ var Export = {
     if (z.fs < 16 && listW / (cols + 1) >= 220) { cols++; z = size(cols); }
     var full = listW / cols >= 360;   // 1列の幅が足りるときだけ、除脂肪体重と前回比も出す
     var per = z.per, rowH = z.rowH, fs = z.fs;
+    // v84：名前はフルネームを1行で出す（省略しない）。いちばん長い名前が1列に入るように、文字の大きさを決める
+    //   1列の幅 ≒ 文字の大きさ ×（順位 2.4 ＋ 名前 ＋ FFMI 2.4 ［＋ 除脂肪体重 4 ＋ 前回比 2.6］）＋ すき間（1マス12px）
+    var nameEm = rows.reduce(function (m, r) { return Math.max(m, String(r.name).split('').reduce(function (w, ch) { return w + (/[\x00-\x7F]/.test(ch) ? 0.6 : 1); }, 0)); }, 4);
+    var colW = (listW - 22 * (cols - 1)) / cols, pad = (full ? 5 : 3) * 12 + 8;
+    fs = Math.max(10, Math.min(fs, Math.floor((colW - pad) / (2.4 + nameEm + 2.4 + (full ? 6.6 : 0)))));
     var latest = rows.reduce(function (m, r) { return r.date > m ? r.date : m; }, '');
     var diff = function (d) { return d === null ? '-' : d > 0.05 ? '▲' + d.toFixed(1) : d < -0.05 ? '▼' + Math.abs(d).toFixed(1) : '±0.0'; };
     var table = function (part) {
       return '<table class="pst-tbl"><tr><th>順位</th><th class="pst-name">名前</th><th>FFMI</th>' + (full ? '<th>除脂肪体重</th><th>前回比</th>' : '') + '</tr>' +
         part.map(function (r) {
           var star = r.ffmi >= top;
-          return '<tr class="' + (star ? 'pst-star' : '') + '"><td>' + r.rank + '</td><td class="pst-name">' + (star ? '★ ' : '') + esc(r.name) + '</td><td class="pst-ffmi">' + r.ffmi.toFixed(1) + '</td>' +
+          return '<tr class="' + (star ? 'pst-star' : '') + '"><td>' + (star ? '★' : '') + r.rank + '</td><td class="pst-name">' + esc(r.name) + '</td><td class="pst-ffmi">' + r.ffmi.toFixed(1) + '</td>' +
             (full ? '<td>' + (r.lbm === null ? '-' : r.lbm.toFixed(1) + 'kg') + '</td><td>' + diff(r.diff) + '</td>' : '') + '</tr>';
         }).join('') + '</table>';
     };

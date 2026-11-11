@@ -1423,7 +1423,7 @@ body[data-view="body"] svg { max-width: 100%; height: auto; }
 .pst-tbl th { background: #63349A; color: #fff; font-size: calc(var(--pst-fs) * 0.8); height: var(--pst-row); padding: 0 6px; }
 .pst-tbl td { height: var(--pst-row); padding: 0 6px; border-bottom: 1px solid #d9dbe6; text-align: center; white-space: nowrap; }
 .pst-tbl tr:nth-child(odd) td { background: #F5F5F8; }
-.pst-tbl .pst-name { text-align: left; overflow: hidden; text-overflow: ellipsis; max-width: 0; width: 45%; }
+.pst-tbl .pst-name { text-align: left; white-space: nowrap; width: auto; }   /* v84：フルネームを省略しない（★は順位の前へ） */
 .pst-tbl .pst-ffmi { font-weight: 900; }
 .pst-tbl tr.pst-star td { background: #E3F3E8; }
 .pst-tbl tr.pst-star .pst-name { font-weight: 800; color: #1E7A41; }
