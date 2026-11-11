@@ -286,6 +286,12 @@ var Body = {
     });
     html += '</div>';
 
+    // v77：今の区分（除脂肪体重とFFMIの目標）とFFMIの目安。画面だけ（PDFには入れない）
+    if (!opt.print) {
+      var zr = ib.filter(function (r) { return Body.num(r.lbm) !== null && Body.num(r.ffmi) !== null; }), zl = zr[zr.length - 1];
+      if (zl) html += Body.zoneNote(+zl.lbm, +zl.ffmi, zl.date);
+    }
+
     // InBodyデータの推移（左）と 体組成の比較（右）。PDFでは横に並べる
     var plotted = function (r) { return r && Body.num(r.lbm) !== null && Body.num(r.ffmi) !== null; };
     var baseRows = ib.filter(function (r) { return base.dates.indexOf(r.date) >= 0 && plotted(r); });
@@ -536,6 +542,66 @@ var Body = {
     return svg + '</svg>';
   },
 
+  // ---------------- v77：除脂肪体重×FFMIの4つの区分と、FFMIの目安（チームの掲示物「除脂肪体重とFFMI」「FFMIとは？」に合わせる） ----------------
+  //   区分の線は「基準の設定」の基準線（Body.chart：除脂肪体重 lean・FFMI ffmi。ふつうは 70kg・22）。
+  //   ★ 言葉を変えるときは ZONES・FFMI_BANDS を書きかえる。FFMI_AVG＝大学野球の平均（21）
+  FFMI_AVG: 21,
+  ZONES: {
+    low:   { cls: 'zone-gray',   label: 'まずは除脂肪体重を増やそう', name: 'まずは除脂肪体重を増やそう' },
+    short: { cls: 'zone-purple', label: '身長が低めの人はまずここ',   name: 'FFMI達成（身長が低めの人はまずここ）' },
+    next:  { cls: 'zone-purple', label: '次はFFMIへ',               name: '次はFFMIへ' },
+    best:  { cls: 'zone-green',  label: 'ベスト！',                 name: 'ベスト！' }
+  },
+  /** 区分のキー（low・short・next・best） */
+  zoneOf: function (lbm, ffmi) {
+    var c = Body.chart, L = lbm >= c.lean, F = ffmi >= c.ffmi;
+    return L && F ? 'best' : L ? 'next' : F ? 'short' : 'low';
+  },
+  /** 区分の名前（基準線の数字を入れる） */
+  zoneName: function (k) {
+    var f = Body.f0(Body.chart.ffmi);
+    return Body.ZONES[k].name.replace('FFMI達成', 'FFMI' + f + '達成').replace('FFMIへ', 'FFMI' + f + 'へ');
+  },
+  f0: function (v) { v = Number(v); return v % 1 ? v.toFixed(1) : String(v); },
+  /** FFMIの目安（21未満・21〜22・22以上） */
+  ffmiBand: function (ffmi) {
+    var top = Body.chart.ffmi, avg = Body.FFMI_AVG;
+    if (ffmi >= top) return 'トップ層（' + Body.f0(top) + '以上）';
+    if (ffmi >= avg) return '大学野球の平均以上（' + Body.f0(avg) + '〜' + Body.f0(top) + '。' + Body.f0(top) + '以上がトップ層）';
+    return 'まずは' + Body.f0(avg) + 'を超えよう（' + Body.f0(avg) + '＝大学野球の平均）';
+  },
+  /** グラフの背景：基準線で4つに分けて色を付け、すみに言葉を置く。返り値 { svg（色の四角）, text（言葉）, boxes（言葉の場所。名前を重ねないため） } */
+  zoneSvg: function (sx, sy, xMin, xMax, yMin, yMax, x0, y0, x1, y1, withText) {
+    var c = Body.chart, cx = Math.max(x0, Math.min(x1, sx(c.lean))), cy = Math.max(y0, Math.min(y1, sy(c.ffmi)));
+    var q = [['low', x0, cy, cx, y1], ['short', x0, y0, cx, cy], ['next', cx, cy, x1, y1], ['best', cx, y0, x1, cy]];
+    var svg = '', text = '', boxes = [];
+    q.forEach(function (z) {
+      var w = z[3] - z[1], h = z[4] - z[2];
+      if (w <= 0 || h <= 0) return;
+      svg += '<rect x="' + z[1].toFixed(1) + '" y="' + z[2].toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h.toFixed(1) + '" class="zone ' + Body.ZONES[z[0]].cls + '"/>';
+      if (!withText) return;
+      var t = Body.ZONES[z[0]].label.replace('FFMIへ', 'FFMI' + Body.f0(c.ffmi) + 'へ'), tw = t.length * 11 + 4;
+      if (tw > w - 8 || h < 22) return;   // 区分がせまくて入らないときは文字を出さない
+      var left = z[1] === x0, top = z[2] === y0;   // グラフの外側のすみに置く
+      var tx = left ? z[1] + 5 : z[3] - 5, ty = top ? z[2] + 14 : z[4] - 6;
+      text += '<text x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" class="zone-t" text-anchor="' + (left ? 'start' : 'end') + '">' + esc(t) + '</text>';
+      boxes.push({ x1: left ? tx : tx - tw, y1: ty - 12, x2: left ? tx + tw : tx, y2: ty + 3 });
+    });
+    return { svg: svg, text: text, boxes: boxes };   // text は目盛りの線のあとに足す（線が文字に重ならないように）
+  },
+  /** レポートの「今の区分」（区分・FFMIの目安・次の目標まであと何kg／いくつ） */
+  zoneNote: function (lbm, ffmi, date) {
+    var c = Body.chart, k = Body.zoneOf(lbm, ffmi), dl = c.lean - lbm, df = c.ffmi - ffmi;
+    var lean = Body.f0(c.lean) + 'kg', f = 'FFMI' + Body.f0(c.ffmi), next;
+    if (k === 'best') next = '除脂肪体重' + lean + '以上・' + f + '以上の、どちらの目標も達成しています。';
+    else if (k === 'next') next = f + 'まで、あと ' + df.toFixed(1) + '。';
+    else if (k === 'short') next = '除脂肪体重' + lean + 'まで、あと ' + dl.toFixed(1) + 'kg（' + f + 'は達成）。';
+    else next = 'まずは除脂肪体重' + lean + 'まで、あと ' + dl.toFixed(1) + 'kg。身長が低くて' + lean + 'が難しい人は、' + f + 'まで、あと ' + df.toFixed(1) + '。';
+    return '<div class="zone-note ' + Body.ZONES[k].cls + '"><div class="zone-note-h">今の区分：<b>' + esc(Body.zoneName(k)) + '</b>' +
+      '<span class="muted small">（' + esc(Body.dShort(date)) + '：除脂肪体重' + lbm.toFixed(1) + 'kg・FFMI ' + ffmi.toFixed(1) + '）</span></div>' +
+      '<div class="small">' + esc(next) + '</div><div class="small">FFMI ' + ffmi.toFixed(1) + '：' + esc(Body.ffmiBand(ffmi)) + '</div></div>';
+  },
+
   // ---------------- v76：投手／野手の中での位置（名前なし。丸の色は学年カラー、本人は大きな丸と「あなた」） ----------------
   peerChart: function (peers) {
     var pts = (peers.points || []).filter(function (p) { return Body.num(p.lbm) !== null && Body.num(p.ffmi) !== null; });
@@ -550,12 +616,14 @@ var Body = {
     });
     var sx = function (v) { return L + (W - L - R) * (v - xMin) / (xMax - xMin); }, sy = function (v) { return T + (H - T - B) * (1 - (v - yMin) / (yMax - yMin)); };
     var svg = '<svg class="chart peer-chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(peers.group) + 'の中での位置">', v;
+    var zone = Body.zoneSvg(sx, sy, xMin, xMax, yMin, yMax, L, T, W - R, H - B, true); svg += zone.svg;   // v77：4つの区分の色分け
     for (v = Math.ceil(xMin / 5) * 5; v <= xMax; v += 5) svg += '<line x1="' + sx(v) + '" x2="' + sx(v) + '" y1="' + T + '" y2="' + (H - B) + '" class="grid"/><text x="' + sx(v) + '" y="' + (H - B + 14) + '" class="axis" text-anchor="middle">' + v + '</text>';
     for (v = Math.ceil(yMin); v <= yMax; v += (yMax - yMin > 10 ? 2 : 1)) svg += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + sy(v) + '" y2="' + sy(v) + '" class="grid"/><text x="' + (L - 5) + '" y="' + (sy(v) + 4) + '" class="axis" text-anchor="end">' + v + '</text>';
     svg += '<line x1="' + sx(c.lean) + '" x2="' + sx(c.lean) + '" y1="' + T + '" y2="' + (H - B) + '" class="center-line"/>' +
       '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + sy(c.ffmi) + '" y2="' + sy(c.ffmi) + '" class="center-line"/>' +
       '<text x="' + ((L + W - R) / 2) + '" y="' + (H - 4) + '" class="axis" text-anchor="middle">除脂肪体重(kg)</text>' +
       '<text x="11" y="' + ((T + H - B) / 2) + '" class="axis" text-anchor="middle" transform="rotate(-90 11 ' + ((T + H - B) / 2) + ')">FFMI</text>';
+    svg += zone.text;
     var me = null;
     pts.forEach(function (p) {
       if (p.me) { me = p; return; }
@@ -593,6 +661,7 @@ var Body = {
     });
     var sx = function (v) { return L + (S - L - R) * (v - xMin) / (xMax - xMin); }, sy = function (v) { return T + (S - T - B) * (1 - (v - yMin) / (yMax - yMin)); };
     var svg = '<svg class="chart chart-square" viewBox="0 0 ' + S + ' ' + S + '">', v;
+    svg += Body.zoneSvg(sx, sy, xMin, xMax, yMin, yMax, L, T, S - R, S - B, false).svg;   // v77：4つの区分の色分け（小さいので文字なし）
     for (v = Math.ceil(xMin / 5) * 5; v <= xMax; v += 5) svg += '<line x1="' + sx(v) + '" x2="' + sx(v) + '" y1="' + T + '" y2="' + (S - B) + '" class="grid"/><text x="' + sx(v) + '" y="' + (S - B + 13) + '" class="axis" text-anchor="middle">' + v + '</text>';
     var yStep = yMax - yMin > 10 ? 2 : 1;
     for (v = Math.ceil(yMin); v <= yMax; v += yStep) svg += '<line x1="' + L + '" x2="' + (S - R) + '" y1="' + sy(v) + '" y2="' + sy(v) + '" class="grid"/><text x="' + (L - 4) + '" y="' + (sy(v) + 3) + '" class="axis" text-anchor="end">' + v + '</text>';

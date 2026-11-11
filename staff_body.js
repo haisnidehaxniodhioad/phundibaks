@@ -218,13 +218,13 @@ var StaffBody = {
     pts.slice().sort(function (a, b) { return b.gnum - a.gnum; }).forEach(function (p) { var k = p.grade || '学年不明'; if (!seen[k]) seen[k] = p.color; });
     html += '<div class="legends tc-legend">' + Object.keys(seen).map(function (k) { return '<span class="legend"><i style="background:' + seen[k] + '"></i>' + esc(k) + '</span>'; }).join('') + '</div>' +
       '<label class="check-line small"><input type="checkbox" data-sb="compNames"' + (StaffBody.compNames ? ' checked' : '') + '> 名前を表示</label>' +
-      StaffBody.teamCompSvg(pts) +
+      StaffBody.teamCompSvg(pts) + StaffBody.zoneCountHtml(pts) +
       (StaffBody.compHidden ? '<p class="muted small">名前が重なるため、' + StaffBody.compHidden + '人の名前は出していません（丸を押すか、下の「数値の一覧」で確かめられます）。</p>' : '') +
       '<p class="muted small">点線は今の基準線（除脂肪体重' + Number(c.lean).toFixed(1) + 'kg・FFMI' + Number(c.ffmi).toFixed(1) + '）の位置です（InBodyの下の「基準の設定」で変えられます）。</p>' +
-      '<details class="tc-table"><summary>数値の一覧（' + pts.length + '人）</summary><div class="table-scroll"><table class="tbl"><tr><th>選手</th><th>学年</th><th>測定日</th><th>除脂肪体重(kg)</th><th>FFMI</th><th>体脂肪率(%)</th></tr>' +
+      '<details class="tc-table"><summary>数値の一覧（' + pts.length + '人）</summary><div class="table-scroll"><table class="tbl"><tr><th>選手</th><th>学年</th><th>測定日</th><th>除脂肪体重(kg)</th><th>FFMI</th><th>体脂肪率(%)</th><th>区分</th></tr>' +
       pts.slice().sort(function (a, b) { return b.gnum - a.gnum || String(a.name).localeCompare(String(b.name), 'ja'); }).map(function (p) {
         return '<tr><td><i class="tc-dot" style="background:' + p.color + '"></i><button class="link" data-staff="openReport" data-v="' + esc(p.id) + '" data-tab="inbody">' + esc(p.name) + '</button></td><td>' + esc(p.grade || '-') + '</td>' +
-          '<td class="small">' + esc(p.date) + '</td><td>' + p.lbm.toFixed(1) + '</td><td>' + p.ffmi.toFixed(1) + '</td><td>' + (p.fat === null ? '-' : p.fat.toFixed(1)) + '</td></tr>';
+          '<td class="small">' + esc(p.date) + '</td><td>' + p.lbm.toFixed(1) + '</td><td>' + p.ffmi.toFixed(1) + '</td><td>' + (p.fat === null ? '-' : p.fat.toFixed(1)) + '</td><td class="small">' + esc(Body.zoneName(Body.zoneOf(p.lbm, p.ffmi))) + '</td></tr>';
       }).join('') + '</table></div></details></div>';
     return html;
   },
@@ -240,6 +240,13 @@ var StaffBody = {
     });
     return { group: group, points: points, self: 'この選手' };
   },
+  /** v77：4つの区分ごとの人数（表示中の選手） */
+  zoneCountHtml: function (pts) {
+    var n = { best: 0, next: 0, short: 0, low: 0 };
+    pts.forEach(function (p) { n[Body.zoneOf(p.lbm, p.ffmi)]++; });
+    return '<div class="zone-counts">' + ['best', 'next', 'short', 'low'].map(function (k) {
+      return '<span class="zone-count ' + Body.ZONES[k].cls + '">' + esc(Body.zoneName(k)) + '<b>' + n[k] + '人</b></span>'; }).join('') + '</div>';
+  },
   /** 散布図（横＝除脂肪体重、縦＝FFMI。軸は基準線と全員が入るように広げる）。名前は重ならない位置を探して置く */
   teamCompSvg: function (pts) {
     var narrow = window.innerWidth < 600;   // スマホは図を小さく作って、文字が小さくなりすぎないようにする
@@ -251,6 +258,7 @@ var StaffBody = {
     });
     var sx = function (v) { return L + (W - L - R) * (v - xMin) / (xMax - xMin); }, sy = function (v) { return T + (H - T - B) * (1 - (v - yMin) / (yMax - yMin)); };
     var svg = '<svg class="chart team-comp-svg" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="除脂肪体重とFFMIの散布図">', v;
+    var zone = Body.zoneSvg(sx, sy, xMin, xMax, yMin, yMax, L, T, W - R, H - B, true); svg += zone.svg;   // v77：4つの区分の色分け
     for (v = Math.ceil(xMin / 5) * 5; v <= xMax; v += 5) svg += '<line x1="' + sx(v) + '" x2="' + sx(v) + '" y1="' + T + '" y2="' + (H - B) + '" class="grid"/><text x="' + sx(v) + '" y="' + (H - B + 15) + '" class="axis" text-anchor="middle">' + v + '</text>';
     for (v = Math.ceil(yMin); v <= yMax; v += 1) svg += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + sy(v) + '" y2="' + sy(v) + '" class="grid"/><text x="' + (L - 6) + '" y="' + (sy(v) + 4) + '" class="axis" text-anchor="end">' + v + '</text>';
     svg += '<line x1="' + sx(c.lean) + '" x2="' + sx(c.lean) + '" y1="' + T + '" y2="' + (H - B) + '" class="center-line"/>' +
@@ -260,6 +268,8 @@ var StaffBody = {
     // 丸（あとで名前を重ならないように置くため、丸の位置を先に覚える）
     var boxes = [], dots = pts.map(function (p) { return { p: p, x: sx(p.lbm), y: sy(p.ffmi) }; });
     dots.forEach(function (d) { boxes.push({ x1: d.x - 7, y1: d.y - 7, x2: d.x + 7, y2: d.y + 7 }); });
+    boxes = boxes.concat(zone.boxes);   // v77：区分の言葉にも名前を重ねない
+    svg += zone.text;
     var hit = function (b) { return boxes.some(function (o) { return b.x1 < o.x2 && o.x1 < b.x2 && b.y1 < o.y2 && o.y1 < b.y2; }); };
     var labels = '', lines = '';
     StaffBody.compHidden = 0;

@@ -1364,3 +1364,18 @@ body[data-view="body"] svg { max-width: 100%; height: auto; }
 .peer-chart .peer-tag { fill: var(--color-text); }
 .peer-chart .peer-tag-t { fill: var(--color-paper); font-size: 12px; font-weight: 700; }
 .legend i.peer-me-key { background: transparent; border: 3px solid var(--color-text); width: 12px; height: 12px; box-sizing: border-box; }
+/* v77：除脂肪体重×FFMIの4つの区分（グラフの背景・今の区分・人数） */
+.chart .zone { stroke: none; }
+.chart .zone-gray { fill: rgba(128, 132, 150, 0.10); }
+.chart .zone-purple { fill: rgba(99, 52, 154, 0.09); }
+.chart .zone-green { fill: rgba(46, 158, 85, 0.15); }
+.chart .zone-t { font-size: 11px; font-weight: 700; fill: var(--muted); paint-order: stroke; stroke: var(--color-paper); stroke-width: 3px; stroke-linejoin: round; }
+.zone-note { border-radius: 10px; padding: 10px 12px; margin: 12px 0 4px; border-left: 5px solid #8A90A6; background: rgba(128, 132, 150, 0.10); }
+.zone-note.zone-purple { border-left-color: #63349A; background: rgba(99, 52, 154, 0.09); }
+.zone-note.zone-green { border-left-color: #2E9E55; background: rgba(46, 158, 85, 0.13); }
+.zone-note-h { font-size: 1rem; margin-bottom: 2px; }
+.zone-counts { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.zone-count { font-size: 0.8rem; padding: 4px 10px; border-radius: 999px; border-left: 4px solid #8A90A6; background: rgba(128, 132, 150, 0.10); }
+.zone-count.zone-purple { border-left-color: #63349A; background: rgba(99, 52, 154, 0.09); }
+.zone-count.zone-green { border-left-color: #2E9E55; background: rgba(46, 158, 85, 0.13); }
+.zone-count b { margin-left: 6px; }
