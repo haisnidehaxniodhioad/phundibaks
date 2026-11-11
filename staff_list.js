@@ -144,6 +144,9 @@ var StaffList = {
     var o = StaffList.ovOf(a.id), w = StaffList.weight(a), ib = (a.inbody || []).slice().sort(function (x, y) { return x.date < y.date ? -1 : 1; }).pop();
     var row = function (k, v) { return '<tr><th>' + k + '</th><td>' + v + '</td></tr>'; };
     var ks = StaffList.checksOf(a.id);
+    var lw = (a.weight || []).slice().sort(function (x, y) { return x.date < y.date ? -1 : 1; }).pop();   // v86：いちばん新しい体重の記録
+    var md = function (d) { return String(d || '').slice(5).replace('-', '/'); };
+    var u = function (v, unit) { return Body.num(v) === null ? '-' : Body.f1(v) + unit; };   // 値が無いときは「-」
     box.innerHTML = '<h2>' + esc(a.name) + '</h2>' + (a.kana ? '<p class="muted small">' + esc(a.kana) + '</p>' : '') +
       '<p class="small">' + esc([a.grade, a.position, a.team ? a.team + 'チーム' : ''].filter(String).join('・') || '-') + '</p>' +
       (ks.length ? '<p>' + ks.map(function (k) { return '<span class="chk-chip chk-' + k.charAt(0) + '">' + esc(StaffQA.CHECK_LABELS[k]) + '</span>'; }).join(' ') + '</p>' : '') +
@@ -152,8 +155,12 @@ var StaffList = {
         row('コンディション', o.cond ? '疲労 ' + o.cond.whole + '/' + o.cond.upper + '/' + o.cond.lower + '・動き ' + o.cond.perf : '未入力') +
         row('最終', o.lastDate ? esc(o.lastDate.slice(5).replace('-', '/')) : 'なし')
         : row('実施状況', Staff.overview ? '在籍でない' : '読み込み中…')) + '</table>' +
-      '<h3>からだ</h3><table class="tbl">' + row('体重', w ? w.toFixed(1) + 'kg' : '-') +
-      row('InBody', ib ? esc(ib.date.slice(5).replace('-', '/')) + '・FFMI ' + Body.f1(ib.ffmi) : '-') + row('身長', a.height ? esc(a.height) : '-') + '</table>' +
+      // v86：からだ＝身長・体重（いちばん新しい記録）・InBody（いちばん新しい測定の体重・体脂肪率・除脂肪体重・FFMI）
+      '<h3>からだ</h3><table class="tbl">' + row('身長', a.height ? esc(a.height) + 'cm' : '-') +
+      row('体重', lw ? u(lw.weight, 'kg') + '<span class="muted small">（' + esc(md(lw.date)) + (lw.src === '本人' ? '・本人の入力' : '') + '）</span>' : '-') + '</table>' +
+      '<h3>InBody' + (ib ? '<span class="muted small">（' + esc(md(ib.date)) + '）</span>' : '') + '</h3>' +
+      (ib ? '<table class="tbl">' + row('体重', u(ib.weight, 'kg')) + row('体脂肪率', u(ib.fat, '%')) + row('除脂肪体重', u(ib.lbm, 'kg')) + row('FFMI', u(ib.ffmi, '')) + '</table>'
+          : '<p class="muted small">記録なし</p>') +
       '<button class="btn block" data-staff="athlete" data-v="' + esc(a.id) + '">個人ページを開く</button>';
   },
   /** ダッシュボードの A・B・C から開く（ダッシュボードの学年・チームの絞り込みを引き継ぐ） */
