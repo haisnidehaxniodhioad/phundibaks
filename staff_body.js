@@ -144,7 +144,105 @@ var StaffBody = {
         return '<tr><td>' + r.rank + '</td><td><button class="link" data-staff="openReport" data-v="' + esc(r.id) + '" data-tab="inbody">' + esc(r.name) + '</button></td><td>' + esc(r.grade) +
           '</td><td><b>' + esc(r.value) + '</b></td><td class="small">' + esc(r.date) + '</td></tr>';
       }).join('') + '</table></div>' + (rows.length ? '' : '<p class="muted">InBodyの記録がありません。「取り込む」から体組成Excelを取り込んでください。</p>') + '</div>';
+    return StaffBody.teamCompHtml(people, date) + html;   // v74：全員の体組成の比較（ランキングの上）
+  },
+
+  // ---------------- v74：全員の体組成の比較（除脂肪体重×FFMI。学年カラー） ----------------
+  //   学年カラーは「入学した年度」で決まり、学年が上がっても変わらない（4年ごとにくり返す）。
+  //   2026年度：4年（2023年度入学）＝黄、3年（2024）＝青、2年（2025）＝赤、1年（2026）＝緑。
+  //   新入生は、前の年度の4年生（卒業した学年）と同じ色になる（2027年度入学＝黄）。
+  //   ★ 色や基準の年度を変えるときは GRADE_COLORS・GRADE_COLOR_BASE を書きかえる
+  GRADE_COLOR_BASE: 2023,   // この年度に入学した学年が GRADE_COLORS[0]（黄）
+  GRADE_COLORS: [{ name: '黄', c: '#E8A800' }, { name: '青', c: '#2F6FD6' }, { name: '赤', c: '#D93F3F' }, { name: '緑', c: '#2E9E55' }],
+  compNames: true,
+  /** 今の年度（4月始まり） */
+  fiscalYear: function () { var d = new Date(); return d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1; },
+  /** 選手の入学年度（入学年度の列が空なら学年から逆算。わからなければ 0） */
+  enrollOf: function (a) {
+    if (Number(a.enrollYear)) return Number(a.enrollYear);
+    var m = /([1-6])/.exec(String(a.grade || ''));
+    return m ? StaffBody.fiscalYear() - Number(m[1]) + 1 : 0;
+  },
+  /** 学年カラー（入学年度から。わからなければ灰色） */
+  gradeColor: function (a) {
+    var y = StaffBody.enrollOf(a);
+    if (!y) return { name: '灰', c: '#8A90A6' };
+    return StaffBody.GRADE_COLORS[(((y - StaffBody.GRADE_COLOR_BASE) % 4) + 4) % 4];
+  },
+  /** 表示中の選手（学年・チームの絞り込み）の、いちばん新しい（date があればその日以前の）除脂肪体重とFFMI */
+  teamCompPoints: function (people, date) {
+    return people.map(function (a) {
+      var list = (a.inbody || []).filter(function (r) { return Body.num(r.lbm) !== null && Body.num(r.ffmi) !== null && (!date || r.date <= date); });
+      var r = list[list.length - 1];
+      if (!r) return null;
+      var y = StaffBody.enrollOf(a), g = y ? StaffBody.fiscalYear() - y + 1 : 0;
+      return { id: a.id, name: a.name, grade: a.grade || (g >= 1 && g <= 4 ? g + '年' : y ? y + '年度入学' : ''), gnum: g, color: StaffBody.gradeColor(a).c,
+               lbm: Body.num(r.lbm), ffmi: Body.num(r.ffmi), fat: Body.num(r.fat), date: r.date };
+    }).filter(Boolean);
+  },
+  teamCompHtml: function (people, date) {
+    var pts = StaffBody.teamCompPoints(people, date), c = Body.chart;
+    var html = '<div class="card team-comp"><h2>体組成の比較（除脂肪体重×FFMI）</h2>' +
+      '<p class="muted small">' + esc((Staff.filter.grade || '全学年') + (Staff.filter.team ? '・' + Staff.filter.team + 'チーム' : '')) + '・在籍中・' +
+      (date ? date + '以前の' : '') + 'いちばん新しいInBodyの記録・' + pts.length + '人。学年・測定日は下のランキングの選択と同じです。丸を押すと、その選手のフィジカルレポートを開きます。</p>';
+    if (!pts.length) return html + '<p class="muted">表示できる記録がありません（除脂肪体重とFFMIの両方がある記録が必要です）。</p></div>';
+    // 凡例（表示中の学年だけ。4年→1年）
+    var seen = {};
+    pts.slice().sort(function (a, b) { return b.gnum - a.gnum; }).forEach(function (p) { var k = p.grade || '学年不明'; if (!seen[k]) seen[k] = p.color; });
+    html += '<div class="legends tc-legend">' + Object.keys(seen).map(function (k) { return '<span class="legend"><i style="background:' + seen[k] + '"></i>' + esc(k) + '</span>'; }).join('') + '</div>' +
+      '<label class="check-line small"><input type="checkbox" data-sb="compNames"' + (StaffBody.compNames ? ' checked' : '') + '> 名前を表示</label>' +
+      StaffBody.teamCompSvg(pts) +
+      '<p class="muted small">点線は今の基準線（除脂肪体重' + Number(c.lean).toFixed(1) + 'kg・FFMI' + Number(c.ffmi).toFixed(1) + '）の位置です（InBodyの下の「基準の設定」で変えられます）。</p>' +
+      '<details class="tc-table"><summary>数値の一覧（' + pts.length + '人）</summary><div class="table-scroll"><table class="tbl"><tr><th>選手</th><th>学年</th><th>測定日</th><th>除脂肪体重(kg)</th><th>FFMI</th><th>体脂肪率(%)</th></tr>' +
+      pts.slice().sort(function (a, b) { return b.gnum - a.gnum || String(a.name).localeCompare(String(b.name), 'ja'); }).map(function (p) {
+        return '<tr><td><i class="tc-dot" style="background:' + p.color + '"></i><button class="link" data-staff="openReport" data-v="' + esc(p.id) + '" data-tab="inbody">' + esc(p.name) + '</button></td><td>' + esc(p.grade || '-') + '</td>' +
+          '<td class="small">' + esc(p.date) + '</td><td>' + p.lbm.toFixed(1) + '</td><td>' + p.ffmi.toFixed(1) + '</td><td>' + (p.fat === null ? '-' : p.fat.toFixed(1)) + '</td></tr>';
+      }).join('') + '</table></div></details></div>';
     return html;
+  },
+  /** 散布図（横＝除脂肪体重、縦＝FFMI。軸は基準線と全員が入るように広げる）。名前は重ならない位置を探して置く */
+  teamCompSvg: function (pts) {
+    var narrow = window.innerWidth < 600;   // スマホは図を小さく作って、文字が小さくなりすぎないようにする
+    var W = narrow ? 380 : 720, H = narrow ? 420 : 480, L = 36, R = 12, T = 12, B = 38, c = Body.chart;
+    var xMin = Math.min(50, Math.floor((c.lean - 15) / 5) * 5), xMax = Math.max(85, Math.ceil((c.lean + 15) / 5) * 5), yMin = Math.min(18, Math.floor(c.ffmi - 3)), yMax = Math.max(25, Math.ceil(c.ffmi + 3));
+    pts.forEach(function (p) {
+      xMin = Math.min(xMin, Math.floor((p.lbm - 3) / 5) * 5); xMax = Math.max(xMax, Math.ceil((p.lbm + 3) / 5) * 5);
+      yMin = Math.min(yMin, Math.floor(p.ffmi - 1)); yMax = Math.max(yMax, Math.ceil(p.ffmi + 1));
+    });
+    var sx = function (v) { return L + (W - L - R) * (v - xMin) / (xMax - xMin); }, sy = function (v) { return T + (H - T - B) * (1 - (v - yMin) / (yMax - yMin)); };
+    var svg = '<svg class="chart team-comp-svg" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="除脂肪体重とFFMIの散布図">', v;
+    for (v = Math.ceil(xMin / 5) * 5; v <= xMax; v += 5) svg += '<line x1="' + sx(v) + '" x2="' + sx(v) + '" y1="' + T + '" y2="' + (H - B) + '" class="grid"/><text x="' + sx(v) + '" y="' + (H - B + 15) + '" class="axis" text-anchor="middle">' + v + '</text>';
+    for (v = Math.ceil(yMin); v <= yMax; v += 1) svg += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + sy(v) + '" y2="' + sy(v) + '" class="grid"/><text x="' + (L - 6) + '" y="' + (sy(v) + 4) + '" class="axis" text-anchor="end">' + v + '</text>';
+    svg += '<line x1="' + sx(c.lean) + '" x2="' + sx(c.lean) + '" y1="' + T + '" y2="' + (H - B) + '" class="center-line"/>' +
+      '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + sy(c.ffmi) + '" y2="' + sy(c.ffmi) + '" class="center-line"/>' +
+      '<text x="' + ((L + W - R) / 2) + '" y="' + (H - 6) + '" class="axis" text-anchor="middle">除脂肪体重(kg)</text>' +
+      '<text x="12" y="' + ((T + H - B) / 2) + '" class="axis" text-anchor="middle" transform="rotate(-90 12 ' + ((T + H - B) / 2) + ')">FFMI</text>';
+    // 丸（あとで名前を重ならないように置くため、丸の位置を先に覚える）
+    var boxes = [], dots = pts.map(function (p) { return { p: p, x: sx(p.lbm), y: sy(p.ffmi) }; });
+    dots.forEach(function (d) { boxes.push({ x1: d.x - 7, y1: d.y - 7, x2: d.x + 7, y2: d.y + 7 }); });
+    var hit = function (b) { return boxes.some(function (o) { return b.x1 < o.x2 && o.x1 < b.x2 && b.y1 < o.y2 && o.y1 < b.y2; }); };
+    var labels = '';
+    if (StaffBody.compNames) {
+      dots.slice().sort(function (a, b) { return a.y - b.y; }).forEach(function (d) {
+        var w = String(d.p.name).length * 11.5 + 4, h = 14;
+        var tries = [[9, -2, 'start'], [-9, -2, 'end'], [0, -12, 'middle'], [0, 18, 'middle'], [9, 10, 'start'], [-9, 10, 'end'], [9, -14, 'start'], [-9, -14, 'end']];
+        for (var i = 0; i < tries.length; i++) {
+          var t = tries[i], tx = d.x + t[0], ty = d.y + t[1] + 4;
+          var x1 = t[2] === 'start' ? tx : t[2] === 'end' ? tx - w : tx - w / 2, b = { x1: x1, y1: ty - h + 3, x2: x1 + w, y2: ty + 3 };
+          if (b.x1 < L || b.x2 > W - R + 10 || b.y1 < 0 || b.y2 > H - B + 2) continue;
+          if (hit(b) && i < tries.length - 1) continue;
+          boxes.push(b);
+          labels += '<text x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" class="tc-label" text-anchor="' + t[2] + '">' + esc(d.p.name) + '</text>';
+          break;
+        }
+      });
+    }
+    dots.forEach(function (d) {
+      var p = d.p;
+      svg += '<circle cx="' + d.x.toFixed(1) + '" cy="' + d.y.toFixed(1) + '" r="6.5" fill="' + p.color + '" class="tc-dot-svg" data-staff="openReport" data-v="' + esc(p.id) + '" data-tab="inbody"><title>' +
+        esc(p.name + '（' + (p.grade || '-') + '）' + p.date + '　除脂肪体重' + p.lbm.toFixed(1) + 'kg・FFMI' + p.ffmi.toFixed(1) + (p.fat !== null ? '・体脂肪率' + p.fat.toFixed(1) + '%' : '')) + '</title></circle>';
+    });
+    return svg + labels + '</svg>';
   },
 
   // ---------------- 体重タブ ----------------
@@ -220,5 +318,6 @@ app.addEventListener('change', function (e) {
   if (t.dataset.sb === 'rankDate') StaffBody.rankDate = t.value;
   if (t.dataset.sb === 'weightDate') StaffBody.weightDate = t.value;
   if (t.dataset.sb === 'weightSort') StaffBody.weightSort = t.value;
+  if (t.dataset.sb === 'compNames') StaffBody.compNames = t.checked;   // v74：体組成の比較の名前
   StaffBody.render(StaffBody.kind);
 });

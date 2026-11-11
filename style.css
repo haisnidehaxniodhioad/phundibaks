@@ -1344,3 +1344,11 @@ body[data-view="body"] svg { max-width: 100%; height: auto; }
 .hist-day.done .hist-like { color: #fff; }
 .hist-like-legend { color: var(--color-accent-2-600); margin-right: 4px; }
 .home-likes .link-row { display: block; width: 100%; padding: 6px 0; border: none; background: none; font: inherit; text-align: left; color: var(--color-accent-2-700); cursor: pointer; }
+/* v74：全員の体組成の比較（除脂肪体重×FFMI・学年カラー） */
+.team-comp-svg { max-width: 900px; margin: 6px auto 0; }
+.team-comp-svg .tc-label { font-size: 12px; font-weight: 700; fill: var(--color-text); paint-order: stroke; stroke: var(--color-paper); stroke-width: 3px; stroke-linejoin: round; }
+.team-comp-svg .tc-dot-svg { stroke: #fff; stroke-width: 1.5; cursor: pointer; }
+.team-comp-svg .grid { stroke: var(--line); }
+.tc-legend { margin: 4px 0; }
+.tc-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+.tc-table summary { cursor: pointer; font-weight: 700; margin-top: 8px; }
