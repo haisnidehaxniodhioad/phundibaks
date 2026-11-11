@@ -1379,3 +1379,5 @@ body[data-view="body"] svg { max-width: 100%; height: auto; }
 .zone-count.zone-purple { border-left-color: #63349A; background: rgba(99, 52, 154, 0.09); }
 .zone-count.zone-green { border-left-color: #2E9E55; background: rgba(46, 158, 85, 0.13); }
 .zone-count b { margin-left: 6px; }
+/* v78：基準日を全員そろえる */
+.base-unify { padding: 8px 10px; margin: 6px 0 10px; border-radius: 10px; background: rgba(99, 52, 154, 0.07); }

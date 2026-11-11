@@ -18,7 +18,15 @@ var BodyBase = {
   teamCard: function () {
     var t = Staff.body.teamBase || { start: '', end: '' }, c = Staff.body.chart || Body.chart;
     var n = t.start && t.end ? Staff.body.athletes.filter(function (a) { return a.active && a.inbody.some(function (r) { return r.date >= t.start && r.date <= t.end; }); }).length : 0;
-    return '<div class="card"><h2>基準の設定（全員共通）</h2>' +
+    // v78：測定日を1つ選んで、全員の基準をその日の測定にそろえる（開始日＝終了日＝その日で保存。今ある setBodyBase の team を使う）
+    var cnt = {};
+    Staff.body.athletes.forEach(function (a) { if (a.active) uniq(a.inbody.map(function (r) { return r.date; })).forEach(function (d) { cnt[d] = (cnt[d] || 0) + 1; }); });
+    var days = Object.keys(cnt).sort().reverse(), one = t.start && t.start === t.end ? t.start : '';
+    var unify = days.length ? '<div class="base-unify"><p class="small"><b>基準日を全員そろえる</b>（ボタン1つで、全員の「基準比」と比較グラフの青い丸を、選んだ測定日の記録にします）</p>' +
+      '<div class="row"><select class="sel" id="baseUnifyDate" aria-label="そろえる測定日">' + days.map(function (d) {
+        return '<option value="' + esc(d) + '"' + (d === one ? ' selected' : '') + '>' + esc(d) + '（' + cnt[d] + '人が測定）</option>'; }).join('') + '</select>' +
+      '<button class="btn" data-base="unify">この測定日に全員そろえる</button></div></div>' : '';
+    return '<div class="card"><h2>基準の設定（全員共通）</h2>' + unify +
       '<p class="muted small">「基準比」の基準を全員そろえるときに、期間を入れます（期間内のInBodyの平均が基準。開始日と終了日を同じにするとその日の測定）。' +
       '空にすると、選手ごとの基準日（選手の名前を押したレポートの下で設定）を使います。</p>' +
       '<div class="row base-row"><label>開始日<input type="date" id="baseStart" value="' + esc(t.start) + '"></label>' +
@@ -75,6 +83,14 @@ app.addEventListener('click', function (e) {
     case 'saveTeam':
       if ((v('baseStart') === '') !== (v('baseEnd') === '')) { alert('開始日と終了日の両方を入れてください（やめるときは両方とも空に）。'); return; }
       BodyBase.save({ target: 'team', start: v('baseStart'), end: v('baseEnd'), lean: v('baseLean'), ffmi: v('baseFfmi') }, t); break;
+    case 'unify':   // v78：基準日を全員そろえる
+      var ud = v('baseUnifyDate');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(ud)) return;
+      var nOn = Staff.body.athletes.filter(function (a) { return a.active && a.inbody.some(function (r) { return r.date === ud; }); }).length;
+      var nAll = Staff.body.athletes.filter(function (a) { return a.active; }).length;
+      if (!confirm('全員の基準を ' + ud + ' の測定にそろえます（全員共通の基準期間を ' + ud + '〜' + ud + ' にします）。\n' +
+        'この日に測った在籍選手は ' + nOn + '人 / ' + nAll + '人です。測っていない選手は「基準比」と青い丸が出なくなります。\n選手ごとに設定した基準日は、全員共通の基準をやめると元に戻ります。よろしいですか？')) return;
+      BodyBase.save({ target: 'team', start: ud, end: ud, lean: v('baseLean'), ffmi: v('baseFfmi') }, t); break;
     case 'clearTeam':
       if (!confirm('全員共通の基準をやめて、選手ごとの基準日を使うようにします。よろしいですか？')) return;
       BodyBase.save({ target: 'team', start: '', end: '', lean: v('baseLean'), ffmi: v('baseFfmi') }, t); break;
