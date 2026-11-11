@@ -1295,7 +1295,8 @@ body[data-view="body"] svg { max-width: 100%; height: auto; }
 @media (min-width: 1200px) {
   .sl-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
   .sl-main { min-width: 0; }
-  .sl-side { display: block; position: sticky; top: 16px; margin-top: 0; }
+  /* v85：右の概要は一覧と別にスクロール（上の帯の下に止め、画面の下のバーまでの高さで中だけ動く） */
+  .sl-side { display: block; position: sticky; top: var(--sl-top, 16px); margin-top: 0; max-height: calc(100vh - var(--sl-top, 16px) - var(--dock-h, 90px) - 16px); overflow-y: auto; overscroll-behavior: contain; }
 }
 
 /* スマホ：選手管理の表をカードにする（見出しの行は隠し、各欄の名前を小さく出す） */

@@ -128,10 +128,16 @@ var StaffList = {
     box.innerHTML = '<p class="small"><span class="chip">' + esc(StaffQA.CHECK_LABELS[k]) + (span ? '（' + esc(span) + '）' : '') + '</span> ' +
       '<button class="btn ghost small" data-sl="clearCheck">確認の絞り込みを外す</button></p>';
   },
+  /** v85：右の概要は、画面の上の帯（AIアシスタント）の下に止めて、中だけ別にスクロールする。帯の高さを CSS の --sl-top に入れる */
+  sideTop: function () {
+    var band = document.querySelector('.coach-band:not([hidden])');
+    document.documentElement.style.setProperty('--sl-top', ((band ? band.getBoundingClientRect().height : 0) + 12) + 'px');
+  },
   /** PC（幅1200px以上）の右の概要。スマホ・タブレットでは CSS で隠す */
   renderSum: function (list) {
     var box = document.getElementById('slSum');
     if (!box) return;
+    StaffList.sideTop();
     var a = list.filter(function (x) { return x.id === StaffList.sel; })[0] || list[0];
     if (!a) { box.innerHTML = '<p class="muted small">選手がいません。</p>'; return; }
     StaffList.sel = a.id;
@@ -359,3 +365,5 @@ app.addEventListener('input', function (e) {
   StaffList.filter.q = t.value;
   StaffList.renderTable();
 });
+// v85：画面の大きさが変わったら、右の概要を止める位置を合わせ直す
+window.addEventListener('resize', function () { if (document.getElementById('slSum')) StaffList.sideTop(); });
