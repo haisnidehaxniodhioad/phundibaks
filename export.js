@@ -43,7 +43,10 @@ var Export = {
     area.innerHTML = pagesHtml.map(function (h) { return '<section class="print-page">' + h + '</section>'; }).join('');
     // A4の1枚（余白を除いた高さ 約1030px）に収まらないページは、グラフを一段小さくする（既存アプリと同じ）
     area.style.cssText = 'display:block;position:absolute;left:-10000px;top:0;width:700px;';
-    Array.prototype.forEach.call(area.children, function (sec) { if (sec.offsetHeight > 1030) sec.classList.add('compact'); });
+    Array.prototype.forEach.call(area.children, function (sec) {
+      if (sec.offsetHeight > 1030) sec.classList.add('compact');
+      if (sec.offsetHeight > 1030) sec.classList.add('tight');   // v80：まだ入らないときは、もう一段小さく
+    });
     area.style.cssText = '';
     var oldTitle = document.title;
     document.title = title;   // PDFのファイル名の候補になる

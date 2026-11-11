@@ -264,6 +264,7 @@ var Body = {
     var html = '<div class="card report-card">' + Body.head('フィジカルレポート', a, newest);
     if (!ib.length) return html + '<p class="muted" style="margin-top:12px;">まだ測定記録がありません。InBodyの記録が取り込まれると、ここにレポートが表示されます。</p></div>';
 
+    var gridStart = html.length;   // v80：PDFでは、カード（2×2）と「InBodyデータの推移」を横に並べるため、カードの部分の場所を覚えておく
     html += '<div class="report-section-title">最新の測定結果</div><div class="report-grid">';
     Body.METRICS.forEach(function (m) {
       var s = Body.series(ib, m.key), latest = s[s.length - 1], prev = s[s.length - 2];
@@ -285,12 +286,11 @@ var Body = {
       html += (opt.print ? '' : Body.spark(s)) + '</div>';   // v79：PDFではカードの小さな折れ線を出さない（全員のグラフの場所を作る）
     });
     html += '</div>';
+    var gridEnd = html.length;
 
-    // v77：今の区分（除脂肪体重とFFMIの目標）とFFMIの目安。画面だけ（PDFには入れない）
-    if (!opt.print) {
-      var zr = ib.filter(function (r) { return Body.num(r.lbm) !== null && Body.num(r.ffmi) !== null; }), zl = zr[zr.length - 1];
-      if (zl) html += Body.zoneNote(+zl.lbm, +zl.ffmi, zl.date);
-    }
+    // v77：今の区分（除脂肪体重とFFMIの目標）とFFMIの目安。v80：PDFにも入れる
+    var zr = ib.filter(function (r) { return Body.num(r.lbm) !== null && Body.num(r.ffmi) !== null; }), zl = zr[zr.length - 1];
+    if (zl) html += Body.zoneNote(+zl.lbm, +zl.ffmi, zl.date);
 
     // InBodyデータの推移（左）と 体組成の比較（右）。PDFでは横に並べる
     var plotted = function (r) { return r && Body.num(r.lbm) !== null && Body.num(r.ffmi) !== null; };
@@ -298,14 +298,19 @@ var Body = {
     var basePt = baseRows.length ? { lbm: Body.avg(baseRows.map(function (r) { return +r.lbm; })), ffmi: Body.avg(baseRows.map(function (r) { return +r.ffmi; })),
                                      fat: Body.avg(baseRows.filter(function (r) { return Body.num(r.fat) !== null; }).map(function (r) { return +r.fat; })) } : null;
     var last = ib[ib.length - 1], latestPt = plotted(last) ? { lbm: +last.lbm, ffmi: +last.ffmi, fat: Body.num(last.fat) } : null;
-    html += '<div class="report-charts' + (opt.print && a.peers ? ' three' : '') + '"><div class="report-chart-col"><div class="report-section-title">InBodyデータの推移</div>' +
-      '<div class="report-chart-desc muted small">体重・除脂肪体重（左軸・kg）と体脂肪率（右軸・%）の推移です。</div>' +
-      Body.trendChart(ib, opt.print ? { w: 430, h: 270 } : { w: 420, h: 300 }) + '</div>' +
-      '<div class="report-chart-col"><div class="report-section-title">体組成の比較（除脂肪体重×FFMI）</div>' +
+    var trendCol = function (w, h) { return '<div class="report-chart-col"><div class="report-section-title">InBodyデータの推移</div>' +
+      '<div class="report-chart-desc muted small">体重・除脂肪体重（左軸・kg）と体脂肪率（右軸・%）の推移です。</div>' + Body.trendChart(ib, { w: w, h: h }) + '</div>'; };
+    var compCol = '<div class="report-chart-col"><div class="report-section-title">体組成の比較（除脂肪体重×FFMI）</div>' +
       '<div class="report-chart-desc muted small">丸の大きさは体脂肪率（大きいほど高い）。「基準」は基準の測定（複数日なら平均）、「最新」は直近のInBodyの記録です。</div>' +
       Body.compChart([{ label: '基準' + (base.label ? '（' + base.label + '）' : ''), p: basePt, color: Body.COLORS.base },
-                      { label: '最新（' + Body.dShort(last.date) + '）', p: latestPt, color: Body.COLORS.latest }]) + '</div>' +
-      (opt.print && a.peers ? '<div class="report-chart-col report-peer-col">' + Body.peerChart(a.peers) + '</div>' : '') + '</div>';   // v79：PDFでは3つ目のグラフとして横に並べる
+                      { label: '最新（' + Body.dShort(last.date) + '）', p: latestPt, color: Body.COLORS.latest }]) + '</div>';
+    if (opt.print && a.peers) {
+      // v80：PDFは、上の段＝カード（2×2）と「InBodyデータの推移」、中の段＝今の区分、下の段＝「体組成の比較」と「投手（野手）の中での位置」を大きく横に2つ
+      html = html.slice(0, gridStart) + '<div class="pr-top"><div class="pr-cards">' + html.slice(gridStart, gridEnd) + '</div>' + trendCol(380, 250) + '</div>' + html.slice(gridEnd) +
+        '<div class="report-charts pr-two">' + compCol + '<div class="report-chart-col report-peer-col">' + Body.peerChart(a.peers) + '</div></div>';
+    } else {
+      html += '<div class="report-charts">' + trendCol(opt.print ? 430 : 420, opt.print ? 270 : 300) + compCol + '</div>';
+    }
 
     // v76：同じ区分（投手／野手）の選手の中での位置（名前なし）。v79：PDFにも入れる（左にグラフ、右に説明と凡例）
     if (a.peers && !opt.print) html += Body.peerChart(a.peers);   // PDFでは上の「体組成の比較」の右に並べている

@@ -1381,9 +1381,30 @@ body[data-view="body"] svg { max-width: 100%; height: auto; }
 .zone-count b { margin-left: 6px; }
 /* v78：基準日を全員そろえる */
 .base-unify { padding: 8px 10px; margin: 6px 0 10px; border-radius: 10px; background: rgba(99, 52, 154, 0.07); }
-/* v79：フィジカルレポートのPDF。カードの折れ線をやめて低くし、投手／野手の中での位置のグラフを「体組成の比較」の右に並べる（3列） */
-#printArea .report-metric { aspect-ratio: auto; }
-#printArea .report-charts.three { grid-template-columns: minmax(0, 1fr) 200px 200px; gap: 0 10px; }
-#printArea .three .chart-square, #printArea .three .peer-chart { max-width: 200px; margin: 0; }
-#printArea .compact .report-charts.three { grid-template-columns: minmax(0, 1fr) 180px 180px; }
-#printArea .compact .three .chart-square, #printArea .compact .three .peer-chart { max-width: 180px; }
+/* v79→v80：フィジカルレポートのPDF（A4の1枚）。カードの折れ線をやめて、
+   上の段＝カード（2×2）と「InBodyデータの推移」、中の段＝今の区分、下の段＝「体組成の比較」と「投手（野手）の中での位置」を大きく横に2つ */
+#printArea .pr-top { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 0 16px; align-items: start; break-inside: avoid; }
+#printArea .pr-top .report-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+#printArea .pr-top .report-metric { aspect-ratio: auto; padding: 5px 8px; }
+#printArea .pr-top .report-chart-desc { min-height: 0; margin: 0; }
+#printArea .pr-top .report-chart-col .chart { max-height: 250px; }
+#printArea .report-charts.pr-two { grid-template-columns: 1fr 1fr; gap: 0 18px; margin-top: 2px; }
+#printArea .pr-two .report-chart-desc { min-height: 0; font-size: 0.58rem; margin: 0; }
+#printArea .pr-two .chart-square, #printArea .pr-two .peer-chart { max-width: 300px; margin: 0 auto; display: block; }
+#printArea .pr-two .legends, #printArea .pr-two .report-chart-col .muted.small { font-size: 0.56rem; margin-top: 1px; }
+#printArea .zone-note { margin: 6px 0 0; padding: 4px 10px; break-inside: avoid; }
+#printArea .zone-note > div { display: inline; margin-right: 10px; font-size: 0.64rem; }
+#printArea .zone-note .zone-note-h { font-size: 0.74rem; }
+#printArea .compact .pr-two .chart-square, #printArea .compact .pr-two .peer-chart { max-width: 250px; }
+#printArea .compact .pr-top .report-chart-col .chart { max-height: 220px; }
+#printArea .compact .report-note { font-size: 0.55rem; margin-top: 3px; }
+/* v80：PDFのカードは「前回 ○○ / 日付」などの細かい参考値を省いて低く（数値は下の表にある） */
+#printArea .pr-top .report-diff + .report-diff-ref { display: none; }
+#printArea .pr-top .report-metric-sub { margin-bottom: 1px; }
+#printArea .zone-note > div { font-size: 0.6rem; }
+#printArea .compact .report-print-table th, #printArea .compact .report-print-table td { padding: 1px 0; font-size: 0.54rem; line-height: 1.1; }
+#printArea .compact .pr-two .chart-square, #printArea .compact .pr-two .peer-chart { max-width: 235px; }
+/* v80：compact でも1枚に入らないとき（測定の回数がとても多いときなど） */
+#printArea .tight .pr-two .chart-square, #printArea .tight .pr-two .peer-chart { max-width: 205px; }
+#printArea .tight .pr-top .report-chart-col .chart { max-height: 190px; }
+#printArea .tight .report-note { font-size: 0.52rem; line-height: 1.35; }
