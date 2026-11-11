@@ -144,7 +144,7 @@ var StaffBody = {
         return '<tr><td>' + r.rank + '</td><td><button class="link" data-staff="openReport" data-v="' + esc(r.id) + '" data-tab="inbody">' + esc(r.name) + '</button></td><td>' + esc(r.grade) +
           '</td><td><b>' + esc(r.value) + '</b></td><td class="small">' + esc(r.date) + '</td></tr>';
       }).join('') + '</table></div>' + (rows.length ? '' : '<p class="muted">InBodyの記録がありません。「取り込む」から体組成Excelを取り込んでください。</p>') + '</div>';
-    return StaffBody.teamCompHtml(people, date) + html;   // v74：全員の体組成の比較（ランキングの上）
+    return StaffBody.teamCompHtml(StaffBody.compPeople(), date) + html;   // v74：全員の体組成の比較（ランキングの上）。v75：学年・ポジション・チームはグラフ専用の絞り込み
   },
 
   // ---------------- v74：全員の体組成の比較（除脂肪体重×FFMI。学年カラー） ----------------
@@ -155,6 +155,32 @@ var StaffBody = {
   GRADE_COLOR_BASE: 2023,   // この年度に入学した学年が GRADE_COLORS[0]（黄）
   GRADE_COLORS: [{ name: '黄', c: '#E8A800' }, { name: '青', c: '#2F6FD6' }, { name: '赤', c: '#D93F3F' }, { name: '緑', c: '#2E9E55' }],
   compNames: true,
+  compF: { grade: '', position: '', team: '' },   // v75：グラフ専用の絞り込み（学年・ポジション・チーム。空＝すべて）
+  /** v75：グラフに出す選手（在籍中＋グラフ専用の絞り込み。ポジションの「内野手」は一塁〜遊撃） */
+  compPeople: function () {
+    var f = StaffBody.compF, inf = (window.StaffList && StaffList.INFIELD) || ['一塁手', '二塁手', '三塁手', '遊撃手'];
+    return Staff.body.athletes.filter(function (a) {
+      if (!a.active) return false;
+      if (f.grade && a.grade !== f.grade) return false;
+      if (f.position && !(f.position === '内野手' ? inf.indexOf(a.position) >= 0 : a.position === f.position)) return false;
+      return !f.team || a.team === f.team;
+    });
+  },
+  /** v75：グラフ専用の絞り込みの選択肢（在籍中の選手から作る） */
+  compFilterHtml: function () {
+    var all = Staff.body.athletes.filter(function (a) { return a.active; }), f = StaffBody.compF;
+    var vals = function (k) { return uniq(all.map(function (a) { return a[k] || ''; })).filter(String); };
+    var grades = window.StaffList ? StaffList.gradeOrder(vals('grade')) : vals('grade').sort().reverse();
+    var positions = window.StaffList ? StaffList.posOrder(vals('position')) : vals('position');
+    var teams = vals('team').sort(function (a, b) { return a.localeCompare(b, 'ja'); });
+    var sel = function (k, label, list, extra) {
+      return '<select class="sel" data-sb="comp" data-k="' + k + '" aria-label="' + label + '"><option value="">' + label + '：すべて</option>' + (extra || '') +
+        list.map(function (v) { return '<option value="' + esc(v) + '"' + (f[k] === v ? ' selected' : '') + '>' + esc(k === 'team' ? v + 'チーム' : v) + '</option>'; }).join('') + '</select>';
+    };
+    return '<div class="row tc-filter">' + sel('grade', '学年', grades) +
+      sel('position', 'ポジション', positions, '<option value="内野手"' + (f.position === '内野手' ? ' selected' : '') + '>内野手（一塁〜遊撃）</option>') +
+      sel('team', 'チーム', teams) + '</div>';
+  },
   /** 今の年度（4月始まり） */
   fiscalYear: function () { var d = new Date(); return d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1; },
   /** 選手の入学年度（入学年度の列が空なら学年から逆算。わからなければ 0） */
@@ -183,8 +209,9 @@ var StaffBody = {
   teamCompHtml: function (people, date) {
     var pts = StaffBody.teamCompPoints(people, date), c = Body.chart;
     var html = '<div class="card team-comp"><h2>体組成の比較（除脂肪体重×FFMI）</h2>' +
-      '<p class="muted small">' + esc((Staff.filter.grade || '全学年') + (Staff.filter.team ? '・' + Staff.filter.team + 'チーム' : '')) + '・在籍中・' +
-      (date ? date + '以前の' : '') + 'いちばん新しいInBodyの記録・' + pts.length + '人。学年・測定日は下のランキングの選択と同じです。丸を押すと、その選手のフィジカルレポートを開きます。</p>';
+      StaffBody.compFilterHtml() +
+      '<p class="muted small">' + esc([StaffBody.compF.grade || '全学年', StaffBody.compF.position, StaffBody.compF.team ? StaffBody.compF.team + 'チーム' : ''].filter(String).join('・')) + '・在籍中・' +
+      (date ? date + '以前の' : '') + 'いちばん新しいInBodyの記録・' + pts.length + '人。測定日は下のランキングの選択と同じです。丸を押すと、その選手のフィジカルレポートを開きます。</p>';
     if (!pts.length) return html + '<p class="muted">表示できる記録がありません（除脂肪体重とFFMIの両方がある記録が必要です）。</p></div>';
     // 凡例（表示中の学年だけ。4年→1年）
     var seen = {};
@@ -319,5 +346,6 @@ app.addEventListener('change', function (e) {
   if (t.dataset.sb === 'weightDate') StaffBody.weightDate = t.value;
   if (t.dataset.sb === 'weightSort') StaffBody.weightSort = t.value;
   if (t.dataset.sb === 'compNames') StaffBody.compNames = t.checked;   // v74：体組成の比較の名前
+  if (t.dataset.sb === 'comp') StaffBody.compF[t.dataset.k] = t.value;   // v75：体組成の比較の絞り込み
   StaffBody.render(StaffBody.kind);
 });
