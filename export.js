@@ -65,6 +65,7 @@ var Export = {
   // ---------------- 体組成レポート（フィジカルレポート と 体重レポート は別々） ----------------
   /** 1人分のレポートのページ（見出し・作成日などはレポートの中に入っている）。kind: 'inbody' または 'weight' */
   reportPage: function (a, kind) {
+    if (kind !== 'weight' && window.StaffBody && S.view === 'staff' && Staff.body) a.peers = StaffBody.peersOf(a);   // v79：投手／野手の中での位置（名前なし）をPDFにも
     return kind === 'weight' ? Body.weightReportHtml(a, { print: true }) : Body.physicalHtml(a, { print: true });
   },
 

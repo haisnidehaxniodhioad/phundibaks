@@ -1381,3 +1381,9 @@ body[data-view="body"] svg { max-width: 100%; height: auto; }
 .zone-count b { margin-left: 6px; }
 /* v78：基準日を全員そろえる */
 .base-unify { padding: 8px 10px; margin: 6px 0 10px; border-radius: 10px; background: rgba(99, 52, 154, 0.07); }
+/* v79：フィジカルレポートのPDF。カードの折れ線をやめて低くし、投手／野手の中での位置のグラフを「体組成の比較」の右に並べる（3列） */
+#printArea .report-metric { aspect-ratio: auto; }
+#printArea .report-charts.three { grid-template-columns: minmax(0, 1fr) 200px 200px; gap: 0 10px; }
+#printArea .three .chart-square, #printArea .three .peer-chart { max-width: 200px; margin: 0; }
+#printArea .compact .report-charts.three { grid-template-columns: minmax(0, 1fr) 180px 180px; }
+#printArea .compact .three .chart-square, #printArea .compact .three .peer-chart { max-width: 180px; }
