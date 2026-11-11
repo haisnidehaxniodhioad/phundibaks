@@ -42,7 +42,8 @@ var Export = {
   },
 
   /** 印刷（PDF保存）する。pagesHtml は1ページ分ずつのHTMLの配列 */
-  print: function (title, pagesHtml) {
+  print: function (title, pagesHtml, opt) {
+    opt = opt || {};   // v83：opt.poster＝A3横の掲示物（ページの大きさを変え、A4用の縮める処理はしない）
     Body.closeHistory();
     // PDFはいつも昼の色（白い紙）で作る。夜の色にしていても、印刷の間だけ昼にして、終わったら戻す（v30）
     var root = document.documentElement, oldTheme = root.getAttribute('data-theme');
@@ -50,9 +51,16 @@ var Export = {
     var area = document.getElementById('printArea');
     if (!area) { area = document.createElement('div'); area.id = 'printArea'; document.body.appendChild(area); }
     area.innerHTML = pagesHtml.map(function (h) { return '<section class="print-page">' + h + '</section>'; }).join('');
+    var pageStyle = null;
+    if (opt.poster) {
+      area.classList.add('poster');
+      pageStyle = document.createElement('style');
+      pageStyle.textContent = '@page { size: A3 landscape; margin: 10mm; }';   // A4縦の指定より後に置いて、こちらを使わせる
+      document.head.appendChild(pageStyle);
+    }
     // A4の1枚（余白を除いた高さ 約1030px）に収まらないページは、グラフを一段小さくする（既存アプリと同じ）
     area.style.cssText = 'display:block;position:absolute;left:-10000px;top:0;width:700px;';
-    Array.prototype.forEach.call(area.children, function (sec) {
+    if (!opt.poster) Array.prototype.forEach.call(area.children, function (sec) {
       if (sec.offsetHeight > 1030) sec.classList.add('compact');
       if (sec.offsetHeight > 1030) sec.classList.add('tight');   // v80：まだ入らないときは、もう一段小さく
     });
@@ -62,6 +70,7 @@ var Export = {
     document.body.classList.add('printing');
     var done = function () {
       document.body.classList.remove('printing'); area.innerHTML = ''; document.title = oldTitle;
+      area.classList.remove('poster'); if (pageStyle && pageStyle.parentNode) pageStyle.parentNode.removeChild(pageStyle);
       if (oldTheme) root.setAttribute('data-theme', oldTheme); else root.removeAttribute('data-theme');
     };
     window.addEventListener('afterprint', function once() { window.removeEventListener('afterprint', once); done(); });
@@ -212,6 +221,59 @@ var Export = {
       rows.map(function (r) { return '<tr><td>' + esc(r.rank) + '</td><td>' + esc(r.name) + '</td><td>' + esc(r.grade) + '</td><td><b>' + esc(r.value) + '</b></td><td>' + esc(r.date) + '</td></tr>'; }).join('') +
       '</table>';
     Export.print('ランキング_' + title + '_' + Export.today(), [html]);
+  },
+
+  // ---------------- v83：FFMIランキングの掲示物（A3横） ----------------
+  //   kind: 'weight'＝ウェイトルーム用（ランキングだけ）、'dining'＝食堂用（左にFFMIの説明）
+  //   全員（在籍中・テスト用を除く）を1つのランキングに。いちばん新しいInBody（データ分析で測定日を選んでいれば、その日以前）を使う
+  //   人数に合わせて列の数と行の高さを決め、A3の1枚に収める。食堂用で入りきらないときは、除脂肪体重と前回比の列を省く
+  posterRows: function () {
+    var date = StaffBody.rankDate, has = function (r) { return Body.num(r.ffmi) !== null && (!date || r.date <= date); };
+    var rows = Export.real(Staff.body.athletes.filter(function (a) { return a.active; })).map(function (a) {
+      var list = (a.inbody || []).filter(has), r = list[list.length - 1], p = list[list.length - 2];
+      return r ? { name: a.name, ffmi: Body.num(r.ffmi), lbm: Body.num(r.lbm), date: r.date, diff: p ? Body.num(r.ffmi) - Body.num(p.ffmi) : null } : null;
+    }).filter(Boolean).sort(function (x, y) { return y.ffmi - x.ffmi || String(x.name).localeCompare(String(y.name), 'ja'); });
+    rows.forEach(function (r, i) { r.rank = i > 0 && rows[i - 1].ffmi === r.ffmi ? rows[i - 1].rank : i + 1; });   // 同じ値は同じ順位
+    return rows;
+  },
+  ffmiPoster: function (kind) {
+    var rows = Export.posterRows();
+    if (!rows.length) { alert('FFMIの記録がある選手がいません。'); return; }
+    var dining = kind === 'dining', top = Body.chart.ffmi, avg = Body.FFMI_AVG, f0 = Body.f0;
+    var listW = dining ? 1080 : 1490, H = 900;   // ランキングの場所の幅と高さ（px）
+    // 列の数：1列30人までを目安に、1列の幅が360px以上（全部の項目が入る）の範囲で増やす。それでも1行が22pxより低くなるときは、さらに列を増やす（項目は減る）
+    var cols = Math.max(1, Math.min(Math.ceil(rows.length / 30), Math.floor(listW / 360)));
+    while (Math.ceil(rows.length / cols) * 22 > H && cols < 6) cols++;
+    var size = function (c) { var per = Math.ceil(rows.length / c), rowH = Math.min(44, Math.floor(H / (per + 1))); return { per: per, rowH: rowH, fs: Math.max(11, Math.min(24, Math.round(rowH * 0.56))) }; };
+    var z = size(cols);
+    // 文字が小さくなる（16px未満）ときは、除脂肪体重と前回比をやめて列を1つ増やし、文字を大きくする（食堂用で人数が多いとき）
+    if (z.fs < 16 && listW / (cols + 1) >= 220) { cols++; z = size(cols); }
+    var full = listW / cols >= 360;   // 1列の幅が足りるときだけ、除脂肪体重と前回比も出す
+    var per = z.per, rowH = z.rowH, fs = z.fs;
+    var latest = rows.reduce(function (m, r) { return r.date > m ? r.date : m; }, '');
+    var diff = function (d) { return d === null ? '-' : d > 0.05 ? '▲' + d.toFixed(1) : d < -0.05 ? '▼' + Math.abs(d).toFixed(1) : '±0.0'; };
+    var table = function (part) {
+      return '<table class="pst-tbl"><tr><th>順位</th><th class="pst-name">名前</th><th>FFMI</th>' + (full ? '<th>除脂肪体重</th><th>前回比</th>' : '') + '</tr>' +
+        part.map(function (r) {
+          var star = r.ffmi >= top;
+          return '<tr class="' + (star ? 'pst-star' : '') + '"><td>' + r.rank + '</td><td class="pst-name">' + (star ? '★ ' : '') + esc(r.name) + '</td><td class="pst-ffmi">' + r.ffmi.toFixed(1) + '</td>' +
+            (full ? '<td>' + (r.lbm === null ? '-' : r.lbm.toFixed(1) + 'kg') + '</td><td>' + diff(r.diff) + '</td>' : '') + '</tr>';
+        }).join('') + '</table>';
+    };
+    var parts = []; for (var i = 0; i < rows.length; i += per) parts.push(rows.slice(i, i + per));
+    var nTop = rows.filter(function (r) { return r.ffmi >= top; }).length;
+    var head = '<div class="pst-head"><div class="pst-title">FFMI ランキング</div><div class="pst-sub">' + esc(Body.dLong(latest)) + 'までの測定（各選手のいちばん新しい記録）・' + rows.length + '人　' +
+      '<b>★ FFMI' + f0(top) + '以上：' + nTop + '人</b></div></div>';
+    var explain = !dining ? '' : '<div class="pst-explain">' +
+      '<div class="pst-ex-h">FFMIとは？</div><div class="pst-formula">FFMI ＝ 除脂肪体重(kg) ÷ 身長(m)²</div>' +
+      '<p>身長の違いをならした「筋肉の量」の数字。体の大きさがちがっても比べられます。</p>' +
+      '<div class="pst-ex-h">目安</div><table class="pst-band"><tr><td class="b1">' + f0(avg) + '未満</td><td>まずは' + f0(avg) + 'を超えよう</td></tr>' +
+      '<tr><td class="b2">' + f0(avg) + '〜' + f0(top) + '</td><td>大学野球の平均以上</td></tr><tr><td class="b3">' + f0(top) + '以上</td><td>トップ層 ★</td></tr></table>' +
+      '<div class="pst-ex-h">目標</div><p class="pst-goal">まずは<b>除脂肪体重' + f0(Body.chart.lean) + 'kg</b>、そして<b>FFMI ' + f0(top) + '</b></p>' +
+      '<p class="pst-small">身長が低くて' + f0(Body.chart.lean) + 'kgが難しい人は、まずFFMI ' + f0(top) + 'を目指そう。</p></div>';
+    var html = '<div class="pst ' + (dining ? 'pst-dining' : 'pst-weight') + '" style="--pst-row:' + rowH + 'px;--pst-fs:' + fs + 'px;">' + head +
+      '<div class="pst-body">' + explain + '<div class="pst-cols" style="grid-template-columns:repeat(' + cols + ', minmax(0, 1fr));">' + parts.map(table).join('') + '</div></div></div>';
+    Export.print('FFMIランキング_' + (dining ? '食堂用' : 'ウェイトルーム用') + '_' + Export.today(), [html], { poster: true });
   },
 
   // ---------------- 実施状況 ----------------

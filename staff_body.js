@@ -137,6 +137,8 @@ var StaffBody = {
       Staff.select('grade', '学年', uniq(Staff.body.athletes.map(function (a) { return a.grade; }))) + '</div>' +
       '<p class="muted small">測定日を選ぶと、その日以前のいちばん新しい記録で並べます。選手名を押すと個別のレポートを表示します。</p>' +
       '<div class="row"><button class="btn sub" data-sb="xRankPdf">' + Icon('file', 18) + 'ランキングをPDF</button><button class="btn sub" data-sb="xRankXlsx">' + Icon('sheet', 18) + 'ランキングをExcel</button></div>' +
+      // v83：FFMIランキングの掲示物（A3横・全員）。学年・項目の選択に関係なく、全員のFFMI（測定日の選択は使う）
+      '<div class="row"><button class="btn sub" data-sb="xPosterWeight">' + Icon('file', 18) + 'FFMIランキング掲示（A3・ウェイトルーム用）</button><button class="btn sub" data-sb="xPosterDining">' + Icon('file', 18) + 'FFMIランキング掲示（A3・食堂用・説明つき）</button></div>' +
       '<div class="row"><button class="btn sub" data-sb="xReportsPdf">' + Icon('file', 18) + '学年のフィジカルレポートをまとめてPDF保存</button>' +
       '<button class="btn sub" data-sb="xLatestXlsx">' + Icon('sheet', 18) + '表示中の選手のInBody最新値をExcel</button></div></div>';
     html += '<div class="card"><div class="table-scroll"><table class="tbl"><tr><th>順位</th><th>選手</th><th>学年</th><th>' + esc(labels[metric]) + '</th><th>測定日</th></tr>' +
@@ -367,6 +369,8 @@ app.addEventListener('click', function (e) {
     case 'doImport': StaffBody.doImport(); break;
     case 'xRankPdf': Export.rankingPdf(StaffBody.rankTitle, StaffBody.rankSub, StaffBody.rankRows); break;
     case 'xRankXlsx': Export.rankingExcel(StaffBody.rankTitle, StaffBody.rankRows); break;
+    case 'xPosterWeight': Export.ffmiPoster('weight'); break;   // v83
+    case 'xPosterDining': Export.ffmiPoster('dining'); break;
     case 'xReportsPdf': Export.bulkDialog('inbody'); break;
     case 'xLatestXlsx': Export.excel('inbody_latest_' + Export.today() + '.xlsx', [{ name: 'InBody最新値', rows: Export.inbodyLatestRows(people) }]); break;
     case 'xWeightPdf': Export.weightTablePdf(StaffBody.weightDate, label + '・' + StaffBody.weightList.length + '人', StaffBody.weightList); break;
