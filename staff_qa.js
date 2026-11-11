@@ -322,15 +322,17 @@ var StaffQA = {
   },
 
   // ---------------- 小さな部品 ----------------
-  /** 実施状況の選手（画面の学年・チームの絞り込みに合わせる） */
+  /** v87：テスト用の選手（学年も入学年度も空）は、人数・平均・順位・確認（A・B・C）に入れない（判定は export.js の Export.isTest と同じ） */
+  isTest: function (a) { return window.Export ? Export.isTest(a) : false; },
+  /** 実施状況の選手（画面の学年・チームの絞り込みに合わせる。v87：テスト用を除く） */
   people: function (ov) {
     var f = Staff.filter;
-    return ov.athletes.filter(function (a) { return (!f.team || a.team === f.team) && (!f.grade || a.grade === f.grade); });
+    return ov.athletes.filter(function (a) { return !StaffQA.isTest(a) && (!f.team || a.team === f.team) && (!f.grade || a.grade === f.grade); });
   },
   /** 体組成の選手（在籍中・絞り込みに合わせる） */
   bodyPeople: function (body, all) {
     var f = Staff.filter;
-    return body.athletes.filter(function (a) { return a.active && (all || ((!f.team || a.team === f.team) && (!f.grade || a.grade === f.grade))); });
+    return body.athletes.filter(function (a) { return a.active && !StaffQA.isTest(a) && (all || ((!f.team || a.team === f.team) && (!f.grade || a.grade === f.grade))); });
   },
   /** 各選手のいちばん新しい記録で、大きい順に並べる [{ id, name, value, date }] */
   bodyLatest: function (body, key, all) {

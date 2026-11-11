@@ -51,7 +51,7 @@ var StaffBody = {
   /** 絞り込み後の選手（在籍中のみ） */
   people: function () {
     var f = Staff.filter;
-    return Staff.body.athletes.filter(function (a) { return a.active && (!f.grade || a.grade === f.grade) && (!f.team || a.team === f.team); });
+    return Staff.body.athletes.filter(function (a) { return a.active && !StaffQA.isTest(a) && (!f.grade || a.grade === f.grade) && (!f.team || a.team === f.team); });   // v87：テスト用を除く
   },
 
   // ---------------- 取り込み ----------------
@@ -162,7 +162,7 @@ var StaffBody = {
   compPeople: function () {
     var f = StaffBody.compF, inf = (window.StaffList && StaffList.INFIELD) || ['一塁手', '二塁手', '三塁手', '遊撃手'];
     return Staff.body.athletes.filter(function (a) {
-      if (!a.active) return false;
+      if (!a.active || StaffQA.isTest(a)) return false;   // v87：テスト用を除く
       if (f.grade && a.grade !== f.grade) return false;
       if (f.position && !(f.position === '内野手' ? inf.indexOf(a.position) >= 0 : a.position === f.position)) return false;
       return !f.team || a.team === f.team;
