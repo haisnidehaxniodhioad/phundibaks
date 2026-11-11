@@ -7,6 +7,15 @@
  *        ファイル名は端末によって日本語が使えないことがあるため、英数字にしている（例: ranking_2026-10-28.xlsx）。
  */
 var Export = {
+  // v81：学年がわからない選手（学年も入学年度も空＝テスト用のアカウント）は、PDF・Excel（アウトプット用資料）に入れない
+  isTest: function (a) {
+    if (!a || String(a.grade || '').trim()) return false;
+    var full = a.enrollYear === undefined && window.Staff && Staff.body ? Staff.body.athletes.filter(function (x) { return x.id === a.id; })[0] : a;   // 表の行に入学年度が無いときは選手のデータで確かめる
+    return !Number(full && full.enrollYear);
+  },
+  real: function (list) { return (list || []).filter(function (a) { return !Export.isTest(a); }); },
+  /** 見出しの「○人」を、テスト用を除いた人数に直す */
+  fixCount: function (sub, n) { return String(sub || '').replace(/\d+人$/, n + '人'); },
   today: function () { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); },
 
   /** Excelファイルを作って保存する。sheets = [{ name: 'シート名', rows: [[見出し...], [値...], ...] }] */
@@ -68,7 +77,10 @@ var Export = {
   // ---------------- 体組成レポート（フィジカルレポート と 体重レポート は別々） ----------------
   /** 1人分のレポートのページ（見出し・作成日などはレポートの中に入っている）。kind: 'inbody' または 'weight' */
   reportPage: function (a, kind) {
-    if (kind !== 'weight' && window.StaffBody && S.view === 'staff' && Staff.body) a.peers = StaffBody.peersOf(a);   // v79：投手／野手の中での位置（名前なし）をPDFにも
+    if (kind !== 'weight' && window.StaffBody && S.view === 'staff' && Staff.body) {   // v79：投手／野手の中での位置（名前なし）をPDFにも
+      a.peers = StaffBody.peersOf(a);
+      if (a.peers) a.peers.points = a.peers.points.filter(function (p) { return p.me || Number(p.ey) || /[1-6]/.test(String(p.g || '')); });   // v81：学年不明（テスト用）は入れない
+    }
     return kind === 'weight' ? Body.weightReportHtml(a, { print: true }) : Body.physicalHtml(a, { print: true });
   },
 
@@ -80,7 +92,7 @@ var Export = {
 
   /** 複数人のレポートを1人1ページでPDFに（記録がある選手だけ。並び順は渡された順） */
   reportsPdf: function (list, label, kind) {
-    var withData = list.filter(function (a) { return kind === 'weight' ? a.weight.length : a.inbody.length; });
+    var withData = Export.real(list).filter(function (a) { return kind === 'weight' ? a.weight.length : a.inbody.length; });
     if (!withData.length) { alert('記録がある選手がいません。'); return; }
     Export.print(Export.fileTitle(kind) + label + '_' + Export.today(), withData.map(function (a) { return Export.reportPage(a, kind); }));
   },
@@ -130,6 +142,7 @@ var Export = {
 
   /** InBodyの最新値と前回比の一覧 */
   inbodyLatestRows: function (list) {
+    list = Export.real(list);   // v81
     var rows = [['選手ID', '名前', '学年', 'チーム', '測定日', '身長', '体重', '体脂肪率', '除脂肪体重', 'FFMI', '前回比 体重', '前回比 体脂肪率', '前回比 除脂肪体重', '前回比 FFMI']];
     list.forEach(function (a) {
       var ib = a.inbody[a.inbody.length - 1], prev = a.inbody[a.inbody.length - 2] || {};
@@ -143,6 +156,7 @@ var Export = {
   // ---------------- 体重 ----------------
   /** 体重タブの表（指定日の体重・前回比・4週前比）をExcelに */
   weightTableExcel: function (date, rows) {
+    rows = Export.real(rows);   // v81
     Export.excel('weight_' + (date || 'latest') + '.xlsx', [
       { name: '体重', rows: [['選手ID', '名前', '学年', 'チーム', '測定日', '体重', '前回の測定日', '前回比', '4週前比', '状態']]
           .concat(rows.map(function (r) { return [r.id, r.name, r.grade, r.team, r.date || '', r.weight === null ? '' : r.weight, r.prevDate || '', r.diff, r.diff4w, r.weight === null ? '未測定' : '']; })) }
@@ -150,6 +164,7 @@ var Export = {
   },
 
   weightTablePdf: function (date, sub, rows) {
+    rows = Export.real(rows); sub = Export.fixCount(sub, rows.length);   // v81
     var html = Export.head('体重一覧　' + (date || '最新'), sub) +
       '<table class="tbl print-tbl"><tr><th>名前</th><th>学年</th><th>体重</th><th>前回比</th><th>4週前比</th><th>測定日</th></tr>' +
       rows.map(function (r) {
@@ -161,6 +176,7 @@ var Export = {
 
   /** 体重の全履歴を「選手×測定日」の表（体重管理表と同じ形）でExcelに */
   weightPivotExcel: function (list) {
+    list = Export.real(list);   // v81
     var dates = [];
     list.forEach(function (a) { a.weight.forEach(function (r) { if (dates.indexOf(r.date) < 0) dates.push(r.date); }); });
     dates.sort();
@@ -174,8 +190,14 @@ var Export = {
   },
 
   // ---------------- ランキング ----------------
+  /** v81：テスト用を除いて順位をつけ直す（同じ値は同じ順位） */
+  rerank: function (rows) {
+    var r = Export.real(rows);
+    return r.map(function (x, i) { return Object.assign({}, x, { rank: i > 0 && r[i - 1].value === x.value ? '' : i + 1 }); });
+  },
   /** ランキング（画面に表示中のもの）をExcelに */
   rankingExcel: function (title, rows) {
+    rows = Export.rerank(rows);   // v81
     Export.excel('ranking_' + Export.today() + '.xlsx', [
       { name: 'ランキング', rows: [['順位', '選手ID', '名前', '学年', '値', '測定日']]
           .concat(rows.map(function (r) { return [r.rank, r.id, r.name, r.grade, r.value, r.date]; })) }
@@ -184,6 +206,7 @@ var Export = {
 
   /** ランキングをPDFに（1ページに収まらなければ自動で次のページへ） */
   rankingPdf: function (title, sub, rows) {
+    rows = Export.rerank(rows); sub = Export.fixCount(sub, rows.length);   // v81
     var html = Export.head('ランキング　' + title, sub) +
       '<table class="tbl print-tbl"><tr><th>順位</th><th>名前</th><th>学年</th><th>値</th><th>測定日</th></tr>' +
       rows.map(function (r) { return '<tr><td>' + esc(r.rank) + '</td><td>' + esc(r.name) + '</td><td>' + esc(r.grade) + '</td><td><b>' + esc(r.value) + '</b></td><td>' + esc(r.date) + '</td></tr>'; }).join('') +
@@ -193,6 +216,7 @@ var Export = {
 
   // ---------------- 実施状況 ----------------
   overviewExcel: function (o, list) {
+    list = Export.real(list);   // v81
     Export.excel('weekly_' + o.weekStart + '.xlsx', [
       { name: '実施状況', rows: [['選手ID', '名前', '学年', 'チーム', '実施Day数', '全Day数', '回数', 'うち自分のメニュー', '上半身セット', '下半身セット', '全身セット', 'その他セット', '全身疲労', '上半身疲労', '下半身疲労', 'パフォーマンス', 'コンディションの日付', 'コメント', 'コンディション入力日数', '時間(分)', 'メニュー外の種目数', '最終実施日']]
           .concat(list.map(function (a) {
@@ -203,6 +227,7 @@ var Export = {
   },
 
   overviewPdf: function (o, list) {
+    list = Export.real(list);   // v81
     var html = Export.head('実施状況　' + o.weekStart + '〜' + o.weekEnd, '表示 ' + list.length + '人') +
       '<table class="tbl print-tbl"><tr><th>名前</th><th>学年</th><th>Day</th><th>回数</th><th>上/下/全</th><th>疲労 全/上/下</th><th>動き</th><th>最終</th></tr>' +
       list.map(function (a) {
