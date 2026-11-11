@@ -608,12 +608,12 @@ var Body = {
       '<div class="small">' + esc(next) + '</div><div class="small">FFMI ' + ffmi.toFixed(1) + '：' + esc(Body.ffmiBand(ffmi)) + '</div></div>';
   },
 
-  // ---------------- v76：投手／野手の中での位置（名前なし。丸の色は学年カラー、本人は大きな丸と「あなた」） ----------------
+  // ---------------- v76：投手／野手の中での位置（名前なし。本人は大きな丸と「あなた」。v82：学年の色分けなし・ほかの選手の値は丸め・5人未満なら本人だけ） ----------------
   peerChart: function (peers) {
     var pts = (peers.points || []).filter(function (p) { return Body.num(p.lbm) !== null && Body.num(p.ffmi) !== null; });
     var title = '<div class="report-section-title">' + esc(peers.group) + 'の中での位置（除脂肪体重×FFMI）</div>';
     if (!pts.length || !pts.some(function (p) { return p.me; })) return title + '<p class="muted small">比べられる記録がありません（除脂肪体重とFFMIの両方がある記録が必要です）。</p>';
-    var colorOf = function (p) { return window.StaffBody ? StaffBody.gradeColor({ enrollYear: p.ey, grade: p.g }).c : '#8A90A6'; };
+    var colorOf = function (p) { return p.me ? '#63349A' : '#8A90A6'; };   // v82：学年の色分けはやめた（だれのことかわからないように）
     var W = 380, H = 360, L = 36, R = 12, T = 12, B = 36, c = Body.chart;
     var xMin = Math.min(50, Math.floor((c.lean - 15) / 5) * 5), xMax = Math.max(85, Math.ceil((c.lean + 15) / 5) * 5), yMin = Math.min(18, Math.floor(c.ffmi - 3)), yMax = Math.max(25, Math.ceil(c.ffmi + 3));
     pts.forEach(function (p) {
@@ -641,16 +641,11 @@ var Body = {
       '<circle cx="' + mx.toFixed(1) + '" cy="' + my.toFixed(1) + '" r="7" fill="' + colorOf(me) + '" class="peer-me"/>' +
       '<rect x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" width="' + lw + '" height="18" rx="9" class="peer-tag"/>' +
       '<text x="' + (lx + lw / 2).toFixed(1) + '" y="' + (ly + 13).toFixed(1) + '" text-anchor="middle" class="peer-tag-t">' + esc(self) + '</text></svg>';
-    // 凡例（表示している学年だけ。4年→1年）
-    var seen = {};
-    pts.forEach(function (p) {
-      var y = window.StaffBody ? StaffBody.enrollOf({ enrollYear: p.ey, grade: p.g }) : 0, g = y ? StaffBody.fiscalYear() - y + 1 : 0;
-      var k = g >= 1 && g <= 4 ? g + '年' : (y ? y + '年度入学' : '学年不明');
-      if (!seen[k]) seen[k] = { c: colorOf(p), n: g >= 1 && g <= 4 ? g : 0 };
-    });
-    var keys = Object.keys(seen).sort(function (a, b) { return seen[b].n - seen[a].n; });
-    return title + '<div class="report-chart-desc muted small">' + esc(peers.group) + '（在籍中）' + pts.length + '人の、いちばん新しいInBodyの記録です。名前は出していません。大きな丸が' + esc(self) + 'です。</div>' + svg +
-      '<div class="legends">' + keys.map(function (k) { return '<span class="legend"><i style="background:' + seen[k].c + '"></i>' + esc(k) + '</span>'; }).join('') +
+    // 凡例（v82：学年の色分けはやめた。ほかの選手は同じ色、本人だけ目立たせる）
+    var n = pts.length - 1;
+    return title + '<div class="report-chart-desc muted small">' + esc(peers.group) + '（在籍中）の、いちばん新しいInBodyの記録です。名前・学年は出していません。ほかの選手の値は少し丸めています。大きな丸が' + esc(self) + 'です。</div>' + svg +
+      (peers.few ? '<p class="muted small">比べる相手が' + (peers.min || 5) + '人より少ないため、ほかの選手の位置は出していません（' + esc(self) + 'の位置だけ）。</p>' : '') +
+      '<div class="legends">' + (n > 0 ? '<span class="legend"><i class="peer-dot-key"></i>ほかの' + esc(peers.group) + '（' + n + '人）</span>' : '') +
       '<span class="legend"><i class="peer-me-key"></i>' + esc(self) + '：' + me.lbm.toFixed(1) + 'kg・FFMI ' + me.ffmi.toFixed(1) + '</span></div>' +
       '<div class="muted small">点線はチームの基準線（除脂肪体重' + Number(c.lean).toFixed(1) + 'kg・FFMI' + Number(c.ffmi).toFixed(1) + '）の位置です。</div>';
   },

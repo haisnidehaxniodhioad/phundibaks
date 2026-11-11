@@ -236,8 +236,13 @@ var StaffBody = {
     Staff.body.athletes.forEach(function (a) {
       if (groupOf(a) !== group || (!a.active && a.id !== me)) return;
       var list = (a.inbody || []).filter(function (r) { return Body.num(r.lbm) !== null && Body.num(r.ffmi) !== null; }), r = list[list.length - 1];
-      if (r) points.push({ lbm: Body.num(r.lbm), ffmi: Body.num(r.ffmi), ey: a.enrollYear, g: a.grade, me: a.id === me });
+      if (!r) return;
+      if (a.id !== me && !String(a.grade || '').trim() && !Number(a.enrollYear)) return;   // v82：学年も入学年度も無い人（テスト用）は入れない
+      // v82：選手の画面（Apps Script の bodyPeers_）と同じく、ほかの選手の値は丸め（除脂肪体重 1kg・FFMI 0.2）、学年は持たない（PDFは選手に渡すことがあるため）
+      points.push(a.id === me ? { lbm: Body.num(r.lbm), ffmi: Body.num(r.ffmi), me: true } : { lbm: Math.round(Body.num(r.lbm)), ffmi: Math.round(Body.num(r.ffmi) * 5) / 5, me: false });
     });
+    var MIN = 5;   // 本人以外がこの人数より少ないときは、本人の点だけ
+    if (points.filter(function (p) { return !p.me; }).length < MIN) return { group: group, points: points.filter(function (p) { return p.me; }), few: true, min: MIN, self: 'この選手' };
     return { group: group, points: points, self: 'この選手' };
   },
   /** v77：4つの区分ごとの人数（表示中の選手） */

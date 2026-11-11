@@ -1408,3 +1408,5 @@ body[data-view="body"] svg { max-width: 100%; height: auto; }
 #printArea .tight .pr-two .chart-square, #printArea .tight .pr-two .peer-chart { max-width: 205px; }
 #printArea .tight .pr-top .report-chart-col .chart { max-height: 190px; }
 #printArea .tight .report-note { font-size: 0.52rem; line-height: 1.35; }
+/* v82：投手／野手の中での位置の凡例（ほかの選手） */
+.legend i.peer-dot-key { background: #8A90A6; }

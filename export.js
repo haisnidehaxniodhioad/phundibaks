@@ -79,7 +79,7 @@ var Export = {
   reportPage: function (a, kind) {
     if (kind !== 'weight' && window.StaffBody && S.view === 'staff' && Staff.body) {   // v79：投手／野手の中での位置（名前なし）をPDFにも
       a.peers = StaffBody.peersOf(a);
-      if (a.peers) a.peers.points = a.peers.points.filter(function (p) { return p.me || Number(p.ey) || /[1-6]/.test(String(p.g || '')); });   // v81：学年不明（テスト用）は入れない
+      // v81 の学年不明（テスト用）の除外は、v82 から StaffBody.peersOf の中で行う
     }
     return kind === 'weight' ? Body.weightReportHtml(a, { print: true }) : Body.physicalHtml(a, { print: true });
   },

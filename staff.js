@@ -72,7 +72,7 @@ var Staff = {
         '<span class="manage-text"><b>' + title + '</b><span class="small muted">' + text + '</span></span>' + Icon('right', 18) + '</button>';
     };
     var html = '<div class="manage-list">' +
-      item('roster', '', 'person', '選手の登録・取り込み', 'チームのホームページの部員名簿と比べて、選手・スタッフを追加・更新します') +
+      (o.columnEditor ? item('roster', '', 'person', '選手の登録・取り込み', 'チームのホームページの部員名簿と比べて、選手・スタッフを追加・更新します（管理者・トレーナー）') : '') +   // v82：反映はサーバーでも管理者・トレーナーだけ
       item('menuImport', '', 'file', 'メニューの管理', '毎月のメニュー表（PDF）の取り込みと、今あるメニューの中身') +
       item('bodyImport', 'inbody', 'download', '体組成（InBody）の取り込み', '体組成Excel（InBody結果）を取り込みます（データ分析のInBodyが開きます）') +
       item('bodyImport', 'weight', 'download', '体重の取り込み', '体重管理表を取り込みます（データ分析の体重が開きます）') +
