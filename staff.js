@@ -612,6 +612,7 @@ var Staff = {
   /** フィジカルデータ（切り替えのタブ＋表示しているほうのレポートと保存ボタン） */
   physHtml: function () {
     var c = Staff.current, tab = Staff.physTab;
+    if (c && window.StaffBody) c.peers = StaffBody.peersOf(c);   // v76：投手／野手の中での位置（名前なし）
     var t = function (k, label) { return '<button class="tab' + (tab === k ? ' on' : '') + '" data-staff="phys" data-v="' + k + '">' + label + '</button>'; };
     var html = '<div class="tabs">' + t('inbody', 'InBody') + t('weight', '体重') + '</div>';
     if (tab === 'weight') {
@@ -621,7 +622,43 @@ var Staff = {
       html += '<div class="row report-actions"><button class="btn sub" data-staff="xInbodyPdf">' + Icon('file', 18) + 'フィジカルレポートをPDFで保存</button>' +
         '<button class="btn sub" data-staff="xReportXlsx">' + Icon('sheet', 18) + 'InBody・体重の履歴をExcelで保存</button></div>' + Body.physicalHtml(c) + BodyBase.athleteCard(c);
     }
-    return html + '<p class="muted small">PDFは印刷画面が開くので「PDFとして保存」を選んでください（グラフの下に数値の表も付きます）。</p>';
+    return html + Staff.physLikeHtml(c, tab) + '<p class="muted small">PDFは印刷画面が開くので「PDFとして保存」を選んでください（グラフの下に数値の表も付きます）。</p>';
+  },
+
+  /** v76：フィジカルの結果（いちばん新しい測定日の InBody／体重）へのいいね。いいねの一覧は staffAthlete で読む（開いている選手と違えば読み直す） */
+  physLikeHtml: function (c, tab) {
+    if (!c || !c.id) return '';
+    var last = Staff.physLikeRec(c, tab);
+    if (!last) return '';
+    var head = '<div class="card phys-like"><h2>この結果にいいね（' + esc(Body.dLong(last.date)) + 'の' + (tab === 'weight' ? '体重' : 'InBody') + '）</h2>';
+    if (!Staff.detail || Staff.detail.athlete.id !== c.id) {
+      Staff.loadLikes(c.id);
+      return head + '<div id="physLike"><p class="muted small">読み込み中…</p></div></div>';
+    }
+    return head + '<div id="physLike">' + Staff.likeBox(tab === 'weight' ? 'weight' : 'inbody', last.date) + '</div></div>';
+  },
+  /** いいねする記録：InBody はいちばん新しい測定、体重はいちばん新しいスタッフの測定（体重管理表・InBody。無ければ本人の入力） */
+  physLikeRec: function (c, tab) {
+    if (tab !== 'weight') { var ib = c.inbody || []; return ib[ib.length - 1] || null; }
+    var w = c.weight || [], staffW = w.filter(function (r) { return r.src !== '本人'; });
+    return staffW[staffW.length - 1] || w[w.length - 1] || null;
+  },
+  likeLoading: '',
+  loadLikes: function (id) {
+    if (Staff.likeLoading === id) return;
+    Staff.likeLoading = id;
+    Api.call('staffAthlete', { token: S.token, athleteId: id }).then(function (d) {
+      Staff.likeLoading = '';
+      if (!Staff.current || Staff.current.id !== id || (Staff.page !== 'report' && Staff.page !== 'athlete')) return;
+      Staff.detail = d;
+      var box = document.getElementById('physLike');
+      var rec = Staff.physLikeRec(Staff.current, Staff.physTab);
+      if (box && rec) box.innerHTML = Staff.likeBox(Staff.physTab === 'weight' ? 'weight' : 'inbody', rec.date);
+    }).catch(function (err) {
+      Staff.likeLoading = '';
+      var box = document.getElementById('physLike');
+      if (box) box.innerHTML = msgHtml('error', 'いいねを読み込めませんでした：' + err.message);
+    });
   },
 
   /** フィジカルデータの InBody／体重を切り替える（その部分だけ描き直す） */

@@ -8,7 +8,7 @@
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v75 2026-11-11';
+var APP_VERSION = 'v76 2026-11-11';
 // 利用者に見せるアプリの名前（v59）。config.js の APP_NAME は変えずに残し、画面の表示にはこちらを使う
 var BRAND = 'RIKKIO';
 // 記録し忘れた日の分を、何日前まで遡って入力できるか（v26）。Apps Script の 設定.gs の MAX_BACKDATE_DAYS と同じ数字にする
@@ -183,7 +183,9 @@ function renderHome(notice, warning) {
     html += '<section class="hcard home-likes"><div class="hcard-head"><span class="kicker">♥ スタッフからのいいね</span></div><ul class="like-list like-mine">' +
       h.likes.slice(0, 3).map(function (l) {
         var day = l.date ? Number(l.date.slice(5, 7)) + '/' + Number(l.date.slice(8, 10)) + 'の' : '';
-        return '<li><button class="link-row" data-act="likeDay" data-date="' + esc(l.date || '') + '">♥ <b>' + esc(l.staffName || 'スタッフ') + '</b>さんが' + day + (l.kind === 'condition' ? 'コンディション' : 'トレーニング') + 'にいいね' +
+        var phys = l.kind === 'inbody' || l.kind === 'weight';   // v76：InBody・体重の結果へのいいねは「からだ」へ
+        return '<li><button class="link-row" data-act="' + (phys ? 'likeBody' : 'likeDay') + '" data-date="' + esc(l.date || '') + '" data-kind="' + esc(l.kind) + '">♥ <b>' + esc(l.staffName || 'スタッフ') + '</b>さんが' + day +
+          (l.kind === 'condition' ? 'コンディション' : l.kind === 'inbody' ? 'InBodyの結果' : l.kind === 'weight' ? '体重の結果' : 'トレーニング') + 'にいいね' +
           (l.comment ? '「' + esc(l.comment) + '」' : '') + '</button></li>';
       }).join('') + '</ul></section>';
   }
@@ -773,6 +775,7 @@ function onAct(t) {
     case 'startFree': startFree(); break;
     case 'body': Body.showMine(); break;
     case 'records': History.show(); break;
+    case 'likeBody': Body.tab = t.dataset.kind === 'weight' ? 'weight' : 'inbody'; Body.showMine(); break;   // v76：InBody・体重へのいいね → からだ
     case 'likeDay':   // v73：ホームのいいねから、その日の記録へ
       var ld = t.dataset.date || '';
       if (/^\d{4}-\d{2}-\d{2}$/.test(ld)) History.show(ld.slice(0, 7), function () { History.selected = ld; History.render(); });

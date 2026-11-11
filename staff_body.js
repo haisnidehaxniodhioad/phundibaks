@@ -219,6 +219,7 @@ var StaffBody = {
     html += '<div class="legends tc-legend">' + Object.keys(seen).map(function (k) { return '<span class="legend"><i style="background:' + seen[k] + '"></i>' + esc(k) + '</span>'; }).join('') + '</div>' +
       '<label class="check-line small"><input type="checkbox" data-sb="compNames"' + (StaffBody.compNames ? ' checked' : '') + '> 名前を表示</label>' +
       StaffBody.teamCompSvg(pts) +
+      (StaffBody.compHidden ? '<p class="muted small">名前が重なるため、' + StaffBody.compHidden + '人の名前は出していません（丸を押すか、下の「数値の一覧」で確かめられます）。</p>' : '') +
       '<p class="muted small">点線は今の基準線（除脂肪体重' + Number(c.lean).toFixed(1) + 'kg・FFMI' + Number(c.ffmi).toFixed(1) + '）の位置です（InBodyの下の「基準の設定」で変えられます）。</p>' +
       '<details class="tc-table"><summary>数値の一覧（' + pts.length + '人）</summary><div class="table-scroll"><table class="tbl"><tr><th>選手</th><th>学年</th><th>測定日</th><th>除脂肪体重(kg)</th><th>FFMI</th><th>体脂肪率(%)</th></tr>' +
       pts.slice().sort(function (a, b) { return b.gnum - a.gnum || String(a.name).localeCompare(String(b.name), 'ja'); }).map(function (p) {
@@ -226,6 +227,18 @@ var StaffBody = {
           '<td class="small">' + esc(p.date) + '</td><td>' + p.lbm.toFixed(1) + '</td><td>' + p.ffmi.toFixed(1) + '</td><td>' + (p.fat === null ? '-' : p.fat.toFixed(1)) + '</td></tr>';
       }).join('') + '</table></div></details></div>';
     return html;
+  },
+  /** v76：フィジカルレポートの比較グラフ用（スタッフ画面）。その選手と同じ区分（投手／野手）の在籍中の選手の、最新の除脂肪体重・FFMI（名前は入れない） */
+  peersOf: function (c) {
+    if (!Staff.body || !c) return null;
+    var groupOf = function (a) { return String(a.position || '').trim() === '投手' ? '投手' : '野手'; }, me = c.id;
+    var group = groupOf(c), points = [];
+    Staff.body.athletes.forEach(function (a) {
+      if (groupOf(a) !== group || (!a.active && a.id !== me)) return;
+      var list = (a.inbody || []).filter(function (r) { return Body.num(r.lbm) !== null && Body.num(r.ffmi) !== null; }), r = list[list.length - 1];
+      if (r) points.push({ lbm: Body.num(r.lbm), ffmi: Body.num(r.ffmi), ey: a.enrollYear, g: a.grade, me: a.id === me });
+    });
+    return { group: group, points: points, self: 'この選手' };
   },
   /** 散布図（横＝除脂肪体重、縦＝FFMI。軸は基準線と全員が入るように広げる）。名前は重ならない位置を探して置く */
   teamCompSvg: function (pts) {
@@ -248,22 +261,33 @@ var StaffBody = {
     var boxes = [], dots = pts.map(function (p) { return { p: p, x: sx(p.lbm), y: sy(p.ffmi) }; });
     dots.forEach(function (d) { boxes.push({ x1: d.x - 7, y1: d.y - 7, x2: d.x + 7, y2: d.y + 7 }); });
     var hit = function (b) { return boxes.some(function (o) { return b.x1 < o.x2 && o.x1 < b.x2 && b.y1 < o.y2 && o.y1 < b.y2; }); };
-    var labels = '';
+    var labels = '', lines = '';
+    StaffBody.compHidden = 0;
     if (StaffBody.compNames) {
+      // v76：名前どうし・丸と重ならない場所を、丸の近くから順に遠くへ探す（離れたときは細い線で丸とつなぐ）。どこにも置けない名前は出さない（重ねない）
+      var textW = function (t) { return String(t).split('').reduce(function (w, ch) { return w + (/[\x00-\x7F]/.test(ch) ? 8 : 13); }, 0) + 6; };   // 少し広めに見積もる（字の形の差で重ならないように）
       dots.slice().sort(function (a, b) { return a.y - b.y; }).forEach(function (d) {
-        var w = String(d.p.name).length * 11.5 + 4, h = 14;
+        var w = textW(d.p.name), h = 16, placed = false;
         var tries = [[9, -2, 'start'], [-9, -2, 'end'], [0, -12, 'middle'], [0, 18, 'middle'], [9, 10, 'start'], [-9, 10, 'end'], [9, -14, 'start'], [-9, -14, 'end']];
-        for (var i = 0; i < tries.length; i++) {
-          var t = tries[i], tx = d.x + t[0], ty = d.y + t[1] + 4;
-          var x1 = t[2] === 'start' ? tx : t[2] === 'end' ? tx - w : tx - w / 2, b = { x1: x1, y1: ty - h + 3, x2: x1 + w, y2: ty + 3 };
-          if (b.x1 < L || b.x2 > W - R + 10 || b.y1 < 0 || b.y2 > H - B + 2) continue;
-          if (hit(b) && i < tries.length - 1) continue;
-          boxes.push(b);
-          labels += '<text x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" class="tc-label" text-anchor="' + t[2] + '">' + esc(d.p.name) + '</text>';
-          break;
+        for (var ring = 1; ring <= 7; ring++) for (var k = 0; k < 16; k++) {   // 2周目からは、丸のまわりの16方向を少しずつ遠くへ
+          var ang = Math.PI * 2 * k / 16, dist = 14 + ring * 13;
+          tries.push([Math.cos(ang) * dist, Math.sin(ang) * dist, Math.cos(ang) > 0.3 ? 'start' : Math.cos(ang) < -0.3 ? 'end' : 'middle', true]);
         }
+        for (var i = 0; i < tries.length && !placed; i++) {
+          var t = tries[i], tx = d.x + t[0], ty = d.y + t[1] + 4;
+          var x1 = t[2] === 'start' ? tx - 2 : t[2] === 'end' ? tx - w + 2 : tx - w / 2, b = { x1: x1, y1: ty - h + 4, x2: x1 + w, y2: ty + 4 };
+          if (b.x1 < L || b.x2 > W - R + 10 || b.y1 < 0 || b.y2 > H - B + 2 || hit(b)) continue;
+          boxes.push(b); placed = true;
+          if (t[3]) {   // 離れた名前は、名前の箱のいちばん近い点と丸を線でつなぐ
+            var lx = Math.max(b.x1, Math.min(d.x, b.x2)), ly = Math.max(b.y1, Math.min(d.y, b.y2));
+            lines += '<line x1="' + d.x.toFixed(1) + '" y1="' + d.y.toFixed(1) + '" x2="' + lx.toFixed(1) + '" y2="' + ly.toFixed(1) + '" class="tc-leader"/>';
+          }
+          labels += '<text x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" class="tc-label" text-anchor="' + t[2] + '">' + esc(d.p.name) + '</text>';
+        }
+        if (!placed) StaffBody.compHidden++;
       });
     }
+    svg += lines;
     dots.forEach(function (d) {
       var p = d.p;
       svg += '<circle cx="' + d.x.toFixed(1) + '" cy="' + d.y.toFixed(1) + '" r="6.5" fill="' + p.color + '" class="tc-dot-svg" data-staff="openReport" data-v="' + esc(p.id) + '" data-tab="inbody"><title>' +

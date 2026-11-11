@@ -31,7 +31,8 @@ var Body = {
       if (S.view !== 'body') return;   // 読み込み中にほかの画面へ移ったときは描かない
       if (res.chart) Body.chart = res.chart;
       if (res.weekStart) Body.weekStart = res.weekStart;   // 体重の週平均の区切り（v46）
-      Body.mine = { id: 'me', name: res.name, caption: res.caption || '', weight: res.weight || [], inbody: res.inbody || [], base: res.base };
+      Body.mine = { id: 'me', name: res.name, caption: res.caption || '', weight: res.weight || [], inbody: res.inbody || [], base: res.base,
+                     peers: res.peers ? Object.assign({ self: 'あなた' }, res.peers) : null, likes: res.likes || [] };   // v76：投手／野手の比較・いいね
       Body.renderMine();
       if (after) after();
     }).catch(function (err) {
@@ -50,7 +51,16 @@ var Body = {
     app.innerHTML = '<div class="group"><div class="topbar"><h1>体組成レポート</h1><button class="btn ghost" data-act="home">ホームへ</button></div>' + latest +
       '<div class="tabs"><button class="tab' + (tab === 'inbody' ? ' on' : '') + '" data-body-tab="inbody">InBody</button>' +
       '<button class="tab' + (tab === 'weight' ? ' on' : '') + '" data-body-tab="weight">体重</button></div></div>' +
-      (tab === 'inbody' ? Body.physicalHtml(a) : Body.weightReportHtml(a));
+      Body.likesHtml(tab) + (tab === 'inbody' ? Body.physicalHtml(a) : Body.weightReportHtml(a));
+  },
+
+  /** v76：選手本人の画面。InBody・体重の結果へのスタッフのいいね（新しい順・5件まで） */
+  likesHtml: function (kind) {
+    var list = ((Body.mine && Body.mine.likes) || []).filter(function (l) { return l.kind === kind; }).sort(function (x, y) { return y.at - x.at; }).slice(0, 5);
+    if (!list.length) return '';
+    return '<div class="card body-likes"><h2>♥ スタッフからのいいね</h2><ul class="like-list like-mine">' + list.map(function (l) {
+      return '<li>♥ <b>' + esc(l.staffName || 'スタッフ') + '</b>さんが' + esc(Body.dShort(l.target)) + 'の' + (kind === 'inbody' ? 'InBody' : '体重') + 'の結果にいいね' + (l.comment ? '「' + esc(l.comment) + '」' : '') + '</li>';
+    }).join('') + '</ul></div>';
   },
 
   /** アバターが読み上げる、レポートのひとこと要約（音声で開いたとき） */
@@ -290,6 +300,9 @@ var Body = {
       Body.compChart([{ label: '基準' + (base.label ? '（' + base.label + '）' : ''), p: basePt, color: Body.COLORS.base },
                       { label: '最新（' + Body.dShort(last.date) + '）', p: latestPt, color: Body.COLORS.latest }]) + '</div></div>';
 
+    // v76：同じ区分（投手／野手）の選手の中での位置（名前なし。画面だけ。PDFには入れない）
+    if (a.peers && !opt.print) html += Body.peerChart(a.peers);
+
     // PDFだけ: 測定日を横に並べた数値の表（左ほど新しい・1つの表に最大22列）
     if (opt.print) {
       var latestRow = plotted(last) ? last : null;
@@ -521,6 +534,51 @@ var Body = {
       return x + 18 + l[0].length * 9;
     }, L);
     return svg + '</svg>';
+  },
+
+  // ---------------- v76：投手／野手の中での位置（名前なし。丸の色は学年カラー、本人は大きな丸と「あなた」） ----------------
+  peerChart: function (peers) {
+    var pts = (peers.points || []).filter(function (p) { return Body.num(p.lbm) !== null && Body.num(p.ffmi) !== null; });
+    var title = '<div class="report-section-title">' + esc(peers.group) + 'の中での位置（除脂肪体重×FFMI）</div>';
+    if (!pts.length || !pts.some(function (p) { return p.me; })) return title + '<p class="muted small">比べられる記録がありません（除脂肪体重とFFMIの両方がある記録が必要です）。</p>';
+    var colorOf = function (p) { return window.StaffBody ? StaffBody.gradeColor({ enrollYear: p.ey, grade: p.g }).c : '#8A90A6'; };
+    var W = 380, H = 360, L = 36, R = 12, T = 12, B = 36, c = Body.chart;
+    var xMin = Math.min(50, Math.floor((c.lean - 15) / 5) * 5), xMax = Math.max(85, Math.ceil((c.lean + 15) / 5) * 5), yMin = Math.min(18, Math.floor(c.ffmi - 3)), yMax = Math.max(25, Math.ceil(c.ffmi + 3));
+    pts.forEach(function (p) {
+      xMin = Math.min(xMin, Math.floor((p.lbm - 3) / 5) * 5); xMax = Math.max(xMax, Math.ceil((p.lbm + 3) / 5) * 5);
+      yMin = Math.min(yMin, Math.floor(p.ffmi - 1)); yMax = Math.max(yMax, Math.ceil(p.ffmi + 1));
+    });
+    var sx = function (v) { return L + (W - L - R) * (v - xMin) / (xMax - xMin); }, sy = function (v) { return T + (H - T - B) * (1 - (v - yMin) / (yMax - yMin)); };
+    var svg = '<svg class="chart peer-chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(peers.group) + 'の中での位置">', v;
+    for (v = Math.ceil(xMin / 5) * 5; v <= xMax; v += 5) svg += '<line x1="' + sx(v) + '" x2="' + sx(v) + '" y1="' + T + '" y2="' + (H - B) + '" class="grid"/><text x="' + sx(v) + '" y="' + (H - B + 14) + '" class="axis" text-anchor="middle">' + v + '</text>';
+    for (v = Math.ceil(yMin); v <= yMax; v += (yMax - yMin > 10 ? 2 : 1)) svg += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + sy(v) + '" y2="' + sy(v) + '" class="grid"/><text x="' + (L - 5) + '" y="' + (sy(v) + 4) + '" class="axis" text-anchor="end">' + v + '</text>';
+    svg += '<line x1="' + sx(c.lean) + '" x2="' + sx(c.lean) + '" y1="' + T + '" y2="' + (H - B) + '" class="center-line"/>' +
+      '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + sy(c.ffmi) + '" y2="' + sy(c.ffmi) + '" class="center-line"/>' +
+      '<text x="' + ((L + W - R) / 2) + '" y="' + (H - 4) + '" class="axis" text-anchor="middle">除脂肪体重(kg)</text>' +
+      '<text x="11" y="' + ((T + H - B) / 2) + '" class="axis" text-anchor="middle" transform="rotate(-90 11 ' + ((T + H - B) / 2) + ')">FFMI</text>';
+    var me = null;
+    pts.forEach(function (p) {
+      if (p.me) { me = p; return; }
+      svg += '<circle cx="' + sx(p.lbm).toFixed(1) + '" cy="' + sy(p.ffmi).toFixed(1) + '" r="5" fill="' + colorOf(p) + '" class="peer-dot"/>';
+    });
+    var mx = sx(me.lbm), my = sy(me.ffmi), self = peers.self || 'あなた', lw = self.length * 13 + 10;
+    var lx = mx + lw + 14 > W - R ? mx - 12 - lw : mx + 12, ly = my - 22 < T ? my + 8 : my - 22;   // 「あなた」の札は丸の右上（はみ出すときは左・下）
+    svg += '<circle cx="' + mx.toFixed(1) + '" cy="' + my.toFixed(1) + '" r="11" class="peer-me-ring"/>' +
+      '<circle cx="' + mx.toFixed(1) + '" cy="' + my.toFixed(1) + '" r="7" fill="' + colorOf(me) + '" class="peer-me"/>' +
+      '<rect x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" width="' + lw + '" height="18" rx="9" class="peer-tag"/>' +
+      '<text x="' + (lx + lw / 2).toFixed(1) + '" y="' + (ly + 13).toFixed(1) + '" text-anchor="middle" class="peer-tag-t">' + esc(self) + '</text></svg>';
+    // 凡例（表示している学年だけ。4年→1年）
+    var seen = {};
+    pts.forEach(function (p) {
+      var y = window.StaffBody ? StaffBody.enrollOf({ enrollYear: p.ey, grade: p.g }) : 0, g = y ? StaffBody.fiscalYear() - y + 1 : 0;
+      var k = g >= 1 && g <= 4 ? g + '年' : (y ? y + '年度入学' : '学年不明');
+      if (!seen[k]) seen[k] = { c: colorOf(p), n: g >= 1 && g <= 4 ? g : 0 };
+    });
+    var keys = Object.keys(seen).sort(function (a, b) { return seen[b].n - seen[a].n; });
+    return title + '<div class="report-chart-desc muted small">' + esc(peers.group) + '（在籍中）' + pts.length + '人の、いちばん新しいInBodyの記録です。名前は出していません。大きな丸が' + esc(self) + 'です。</div>' + svg +
+      '<div class="legends">' + keys.map(function (k) { return '<span class="legend"><i style="background:' + seen[k].c + '"></i>' + esc(k) + '</span>'; }).join('') +
+      '<span class="legend"><i class="peer-me-key"></i>' + esc(self) + '：' + me.lbm.toFixed(1) + 'kg・FFMI ' + me.ffmi.toFixed(1) + '</span></div>' +
+      '<div class="muted small">点線はチームの基準線（除脂肪体重' + Number(c.lean).toFixed(1) + 'kg・FFMI' + Number(c.ffmi).toFixed(1) + '）の位置です。</div>';
   },
 
   /** 体組成の比較: 横軸=除脂肪体重（50kgから）、縦軸=FFMI（18から）、丸の大きさ=体脂肪率。点線は設定シートの基準線 */
