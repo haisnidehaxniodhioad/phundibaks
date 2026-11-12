@@ -18,6 +18,7 @@ var Pulse = {
   openId: '',        // 投球の一覧を開いている測定
   imp: null,         // 取込の画面の状態
   IND: { up: '▲', 'in': '◆', down: '▼' },
+  TAG_DIST: 0.25,    // v88c：タグの形の近さ（PulseCore.sigDist）。これ以下なら同じタグとみなす（同じ動画の同じタグは 0.1 未満だった）
   INDNAME: { up: '高い', 'in': '適正', down: '低い' },
 
   load: function (force) {
@@ -277,13 +278,15 @@ var Pulse = {
     var warn = rows.filter(function (r) { return r.frames !== undefined && r.frames < 2; }).length;
     var html = '<div class="card pulse-imp"><h2>' + (I.editId ? '数値を直す' : '3. 確かめる・直す') + '（' + rows.length + '球）</h2>' +
       (warn ? msgHtml('warn', '読み取りが怪しい球が' + warn + '球あります（黄色の行）。「画面」で動画の画面と見比べてください。') : '') +
+      (rows.some(function (r) { return r.sig && !r.tag; }) ? msgHtml('warn', 'タグが付いている球のうち、名前がわからない球があります（タグの欄が「タグあり」）。1球にタグ名を入れると、同じタグの球にも入り、保存すると次からは自動で入ります。') : '') +
       (I.saveMsg || '') +
       '<div class="table-scroll"><table class="line-table pulse-imp-table"><tr><th>#</th><th>時刻</th><th>エルボートルク</th><th>判定</th><th>アームスロット</th><th>判定</th><th>アームスピード</th><th>判定</th><th>球速</th><th>タグ</th><th></th></tr>' +
       rows.map(function (r, i) {
         return '<tr' + (r.frames !== undefined && r.frames < 2 ? ' class="pi-warn"' : '') + '><td>' + (i + 1) + '</td>' +
           '<td>' + inp(i, 'time', r.time, 3.6, 'numeric') + '</td><td>' + inp(i, 'torque', r.torque, 4) + '</td><td>' + sel(i, 'torqueInd', r.torqueInd) + '</td>' +
           '<td>' + inp(i, 'slot', r.slot, 4) + '</td><td>' + sel(i, 'slotInd', r.slotInd) + '</td><td>' + inp(i, 'speed', r.speed, 4.6, 'numeric') + '</td><td>' + sel(i, 'speedInd', r.speedInd) + '</td>' +
-          '<td>' + inp(i, 'velo', r.velo, 4) + '</td><td><input class="sel pi-tag" data-pi="tag" data-i="' + i + '" maxlength="30" value="' + esc(r.tag || '') + '"></td>' +
+          '<td>' + inp(i, 'velo', r.velo, 4) + '</td><td><input class="sel pi-tag' + (r.sig && !r.tag ? ' pi-tag-need' : '') + (r.tagAuto ? ' pi-tag-auto' : '') + '" data-pi="tag" data-i="' + i + '" maxlength="30" value="' + esc(r.tag || '') + '"' +
+            (r.sig && !r.tag ? ' placeholder="タグあり"' : '') + (r.tagAuto ? ' title="覚えているタグ名を自動で入れました"' : '') + '></td>' +
           '<td class="pulse-ops">' + (I.res && r.snap !== undefined ? '<button class="btn ghost small" data-pulse="impSnap" data-v="' + i + '">画面</button>' : '') +
           '<button class="btn ghost small pulse-del" data-pulse="impDel" data-v="' + i + '">消す</button></td></tr>' +
           (I.snapRow === i ? '<tr><td colspan="11"><div id="pulseSnap" class="pulse-snap"><div class="loading">画面を出しています…</div></div></td></tr>' : '');
@@ -315,8 +318,9 @@ var Pulse = {
       I.reading = false; I.res = res;
       I.rows = res.rows.map(function (r) {
         return { time: r.time || '', torque: r.torque, torqueInd: r.torqueInd || '', slot: r.slot, slotInd: r.slotInd || '', speed: r.speed, speedInd: r.speedInd || '',
-                 velo: '', tag: '', frames: r.frames, snap: r.snap };
+                 velo: '', tag: '', frames: r.frames, snap: r.snap, sig: r.tagState === 'tag' ? r.tagSig : '' };
       });
+      Pulse.fillTags(I.rows);   // v88c：覚えているタグ名を入れる
       var sec = Math.round((Date.now() - started) / 100) / 10;
       I.readMsg = I.rows.length ? msgHtml('ok', I.rows.length + '球を読み取りました（' + sec + '秒）。下の表で確かめてください。')
         : msgHtml('error', '球を読み取れませんでした。Liveモードで投げた球が画面に出ている動画か確かめてください。');
@@ -327,6 +331,29 @@ var Pulse = {
       I.reading = false; I.readMsg = msgHtml('error', err.message);
       if (Staff.page === 'pulseImport') Pulse.renderImport();
     });
+  },
+
+  // ---- v88c：タグ名（Pulse の画面のタグボタンの形＝sig から。覚えた見本と比べる。文字を読むのではない） ----
+  /** 覚えている見本の中で、いちばん近いタグ名（TAG_DIST より遠ければ ''） */
+  tagName: function (sig) {
+    var best = '', bd = 99, C = window.PulseReader && PulseReader.core;
+    if (!sig || !C) return '';
+    ((Pulse.data && Pulse.data.tags) || []).forEach(function (t) { var d = C.sigDist(sig, t.sig); if (d < bd) { bd = d; best = t.name; } });
+    return bd <= Pulse.TAG_DIST ? best : '';
+  },
+  /** 読み取ったあと：タグのある球に、覚えているタグ名を入れる（入らなければ「タグあり」の印だけ） */
+  fillTags: function (rows) {
+    rows.forEach(function (r) { if (r.sig && !r.tag) { r.tag = Pulse.tagName(r.sig); r.tagAuto = !!r.tag; } });
+  },
+  /** 1つの球にタグ名を入れたら、同じ動画の同じ形のタグで、まだ名前が無い球にも入れる */
+  spreadTag: function (i) {
+    var I = Pulse.imp, src = I && I.rows && I.rows[i], C = window.PulseReader && PulseReader.core, n = 0;
+    if (!src || !src.sig || !src.tag || !C) return 0;
+    I.rows.forEach(function (r, k) {
+      if (k === i || !r.sig || (r.tag && !r.tagAuto)) return;
+      if (C.sigDist(src.sig, r.sig) <= Pulse.TAG_DIST && r.tag !== src.tag) { r.tag = src.tag; r.tagAuto = true; n++; }
+    });
+    return n;
   },
 
   save: function () {
@@ -345,7 +372,9 @@ var Pulse = {
     var bad = throws.map(function (t, i) { return ['torque', 'slot', 'speed', 'velo'].some(function (k) { return t[k] !== '' && isNaN(t[k]); }) ? i + 1 : 0; }).filter(Boolean);
     if (bad.length) { I.saveMsg = msgHtml('error', bad.join('・') + '球目に数字でない値があります。'); Pulse.renderImport(); return; }
     I.busy = true; I.saveMsg = ''; Pulse.renderImport();
-    var body = { token: S.token, athleteId: I.athleteId, date: I.date, memo: I.memo, throws: throws };
+    var tagSigs = [], seen = {};   // v88c：タグ名と形の組を覚えてもらう（同じタグ名は最初の1つ）
+    I.rows.forEach(function (r) { var nm = String(r.tag || '').trim(); if (r.sig && nm && !seen[nm]) { seen[nm] = true; tagSigs.push({ name: nm, sig: r.sig }); } });
+    var body = { token: S.token, athleteId: I.athleteId, date: I.date, memo: I.memo, throws: throws, tagSigs: tagSigs };
     if (I.editId) body.id = I.editId;
     Api.call(I.editId ? 'pulseUpdate' : 'pulseSave', body).then(function (res) {
       I.busy = false;
@@ -427,5 +456,9 @@ app.addEventListener('change', function (e) {
   if (S.view !== 'staff' || !I || Staff.page !== 'pulseImport') return;
   if (t.id === 'pulseFile' && t.files && t.files[0]) { Pulse.readFile(t.files[0]); return; }
   if (t.dataset.pi && I.rows && I.rows[Number(t.dataset.i)]) I.rows[Number(t.dataset.i)][t.dataset.pi] = t.value;
+  if (t.dataset.pi === 'tag' && I.rows && I.rows[Number(t.dataset.i)]) {   // v88c：同じタグの球にも入れる
+    var row = I.rows[Number(t.dataset.i)]; row.tagAuto = false;
+    if (Pulse.spreadTag(Number(t.dataset.i))) { var y = window.scrollY; Pulse.renderImport(); window.scrollTo(0, y); }
+  }
   if (t.dataset.piTop) I[t.dataset.piTop] = t.value;
 });
