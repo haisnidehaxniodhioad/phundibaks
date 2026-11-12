@@ -34,9 +34,11 @@ var Pulse = {
   n1: function (v) { return v === '' || v === null || v === undefined ? '-' : String(Math.round(Number(v) * 10) / 10); },
   gnum: function (a) { var m = /(\d)/.exec(a.grade || ''); return m ? Number(m[1]) : 0; },
   md: function (d) { return d ? Number(d.slice(5, 7)) + '/' + Number(d.slice(8, 10)) : ''; },
-  /** 一覧に出す選手（テスト用を除く） */
+  /** 一覧に出す選手（テスト用は、サーバーの設定「テスト選手も入れる」が TRUE のときだけ。v88b） */
+  isTest: function (a) { return !!(window.Export && Export.isTest(a)); },
   athletes: function () {
-    return ((Pulse.data && Pulse.data.athletes) || []).filter(function (a) { return !(window.Export && Export.isTest(a)); })
+    var withTest = Pulse.data && Pulse.data.withTest;
+    return ((Pulse.data && Pulse.data.athletes) || []).filter(function (a) { return withTest || !Pulse.isTest(a); })
       .sort(function (x, y) { return Pulse.gnum(y) - Pulse.gnum(x) || String(x.kana || x.name).localeCompare(String(y.kana || y.name), 'ja'); });
   },
   athleteOf: function (id) { return ((Pulse.data && Pulse.data.athletes) || []).filter(function (a) { return a.id === id; })[0] || null; },
@@ -94,7 +96,7 @@ var Pulse = {
       done.map(function (x) {
         var l = x.last;
         return '<tr' + (x.a.id === me ? ' class="pulse-me"' : '') + '><td class="name"><button class="link" data-pulse="sel" data-v="' + esc(x.a.id) + '">' + esc(x.a.name) + '</button></td>' +
-          '<td>' + esc(x.a.grade) + '</td><td>' + esc(x.a.position) + '</td><td>' + esc(Pulse.md(l.date)) + '</td><td class="r">' + x.s.length + '</td>' +
+          '<td>' + esc(x.a.grade || (Pulse.isTest(x.a) ? 'テスト' : '')) + '</td><td>' + esc(x.a.position) + '</td><td>' + esc(Pulse.md(l.date)) + '</td><td class="r">' + x.s.length + '</td>' +
           '<td class="r">' + Pulse.n1(l.avg.torque) + '</td><td class="r">' + Pulse.n1(l.avg.slot) + '</td><td class="r">' + Pulse.n1(l.avg.speed) + '</td>' +
           '<td class="r">' + Pulse.n1(l.max.speed) + '</td><td class="r">' + Pulse.n1(l.max.velo) + '</td></tr>';
       }).join('') + '</table></div>';
@@ -249,7 +251,7 @@ var Pulse = {
       return;
     }
     var opts = '<option value="">選手を選ぶ</option>' + Pulse.athletes().map(function (a) {
-      return '<option value="' + esc(a.id) + '"' + (I.athleteId === a.id ? ' selected' : '') + '>' + esc((a.grade ? a.grade + '　' : '') + a.name + (a.position ? '（' + a.position + '）' : '')) + '</option>';
+      return '<option value="' + esc(a.id) + '"' + (I.athleteId === a.id ? ' selected' : '') + '>' + esc((a.grade ? a.grade + '　' : Pulse.isTest(a) ? '［テスト］' : '') + a.name + (a.position ? '（' + a.position + '）' : '')) + '</option>';
     }).join('');
     var html = '<div class="card pulse-imp"><h2>1. 選手・日付</h2>' +
       '<label>選手<select class="sel" data-pi-top="athleteId">' + opts + '</select></label>' +
@@ -395,7 +397,7 @@ app.addEventListener('click', function (e) {
     case 'team': Pulse.sel = ''; Pulse.openId = ''; Pulse.fill(); break;
     case 'open': Pulse.openId = Pulse.openId === v ? '' : v; Pulse.fill(); break;
     case 'reload': Pulse.fill(true); break;
-    case 'xlsx': Export.pulseExcel(Pulse.data, Pulse.athletes()); break;
+    case 'xlsx': Export.pulseExcel(Pulse.data, Pulse.athletes().filter(function (a) { return !Pulse.isTest(a); })); break;   // Excel（アウトプット用資料）にはテスト選手を入れない
     case 'print': Pulse.print(v); break;
     case 'edit': if (S.view === 'staff') Pulse.detail(v).then(function (d) { Pulse.openImport(d); }).catch(function (err) { alert(err.message); }); break;
     case 'del': if (S.view === 'staff') Pulse.remove(v); break;
