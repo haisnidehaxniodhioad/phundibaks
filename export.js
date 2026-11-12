@@ -41,6 +41,24 @@ var Export = {
     }).catch(function (err) { alert('Excelを作れませんでした：' + err.message); });
   },
 
+  /** v88：パルスの測定のまとめをExcelに（「パルス」シート。測定1回＝1行。テスト用の選手は入れない） */
+  pulseExcel: function (data, athletes) {
+    if (!data) return;
+    var by = {};
+    (athletes || []).forEach(function (a) { by[a.id] = a; });
+    var v = function (x) { return x === '' || x === null || x === undefined ? '' : x; };
+    var rows = [['選手', '学年', 'ポジション', '測定日', '球数', 'エルボートルク平均(Nm)', 'エルボートルク最大(Nm)', 'アームスロット平均(°)',
+                 'アームスピード平均(rpm)', 'アームスピード最大(rpm)', '球速平均(km/h)', '球速最大(km/h)', 'トルク「高い」の割合(%)', 'メモ']];
+    (data.sessions || []).filter(function (s) { return by[s.athleteId]; }).slice().sort(function (x, y) {
+      var a = by[x.athleteId], b = by[y.athleteId];
+      return String(a.kana || a.name).localeCompare(String(b.kana || b.name), 'ja') || (x.date < y.date ? -1 : 1);
+    }).forEach(function (s) {
+      var a = by[s.athleteId];
+      rows.push([a.name, a.grade, a.position, s.date, s.n, v(s.avg.torque), v(s.max.torque), v(s.avg.slot), v(s.avg.speed), v(s.max.speed), v(s.avg.velo), v(s.max.velo), v(s.ratio.torqueUp), s.memo]);
+    });
+    Export.excel('pulse_' + Export.today() + '.xlsx', [{ name: 'パルス', rows: rows }]);
+  },
+
   /** 印刷（PDF保存）する。pagesHtml は1ページ分ずつのHTMLの配列 */
   print: function (title, pagesHtml, opt) {
     opt = opt || {};   // v83：opt.poster＝A3横の掲示物（ページの大きさを変え、A4用の縮める処理はしない）

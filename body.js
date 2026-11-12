@@ -50,8 +50,11 @@ var Body = {
       (!ibD && !wD ? '<p class="muted small">まだ身体データがないよ。InBodyや体重を測ると、ここに数値とグラフが出るよ。</p>' : '');
     app.innerHTML = '<div class="group"><div class="topbar"><h1>体組成レポート</h1><button class="btn ghost" data-act="home">ホームへ</button></div>' + latest +
       '<div class="tabs"><button class="tab' + (tab === 'inbody' ? ' on' : '') + '" data-body-tab="inbody">InBody</button>' +
-      '<button class="tab' + (tab === 'weight' ? ' on' : '') + '" data-body-tab="weight">体重</button></div></div>' +
-      Body.likesHtml(tab) + (tab === 'inbody' ? Body.physicalHtml(a) : Body.weightReportHtml(a));
+      '<button class="tab' + (tab === 'weight' ? ' on' : '') + '" data-body-tab="weight">体重</button>' +
+      '<button class="tab' + (tab === 'pulse' ? ' on' : '') + '" data-body-tab="pulse">パルス</button></div></div>' +   // v88：パルス（pulse.js）
+      (tab === 'pulse' ? '<div id="pulseMine" class="pulse-box"><div class="loading">読み込み中…</div></div>'
+        : Body.likesHtml(tab) + (tab === 'inbody' ? Body.physicalHtml(a) : Body.weightReportHtml(a)));
+    if (tab === 'pulse') { if (window.Pulse) Pulse.mountAthlete(); else document.getElementById('pulseMine').innerHTML = msgHtml('error', 'パルスの画面のファイル（pulse.js）が読み込めていません。'); }
   },
 
   /** v76：選手本人の画面。InBody・体重の結果へのスタッフのいいね（新しい順・5件まで） */

@@ -27,7 +27,7 @@ var Staff = {
   //   ダッシュボード＝tab 'overview'、選手管理＝'list'、データ分析＝'inbody'・'weight'、管理・設定＝'manage'（Staff.page も 'manage'。新しいページは作らない）
   NAV: [['overview', 'ダッシュボード', 'house'], ['list', '選手管理', 'person'], ['data', 'データ分析', 'sheet'], ['manage', '管理・設定', 'book']],
   /** 今のカテゴリー（個人ページなどでは、開く前のタブ） */
-  navKey: function () { return Staff.tab === 'inbody' || Staff.tab === 'weight' ? 'data' : Staff.tab; },
+  navKey: function () { return Staff.tab === 'inbody' || Staff.tab === 'weight' || Staff.tab === 'pulse' ? 'data' : Staff.tab; },   // v88：パルスもデータ分析
   navHtml: function (cls) {
     var on = Staff.navKey();
     return '<nav class="staff-nav ' + cls + '" aria-label="スタッフ画面の切り替え">' + Staff.NAV.map(function (n) {
@@ -44,7 +44,7 @@ var Staff = {
   go: function (key) {
     if (S.view !== 'staff') return;
     Body.closeHistory();
-    Staff.tab = key === 'data' ? (Staff.tab === 'weight' || Staff.lastData === 'weight' ? 'weight' : 'inbody') : key;
+    Staff.tab = key === 'data' ? (['weight', 'pulse'].indexOf(Staff.lastData) >= 0 ? Staff.lastData : 'inbody') : key;   // v88：パルスも覚える
     Staff.render();
     window.scrollTo(0, 0);
   },
@@ -52,7 +52,7 @@ var Staff = {
   frame: function (inner) {
     var key = Staff.navKey(), title = { overview: 'ダッシュボード', list: '選手管理', data: 'データ分析', manage: '管理・設定' }[key] || 'スタッフ画面';
     // データ分析の中だけ、InBody／体重の切り替え（今までのタブと同じ data-staff="tab"）
-    var sub = key === 'data' ? '<div class="tabs">' + [['inbody', 'InBody'], ['weight', '体重']].map(function (t) {
+    var sub = key === 'data' ? '<div class="tabs">' + [['inbody', 'InBody'], ['weight', '体重'], ['pulse', 'パルス']].map(function (t) {
       return '<button class="tab' + (Staff.tab === t[0] ? ' on' : '') + '" data-staff="tab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' : '';
     return Staff.sideHtml() + '<div class="group"><div class="topbar"><h1>' + title + '</h1><button class="btn ghost staff-logout" data-act="logout">ログアウト</button></div>' +
       '<p class="muted small">' + esc(Staff.name) + 'さん　<span class="ver">' + esc(APP_VERSION) + '</span></p>' + sub + '</div>' + inner;
@@ -76,13 +76,14 @@ var Staff = {
       item('menuImport', '', 'file', 'メニューの管理', '毎月のメニュー表（PDF）の取り込みと、今あるメニューの中身') +
       item('bodyImport', 'inbody', 'download', '体組成（InBody）の取り込み', '体組成Excel（InBody結果）を取り込みます（データ分析のInBodyが開きます）') +
       item('bodyImport', 'weight', 'download', '体重の取り込み', '体重管理表を取り込みます（データ分析の体重が開きます）') +
+      (o.columnEditor ? item('pulseImport', '', 'download', 'パルスの取り込み', 'Pulseアプリの Liveモードの画面録画から、1球ずつの数値を読み取って保存します（動画は送りません。管理者・トレーナー）') : '') +   // v88
       (o.columnEditor ? item('columns', '', 'book', 'お知らせ・コラムの管理', 'お知らせ・用語の説明などのコラムを追加・修正します（管理者・トレーナー）') : '') +
       (o.admin ? item('admin', '', 'phone', 'ログインの管理', 'ログインしている端末とログインの記録（管理者）') : '') +
       item('guide', 'staff', 'book', '使い方（スタッフ向け）', 'スタッフ画面の使い方') +
       item('guide', 'athlete', 'book', '使い方（選手向け・配る用）', '選手に配る案内') +
-      '</div>' + (o.columnEditor ? Staff.quitHtml() + Staff.gradHtml() + Staff.addStaffHtml() : '');
+      '</div>' + (o.columnEditor ? Staff.quitHtml() + Staff.sqHtml() + Staff.gradHtml() + Staff.addStaffHtml() : '');
     app.innerHTML = Staff.frame(html);
-    if (o.columnEditor) { Staff.quitFill(); Staff.gradFill(); }
+    if (o.columnEditor) { Staff.quitFill(); Staff.sqFill(); Staff.gradFill(); }
   },
 
   // ---- v72：選手を選んで「退部」にする（アカウントの停止）・在籍に戻す（管理者・トレーナーの画面だけ） ----
@@ -156,6 +157,83 @@ var Staff = {
       if (err.needLogin) return Staff.fail(err);
       Staff.quitCount();
       var box = document.getElementById('quitList'), old = box && box.querySelector('.msg');
+      if (old) old.remove();
+      if (box) box.insertAdjacentHTML('afterbegin', msgHtml('error', err.message));
+    });
+  },
+
+  // ---- v88：スタッフの在籍を外す（アカウントの停止）・在籍に戻す（管理者・トレーナーの画面だけ。退部の手続きと同じ形） ----
+  //   一覧は staffList（名簿.gs。PINは来ない）。外す＝rosterApply の staffRetire（在籍を FALSE）、戻す＝staffUpdate で 在籍 を TRUE。
+  //   自分は外せない。「管理者」の人を外す・戻すのは管理者だけ（サーバーの rosterGuardStaff_ でも確かめる）。記録は消さない
+  sq: { mode: 'out', q: '', msg: '', busy: false, open: false, data: null, picked: {} },
+  sqHtml: function () {
+    var Q = Staff.sq, msg = Q.msg; Q.msg = '';
+    var tab = function (k, label) { return '<button class="tab' + (Q.mode === k ? ' on' : '') + '" data-staff="sqMode" data-v="' + k + '">' + label + '</button>'; };
+    return '<details class="card quit-card sq-card"' + (msg || Q.open ? ' open' : '') + '><summary><b>' + Icon('person', 18) + ' スタッフの在籍を外す（アカウントの停止）</b></summary>' +
+      '<p class="muted small">卒業・引退したスタッフを選んで「在籍」を外します。その人はログインできなくなります（使っている端末も、次に操作したときにログイン画面に戻ります）。<b>いいねなどの記録は消えません</b>。間違えたときは「在籍に戻す」で戻せます。自分は外せません。「管理者」の人は管理者だけが外せます。</p>' +
+      (msg || '') + '<div class="tabs quit-tabs">' + tab('out', '在籍を外す') + tab('back', '在籍に戻す') + '</div>' +
+      '<input class="sel quit-search" type="search" id="sqSearch" placeholder="名前・ふりがな・役職で探す" value="' + esc(Q.q) + '" autocomplete="off">' +
+      '<div id="sqList"><div class="loading">読み込み中…</div></div></details>';
+  },
+  /** 一覧に出すスタッフ（外す＝在籍中の人・自分以外、戻す＝在籍でない人。管理者の人は管理者にだけ出す） */
+  sqTargets: function () {
+    var Q = Staff.sq, d = Q.data, q = VoiceParser.norm(Q.q);
+    if (!d) return [];
+    return d.staff.filter(function (s) {
+      if (Q.mode === 'out' ? (!s.active || String(s.id).toUpperCase() === String(d.me).toUpperCase()) : s.active) return false;
+      if (s.role === '管理者' && !d.admin) return false;
+      return !q || [s.name, s.kana, s.role].some(function (x) { return VoiceParser.norm(x).indexOf(q) >= 0; });
+    }).sort(function (x, y) { return String(x.role).localeCompare(String(y.role), 'ja') || String(x.kana || x.name).localeCompare(String(y.kana || y.name), 'ja'); });
+  },
+  sqFill: function () {
+    var Q = Staff.sq;
+    var p = Q.data ? Promise.resolve(Q.data) : Api.call('staffList', { token: S.token }).then(function (res) { Q.data = res; return res; });
+    p.then(function () {
+      var box = document.getElementById('sqList');
+      if (!box || Staff.page !== 'manage') return;
+      var list = Staff.sqTargets();
+      if (!list.length) { box.innerHTML = '<p class="muted">' + (Q.q ? '当てはまるスタッフがいません。' : Q.mode === 'out' ? '外せる在籍中のスタッフがいません。' : '在籍でないスタッフはいません。') + '</p>'; return; }
+      box.innerHTML = '<ul class="grad-list quit-list">' + list.map(function (s) {
+        return '<li><label class="check-line"><input type="checkbox" data-sq="pick" value="' + esc(s.id) + '"' + (Q.picked[s.id] ? ' checked' : '') + '> ' + esc(s.name) +
+          ' <span class="muted small">' + esc(s.role || '役職なし') + '</span></label></li>';
+      }).join('') + '</ul><p class="small" id="sqCount"></p><button class="btn block' + (Q.mode === 'out' ? ' quit-danger' : '') + '" data-staff="sqApply"></button>';
+      Staff.sqCount();
+    }).catch(function (err) {
+      if (err.needLogin) return Staff.fail(err);
+      var box = document.getElementById('sqList');
+      if (box) box.innerHTML = msgHtml('error', err.message);
+    });
+  },
+  sqNames: function () {
+    var Q = Staff.sq;
+    return ((Q.data && Q.data.staff) || []).filter(function (s) { return Q.picked[s.id]; }).map(function (s) { return s.name; });
+  },
+  sqCount: function () {
+    var Q = Staff.sq, n = Object.keys(Q.picked).length, names = Staff.sqNames(), btn = document.querySelector('[data-staff="sqApply"]'), c = document.getElementById('sqCount');
+    if (c) c.textContent = n ? '選んだスタッフ：' + names.join('、') : 'スタッフを選んでください（何人でも選べます）';
+    if (btn && !Q.busy) { btn.textContent = n ? (Q.mode === 'out' ? '選んだ' + n + '人の在籍を外す' : '選んだ' + n + '人を在籍に戻す') : 'スタッフを選んでください'; btn.disabled = !n; }
+  },
+  sqApply: function () {
+    var Q = Staff.sq;
+    if (Q.busy) return;
+    var ids = Object.keys(Q.picked), names = Staff.sqNames(), out = Q.mode === 'out';
+    if (!ids.length) return;
+    var who = ids.length + '人（' + names.slice(0, 5).join('、') + (names.length > 5 ? ' ほか' : '') + '）';
+    if (!confirm((out ? who + 'の在籍を外します。\nログインできなくなります。記録は消えません。' : who + 'を在籍に戻します。\nもう一度ログインできるようになります。') + '\nよろしいですか？')) return;
+    Q.busy = true;
+    var btn = document.querySelector('[data-staff="sqApply"]');
+    if (btn) { btn.disabled = true; btn.textContent = out ? '在籍を外しています…' : '在籍に戻しています…'; }
+    var body = out ? { token: S.token, staffRetire: ids } : { token: S.token, staffUpdate: ids.map(function (id) { return { id: id, changes: { '在籍': true } }; }) };
+    Api.call('rosterApply', body).then(function (res) {
+      Q.busy = false; Q.picked = {}; Q.open = true; Q.data = null;   // 一覧を読み直す
+      var n = out ? (res.staffRetired || 0) : (res.staffUpdated || 0);
+      Q.msg = msgHtml('ok', n + '人を' + (out ? '在籍から外しました（' + names.join('、') + '）。記録はそのまま残っています。' : '在籍に戻しました（' + names.join('、') + '）。もう一度ログインできます。'));
+      if (Staff.tab === 'manage' && Staff.page === 'manage') Staff.renderManage();
+    }).catch(function (err) {
+      Q.busy = false;
+      if (err.needLogin) return Staff.fail(err);
+      Staff.sqCount();
+      var box = document.getElementById('sqList'), old = box && box.querySelector('.msg');
       if (old) old.remove();
       if (box) box.insertAdjacentHTML('afterbegin', msgHtml('error', err.message));
     });
@@ -281,11 +359,16 @@ var Staff = {
   render: function () {
     S.view = 'staff';
     // 個人ページの印（ブラウザの履歴）が残っていたら消す（声の操作などで、個人ページから直接ほかの画面に移ったとき。v37）
-    try { if (history.state && (history.state.staffAthlete || history.state.staffReport || history.state.staffRoster || history.state.staffMenuImport || history.state.staffGuide || history.state.staffAdmin || history.state.staffColumns)) history.replaceState(null, ''); } catch (e) {}
+    try { if (history.state && (history.state.staffAthlete || history.state.staffReport || history.state.staffRoster || history.state.staffMenuImport || history.state.staffGuide || history.state.staffAdmin || history.state.staffColumns || history.state.staffPulse)) history.replaceState(null, ''); } catch (e) {}
     Staff.page = Staff.tab;   // 今の画面（overview / inbody / weight / athlete）。音声の操作で使う（v35）
     if (Staff.tab === 'overview') return Staff.renderOverview();
     if (Staff.tab === 'list') return StaffList.render();
     if (Staff.tab === 'manage') return Staff.renderManage();   // v60：管理・設定（これが無いと InBody の画面になる）
+    if (Staff.tab === 'pulse') {   // v88：データ分析の「パルス」（pulse.js）
+      Staff.lastData = 'pulse';
+      if (typeof Pulse === 'undefined') { app.innerHTML = Staff.frame(msgHtml('error', 'パルスの画面のファイル（pulse.js）が読み込めていません。GitHub に入れたか確かめてください。')); return; }
+      return Pulse.renderStaff();
+    }
     Staff.lastData = Staff.tab;   // v60：データ分析で最後に見たほう
     return StaffBody.render(Staff.tab === 'weight' ? 'weight' : 'inbody');
   },
@@ -674,7 +757,8 @@ var Staff = {
     if (Staff.page === 'roster') { Roster.back(); return; }   // 部員名簿の取り込み（v44）
     if (Staff.page === 'menuImport') { MenuImport.back(); return; }
     if (Staff.page === 'admin') { Admin.back(); return; }
-    if (Staff.page === 'columns') { ColumnEditor.back(); return; }   // コラムの管理（v56）   // ログインの管理（v53）
+    if (Staff.page === 'columns') { ColumnEditor.back(); return; }
+    if (Staff.page === 'pulseImport') { Pulse.back(); return; }   // v88：パルスの取り込み   // コラムの管理（v56）   // ログインの管理（v53）
     if (Staff.page === 'guide') { Guidebook.back(); return; }   // 使い方（v52）   // メニュー表の取り込み（v50）
     if (Staff.page === 'report') { if (st.staffReport) history.back(); else Staff.leaveReportPage(); return; }   // → popstate で leaveReportPage
     if (st.staffAthlete) history.back();   // → popstate で leaveAthlete
@@ -739,7 +823,7 @@ app.addEventListener('click', function (e) {
   if (!t || S.view !== 'staff' || t.tagName === 'SELECT' || t.tagName === 'INPUT') return;
   var v = t.dataset.v;
   // v53b：別のファイルの画面が読み込めていないときは、何も起きないのではなく理由を出す（GitHub に入れ忘れたときなど）
-  var need = { roster: ['Roster', 'roster.js'], menuImport: ['MenuImport', 'menu_import.js'], guide: ['Guidebook', 'guidebook.js'], columns: ['ColumnEditor', 'menu_import.js'] }[t.dataset.staff];
+  var need = { roster: ['Roster', 'roster.js'], menuImport: ['MenuImport', 'menu_import.js'], guide: ['Guidebook', 'guidebook.js'], columns: ['ColumnEditor', 'menu_import.js'], pulseImport: ['Pulse', 'pulse.js'] }[t.dataset.staff];
   if (need && typeof window[need[0]] === 'undefined') {
     var box = t.parentNode.querySelector('.msg') || null;
     if (!box) t.insertAdjacentHTML('afterend', msgHtml('error', 'この画面のファイル（' + need[1] + '）が読み込めていません。GitHub のリポジトリに「' + need[1] + '」があるか確かめてください。入れたばかりなら、1〜2分待ってから開き直してください。'));
@@ -770,6 +854,9 @@ app.addEventListener('click', function (e) {
     case 'columns': ColumnEditor.open(); break;   // コラムの管理（v56）   // ログインの管理（v53）
     case 'quitApply': Staff.quitApply(); break;   // v72：退部にする・在籍に戻す（管理・設定）
     case 'quitMode': Staff.quit.mode = v === 'back' ? 'back' : 'quit'; Staff.quitPicked = {}; Staff.quit.open = true; Staff.renderManage(); break;
+    case 'pulseImport': Pulse.openImport(); break;   // v88：パルスの取り込み
+    case 'sqApply': Staff.sqApply(); break;   // v88：スタッフの在籍を外す・戻す
+    case 'sqMode': Staff.sq.mode = v === 'back' ? 'back' : 'out'; Staff.sq.picked = {}; Staff.sq.open = true; Staff.renderManage(); break;
     case 'gradApply': Staff.gradApply(); break;   // v70：4年生の在籍を外す（管理・設定）
     case 'addStaff': Staff.addStaff(); break;
     case 'like': Staff.like(v, false); break;   // v73：いいね（個人ページ）
@@ -790,6 +877,18 @@ app.addEventListener('input', function (e) {
   if (S.view !== 'staff' || e.target.id !== 'quitSearch') return;
   Staff.quit.q = e.target.value;
   Staff.quitFill();
+});
+// v88：スタッフの在籍を外す一覧のチェックと、探す
+app.addEventListener('change', function (e) {
+  var t = e.target;
+  if (S.view !== 'staff' || !t.dataset || t.dataset.sq !== 'pick') return;
+  if (t.checked) Staff.sq.picked[t.value] = true; else delete Staff.sq.picked[t.value];
+  Staff.sqCount();
+});
+app.addEventListener('input', function (e) {
+  if (S.view !== 'staff' || e.target.id !== 'sqSearch') return;
+  Staff.sq.q = e.target.value;
+  Staff.sqFill();
 });
 // v70：4年生の在籍を外す一覧のチェック
 app.addEventListener('change', function (e) {
@@ -812,6 +911,7 @@ window.addEventListener('popstate', function () {
   else if (Staff.page === 'guide') Staff.leaveAthlete();
   else if (Staff.page === 'admin') Admin.leave();   // v53
   else if (Staff.page === 'columns') ColumnEditor.leave();   // v56
+  else if (Staff.page === 'pulseImport') Pulse.leave();   // v88
   else if (Staff.page === 'report') Staff.leaveReportPage();
   else if (Staff.page === 'athlete') Staff.leaveAthlete();
 });

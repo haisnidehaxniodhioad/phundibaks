@@ -1439,3 +1439,38 @@ body[data-view="body"] svg { max-width: 100%; height: auto; }
 .pst-band .b1 { background: #E6E6EC; } .pst-band .b2 { background: #DCCFEE; } .pst-band .b3 { background: #63349A; color: #fff; }
 .pst-goal { font-size: 22px; } .pst-goal b { color: #63349A; }
 .pst-small { font-size: 17px; color: #4a5070; }
+
+/* ===== v88：パルス（pulse.js）。色は既存のトークン（--cc-1・--cc-2・--line・--warn-bg）を使う ===== */
+.pulse-box .card { overflow: hidden; }
+.pulse-back { margin: 4px 0 10px; }
+.pulse-table th, .pulse-table td { white-space: nowrap; }
+.pulse-table tr.pulse-me td { background: var(--warn-bg); }
+.pulse-table tr.on td { background: var(--line); }
+.pulse-detail-row > td { padding: 0 0 8px; white-space: normal; }
+.pulse-ops { white-space: nowrap; text-align: right; }
+.pulse-ops .btn { margin-left: 4px; }
+.pulse-del { color: var(--danger); }
+.pulse-find-list { margin: 6px 0 8px; padding-left: 1.2em; }
+.pulse-find-list li { margin: 4px 0; line-height: 1.6; }
+.pulse-ind { margin-left: 3px; font-size: 0.85em; }
+.pulse-ind.ind-up { color: var(--danger); } .pulse-ind.ind-in { color: var(--cc-3); } .pulse-ind.ind-down { color: var(--cc-1); }
+.pulse-chart-box { margin: 8px 0 14px; }
+.pulse-chart-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-size: 0.85rem; }
+.pc-key { display: inline-flex; align-items: center; gap: 4px; color: var(--label); }
+.pc-sw { display: inline-block; width: 14px; height: 3px; border-radius: 2px; }
+.pulse-chart { width: 100%; height: auto; display: block; }
+.pc-grid { stroke: var(--line-strong); stroke-width: 1; }
+.pc-ax { font-size: 11px; fill: var(--label); }
+.pc-line { fill: none; stroke-width: 2.2; }
+.pc-line.pc-1, .pc-dot.pc-1 { stroke: var(--cc-1); } .pc-dot.pc-1, .pc-sw.pc-1 { fill: var(--cc-1); background: var(--cc-1); }
+.pc-line.pc-2, .pc-dot.pc-2 { stroke: var(--cc-2); } .pc-dot.pc-2, .pc-sw.pc-2 { fill: var(--cc-2); background: var(--cc-2); }
+.pulse-imp label { display: block; margin: 8px 0; }
+.pulse-imp progress { width: 100%; height: 10px; }
+.pulse-imp-table td { padding: 4px 3px; white-space: nowrap; }
+.pulse-imp-table .sel { min-height: 36px; padding: 4px 6px; margin: 0; }
+.pulse-imp-table .pi-ind { width: 5.6em; }
+.pulse-imp-table .pi-tag { width: 6em; }
+.pulse-imp-table tr.pi-warn td { background: var(--warn-bg); }
+.pulse-snap img { max-width: 100%; max-height: 360px; display: block; margin: 6px auto; border-radius: 8px; }
+#printArea .pulse-chart-box { break-inside: avoid; }
+@media (min-width: 900px) { .pulse-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; } }
