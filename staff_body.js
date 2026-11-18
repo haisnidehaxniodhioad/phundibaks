@@ -222,11 +222,11 @@ var StaffBody = {
       '<label class="check-line small"><input type="checkbox" data-sb="compNames"' + (StaffBody.compNames ? ' checked' : '') + '> 名前を表示</label>' +
       StaffBody.teamCompSvg(pts) + StaffBody.zoneCountHtml(pts) +
       (StaffBody.compHidden ? '<p class="muted small">名前が重なるため、' + StaffBody.compHidden + '人の名前は出していません（丸を押すか、下の「数値の一覧」で確かめられます）。</p>' : '') +
-      '<p class="muted small">点線は今の基準線（除脂肪体重' + Number(c.lean).toFixed(1) + 'kg・FFMI' + Number(c.ffmi).toFixed(1) + '）の位置です（InBodyの下の「基準の設定」で変えられます）。赤い点線は全員の必達ライン（FFMI' + Body.f0(Body.FFMI_MUST) + '）です。</p>' +
+      '<p class="muted small">点線は今の基準線（除脂肪体重' + Number(c.lean).toFixed(1) + 'kg・FFMI' + Number(c.ffmi).toFixed(1) + '）の位置です（InBodyの下の「基準の設定」で変えられます）。赤い点線はFFMI' + Body.f0(Body.FFMI_MUST) + '（全員が超えたい目標）です。</p>' +
       '<details class="tc-table"><summary>数値の一覧（' + pts.length + '人）</summary><div class="table-scroll"><table class="tbl"><tr><th>選手</th><th>学年</th><th>測定日</th><th>除脂肪体重(kg)</th><th>FFMI</th><th>体脂肪率(%)</th><th>区分</th></tr>' +
       pts.slice().sort(function (a, b) { return b.gnum - a.gnum || String(a.name).localeCompare(String(b.name), 'ja'); }).map(function (p) {
         return '<tr><td><i class="tc-dot" style="background:' + p.color + '"></i><button class="link" data-staff="openReport" data-v="' + esc(p.id) + '" data-tab="inbody">' + esc(p.name) + '</button></td><td>' + esc(p.grade || '-') + '</td>' +
-          '<td class="small">' + esc(p.date) + '</td><td>' + p.lbm.toFixed(1) + '</td><td>' + p.ffmi.toFixed(1) + '</td><td>' + (p.fat === null ? '-' : p.fat.toFixed(1)) + '</td><td class="small">' + esc(Body.zoneName(Body.zoneOf(p.lbm, p.ffmi))) + (Body.ffmiOk(p.ffmi) ? '' : '<br><span class="must-mini">FFMI' + Body.f0(Body.FFMI_MUST) + '未達</span>') + '</td></tr>';
+          '<td class="small">' + esc(p.date) + '</td><td>' + p.lbm.toFixed(1) + '</td><td>' + p.ffmi.toFixed(1) + '</td><td>' + (p.fat === null ? '-' : p.fat.toFixed(1)) + '</td><td class="small">' + esc(Body.zoneName(Body.zoneOf(p.lbm, p.ffmi))) + (Body.ffmiOk(p.ffmi) ? '' : '<br><span class="must-mini">FFMI' + Body.f0(Body.FFMI_MUST) + '以下</span>') + '</td></tr>';
       }).join('') + '</table></div></details></div>';
     return html;
   },
@@ -253,8 +253,8 @@ var StaffBody = {
     pts.forEach(function (p) { n[Body.zoneOf(p.lbm, p.ffmi)]++; });
     return '<div class="zone-counts">' + ['best', 'next', 'short', 'low'].map(function (k) {
       return '<span class="zone-count ' + Body.ZONES[k].cls + '">' + esc(Body.zoneName(k)) + '<b>' + n[k] + '人</b></span>'; }).join('') +
-      // v91：FFMI21（全員の必達ライン）を超えていない人数
-      '<span class="zone-count must-ng">FFMI' + Body.f0(Body.FFMI_MUST) + '（必達）未達<b>' + pts.filter(function (p) { return !Body.ffmiOk(p.ffmi); }).length + '人</b></span></div>';
+      // v91：FFMI21を超えていない人数
+      '<span class="zone-count must-ng">FFMI' + Body.f0(Body.FFMI_MUST) + '以下<b>' + pts.filter(function (p) { return !Body.ffmiOk(p.ffmi); }).length + '人</b></span></div>';
   },
   /** 散布図（横＝除脂肪体重、縦＝FFMI。軸は基準線と全員が入るように広げる）。名前は重ならない位置を探して置く */
   teamCompSvg: function (pts) {
