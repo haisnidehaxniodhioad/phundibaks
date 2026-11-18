@@ -8,7 +8,7 @@
  * トレーニング中の記録（draft）は端末に一時保存するので、画面を閉じても続きから再開できる。
  */
 // アプリの版（画面の右上やログイン画面に表示される。更新が反映されたかの確認に使う）
-var APP_VERSION = 'v89c 2026-11-18';
+var APP_VERSION = 'v90 2026-11-18';
 // 利用者に見せるアプリの名前（v59）。config.js の APP_NAME は変えずに残し、画面の表示にはこちらを使う
 var BRAND = 'RIKKIO';
 // 記録し忘れた日の分を、何日前まで遡って入力できるか（v26）。Apps Script の 設定.gs の MAX_BACKDATE_DAYS と同じ数字にする
@@ -774,6 +774,7 @@ function onAct(t) {
     case 'startDay': startDay(t.dataset.day); break;
     case 'startFree': startFree(); break;
     case 'body': Body.showMine(); break;
+    case 'pulse': if (window.Pulse) Pulse.showAthlete(); break;   // v90：選手のパルス（からだから独立）
     case 'records': History.show(); break;
     case 'likeBody': Body.tab = t.dataset.kind === 'weight' ? 'weight' : 'inbody'; Body.showMine(); break;   // v76：InBody・体重へのいいね → からだ
     case 'likeDay':   // v73：ホームのいいねから、その日の記録へ

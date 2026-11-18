@@ -28,6 +28,7 @@ var ICON_PATHS = {
   trash: '<path d="M4.5 7h15M10 4h4M6.5 7l1 13h9l1-13M10 11v5.5M14 11v5.5"/>',
   save: '<path d="M5 4h11l3 3v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/>',
   bookmark: '<path d="M7 4h10v16l-5-3.5L7 20z"/>',
+  pulse: '<path d="M2.5 12h4l2-5.5 4 11 2.5-8 1.5 2.5h5"/>',   // v90：パルス（波の線）
   barbell: '<path d="M2.5 12h19M5.5 8v8M8.5 6.5v11M15.5 6.5v11M18.5 8v8"/>',
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
   question: '<path d="M9 9a3 3 0 1 1 4.2 2.8c-.8.4-1.2 1-1.2 1.8v.9"/><circle cx="12" cy="18" r=".9" fill="currentColor"/>',

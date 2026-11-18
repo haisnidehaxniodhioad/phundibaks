@@ -41,6 +41,7 @@ var Body = {
   },
 
   renderMine: function () {
+    if (Body.tab === 'pulse') Body.tab = '';   // v90：前の版でパルスのタブを開いていたとき
     var a = Body.mine, tab = Body.tab || (a.inbody.length || !a.weight.length ? 'inbody' : 'weight');
     // v62：いちばん上に、InBody と体重のいちばん新しい測定日（どちらのタブを開いていても見える）。記録が無いときはそのことを書く
     var lastDate = function (arr) { return (arr || []).reduce(function (m, r) { return r.date > m ? r.date : m; }, ''); };
@@ -50,11 +51,8 @@ var Body = {
       (!ibD && !wD ? '<p class="muted small">まだ身体データがないよ。InBodyや体重を測ると、ここに数値とグラフが出るよ。</p>' : '');
     app.innerHTML = '<div class="group"><div class="topbar"><h1>体組成レポート</h1><button class="btn ghost" data-act="home">ホームへ</button></div>' + latest +
       '<div class="tabs"><button class="tab' + (tab === 'inbody' ? ' on' : '') + '" data-body-tab="inbody">InBody</button>' +
-      '<button class="tab' + (tab === 'weight' ? ' on' : '') + '" data-body-tab="weight">体重</button>' +
-      '<button class="tab' + (tab === 'pulse' ? ' on' : '') + '" data-body-tab="pulse">パルス</button></div></div>' +   // v88：パルス（pulse.js）
-      (tab === 'pulse' ? '<div id="pulseMine" class="pulse-box"><div class="loading">読み込み中…</div></div>'
-        : Body.likesHtml(tab) + (tab === 'inbody' ? Body.physicalHtml(a) : Body.weightReportHtml(a)));
-    if (tab === 'pulse') { if (window.Pulse) Pulse.mountAthlete(); else document.getElementById('pulseMine').innerHTML = msgHtml('error', 'パルスの画面のファイル（pulse.js）が読み込めていません。'); }
+      '<button class="tab' + (tab === 'weight' ? ' on' : '') + '" data-body-tab="weight">体重</button></div></div>' +   // v90：パルスは独立した画面へ（pulse.js の Pulse.showAthlete）
+      Body.likesHtml(tab) + (tab === 'inbody' ? Body.physicalHtml(a) : Body.weightReportHtml(a));
   },
 
   /** v76：選手本人の画面。InBody・体重の結果へのスタッフのいいね（新しい順・5件まで） */

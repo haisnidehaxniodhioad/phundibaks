@@ -60,7 +60,16 @@ var Pulse = {
     app.innerHTML = Staff.frame('<div id="pulseBox" class="pulse-box"><div class="loading">読み込み中…</div></div>');
     Pulse.fill();
   },
-  /** 選手：からだの「パルス」タブ（body.js が #pulseMine を描いたあとに呼ぶ） */
+  /** v90：選手のパルスの画面（下のバーの「パルス」。測った選手だけにタブが出る。からだから独立） */
+  showAthlete: function () {
+    S.view = 'pulse';
+    Body.closeHistory();
+    app.innerHTML = '<div class="group"><div class="topbar"><h1>パルス</h1><button class="btn ghost" data-act="home">ホームへ</button></div>' +
+      '<p class="muted small">パルススローで測った、投げる腕の数値の結果だよ。</p></div>' +
+      '<div id="pulseMine" class="pulse-box"><div class="loading">読み込み中…</div></div>';
+    window.scrollTo(0, 0);
+    Pulse.fill();
+  },
   mountAthlete: function () { Pulse.fill(); },
 
   fill: function (force) {
@@ -114,7 +123,7 @@ var Pulse = {
     var html = '<div class="card"><h2>' + (mine ? 'あなたのパルス' : esc(a.name) + 'さんのパルス') + '</h2><p class="muted small">' + esc([a.grade, a.position].filter(String).join('・')) + '</p>';
     if (!list.length) return html + '<p class="muted">' + (mine ? 'まだパルスの測定がないよ。測定すると、ここに数値とグラフが出るよ。' : 'まだ測定がありません。') + '</p></div>';
     var last = list[list.length - 1];
-    html += '</div><div class="card pulse-find" id="pulseFind" data-id="' + esc(last.id) + '"><h2>' + esc(Body.dLong ? Body.dLong(last.date) : last.date) + 'の所見</h2><div class="loading">読み込み中…</div></div>';
+    html += '</div><div class="card pulse-find" id="pulseFind" data-id="' + esc(last.id) + '"><h2>' + esc(Body.dLong ? Body.dLong(last.date) : last.date) + 'の結果</h2><div class="loading">読み込み中…</div></div>';   // v89d：今回の数値の表＋所見
     html += '<div class="card"><h2>推移</h2><div class="pulse-charts">' +
       Pulse.chart(list, [['avg', 'torque', '平均'], ['max', 'torque', '最大']], 'エルボートルク（Nm）') +
       Pulse.chart(list, [['avg', 'speed', '平均'], ['max', 'speed', '最大']], 'アームスピード（rpm）') +
@@ -140,7 +149,7 @@ var Pulse = {
     var f = document.getElementById('pulseFind');
     if (f) Pulse.detail(f.dataset.id).then(function (d) {
       var el = document.getElementById('pulseFind');
-      if (el && el.dataset.id === d.session.id) el.innerHTML = el.querySelector('h2').outerHTML + Pulse.findHtml(d);
+      if (el && el.dataset.id === d.session.id) el.innerHTML = el.querySelector('h2').outerHTML + Pulse.reportTable(d) + '<h3 class="pulse-find-h">所見</h3>' + Pulse.findHtml(Object.assign({}, d, { noRange: true }));   // v89d：レポートと同じ表を画面にも（選手・スタッフ）
     }).catch(function (err) { var el = document.getElementById('pulseFind'); if (el) el.insertAdjacentHTML('beforeend', msgHtml('error', err.message)); var l = el && el.querySelector('.loading'); if (l) l.remove(); });
     var box = document.getElementById('pulseDetail');
     if (box && Pulse.openId) Pulse.detail(Pulse.openId).then(function (d) {
@@ -155,7 +164,7 @@ var Pulse = {
     return ((d.alerts || []).length ? msgHtml('warn', 'スタッフ向けの知らせ：' + d.alerts.join(' ')) : '') +   // v89：「スタッフに知らせる」のルール（スタッフにだけ届く）
       '<ul class="pulse-find-list">' + (d.findings || []).map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' +
       (d.footer ? '<p class="pulse-footer small">' + esc(d.footer) + '</p>' : '') +
-      (d.noMeta ? '' : '<p class="muted small">最適領域：' + (rtxt ? esc(rtxt) : '入っていません') + '</p>') +   // v89c：レポートでは上の表と重なるので出さない
+      (d.noMeta || d.noRange ? '' : '<p class="muted small">最適領域：' + (rtxt ? esc(rtxt) : '入っていません') + '</p>') +   // v89c：レポートでは上の表と重なるので出さない
       (d.noMeta ? '' : '<p class="muted small">' + d.summary.n + '球・トルク平均 ' + Pulse.n1(d.summary.avg.torque) + 'Nm・スピード平均 ' + Pulse.n1(d.summary.avg.speed) + 'rpm' +
       (d.prev ? '（前回 ' + esc(Pulse.md(d.prev.date)) + '：トルク平均 ' + Pulse.n1(d.prev.summary.avg.torque) + 'Nm・スピード平均 ' + Pulse.n1(d.prev.summary.avg.speed) + 'rpm）' : '（前回の測定はありません）') + '</p>') +
       ((d.ruleErrors || []).length ? msgHtml('warn', '使えなかった所見のルール（パルス所見ルールのシートを直してください）：' + d.ruleErrors.join('／')) : '');
@@ -489,7 +498,7 @@ var Pulse = {
 // ---- 操作の振り分け（スタッフ画面・選手の「からだ」の両方） ----
 app.addEventListener('click', function (e) {
   var t = e.target.closest('[data-pulse]');
-  if (!t || (S.view !== 'staff' && S.view !== 'body')) return;
+  if (!t || (S.view !== 'staff' && S.view !== 'pulse')) return;   // v90：選手は独立したパルスの画面
   var v = t.dataset.v;
   switch (t.dataset.pulse) {
     case 'sel': Pulse.sel = v; Pulse.openId = ''; Pulse.fill(); var b = Pulse.box(); if (b) window.scrollTo(0, Math.max(0, b.getBoundingClientRect().top + window.scrollY - 80)); break;

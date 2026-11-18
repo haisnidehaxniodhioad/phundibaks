@@ -31,6 +31,7 @@ var Dock = {
     body: '「体重にして」と話しかけると、体重のレポートになるよ。',
     mymenu: '数字をタップすると変えられるよ。',
     guide: '上のもくじから、見たい所を押してね。',
+    pulse: 'パルスの結果だよ。所見とグラフを見てみてね。',
     mypage: '「3か月にして」でコンディションのグラフが変わるよ。PINは画面で変えてね。',
     training: '「デイ2を始める」「マイメニューは？」のように話しても始められるよ。',   // v60：ホームの中のトレーニングタブ
     staff: '「今週やってないのは誰？」「（選手の名前）を開いて」のように話しかけてください。'
@@ -56,7 +57,7 @@ var Dock = {
   /** 今の画面に合わせて、バーの中身・アバターの場所を変える */
   update: function () {
     var v = S.view;
-    var athlete = !!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition', 'mypage', 'guide', 'column'].indexOf(v) >= 0;
+    var athlete = !!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition', 'mypage', 'guide', 'column', 'pulse'].indexOf(v) >= 0;   // v90：pulse
     var staff = v === 'staff' && !!S.token;   // v35：スタッフ画面にも上の帯（コーチ）とマイクを出す
     // v36：スタッフ画面では「コーチ」ではなく「AIアシスタント」と表示する（style.css の body.is-staff、avatar.js の Avatar.title）
     if (document.body.classList.contains('is-staff') !== staff) {
@@ -65,7 +66,7 @@ var Dock = {
       var pk = document.getElementById('avatarAppearancePicker');
       if (pk) pk.remove();   // 設定パネルの見出しを作り直すため
     }
-    var mode = staff ? 'staff' : !athlete ? 'none' : (v === 'home' || v === 'history' || v === 'body' || v === 'mypage' || v === 'guide' || v === 'column') ? 'tabs' : v;
+    var mode = staff ? 'staff' : !athlete ? 'none' : (v === 'home' || v === 'history' || v === 'body' || v === 'mypage' || v === 'guide' || v === 'column' || v === 'pulse') ? 'tabs' : v;
     this.el.hidden = mode === 'none';
     document.body.classList.toggle('has-dock', mode !== 'none');
     document.body.classList.toggle('has-fab', mode === 'tabs');   // v60：右下に浮かべたマイクの分、内容の下に余白を足す
@@ -102,11 +103,12 @@ var Dock = {
       };
       var tr = v === 'home' && S.tab === 'training';
       html = '<div class="dock-ai"><span data-slot="mic"></span><span class="dock-mic-label">話す</span></div>' +   // v60：AI（話す）はタブから外し、小さな丸で右上に
-        '<nav class="dock-tabs" aria-label="画面の切り替え">' +
+        '<nav class="dock-tabs' + (S.home && S.home.pulseCount > 0 ? ' six' : '') + '" aria-label="画面の切り替え">' +
         tab('home', 'house', 'ホーム', v === 'home' && !tr) +
         tab('trainingTab', 'barbell', 'トレーニング', tr) +
         tab('records', 'calendar', '記録', v === 'history') +
         tab('body', 'heart', 'からだ', v === 'body') +
+        (S.home && S.home.pulseCount > 0 ? tab('pulse', 'pulse', 'パルス', v === 'pulse') : '') +   // v90：パルスを測った選手だけ
         tab('mypage', 'person', 'マイページ', v === 'mypage' || v === 'guide' || v === 'column') + '</nav>';
     } else if (mode === 'session') {
       html = '<div class="dock-row"><span data-slot="timer"></span><div class="dock-hint">終わったら ✓ を押してね</div><span data-slot="mic"></span></div>';
