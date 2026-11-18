@@ -551,8 +551,12 @@ var Body = {
 
   // ---------------- v77：除脂肪体重×FFMIの4つの区分と、FFMIの目安（チームの掲示物「除脂肪体重とFFMI」「FFMIとは？」に合わせる） ----------------
   //   区分の線は「基準の設定」の基準線（Body.chart：除脂肪体重 lean・FFMI ffmi。ふつうは 70kg・22）。
-  //   ★ 言葉を変えるときは ZONES・FFMI_BANDS を書きかえる。FFMI_AVG＝大学野球の平均（21）
+  //   ★ 言葉を変えるときは ZONES・ffmiBand・zoneNote を書きかえる。FFMI_AVG＝大学野球の平均（21）
+  //   v91：FFMI21は「全員の必達ライン」。21を超えているか（小数1けたで 21.1 以上）でコメントを変える。グラフには赤い点線を引く
   FFMI_AVG: 21,
+  FFMI_MUST: 21,
+  /** v91：FFMI21（必達ライン）を超えているか。画面の表示（小数1けた）とずれないように丸めてから比べる */
+  ffmiOk: function (ffmi) { return Math.round(Number(ffmi) * 10) / 10 > Body.FFMI_MUST; },
   ZONES: {
     low:   { cls: 'zone-gray',   label: 'まずは除脂肪体重を増やそう', name: 'まずは除脂肪体重を増やそう' },
     short: { cls: 'zone-purple', label: '身長が低めの人はまずここ',   name: 'FFMI達成（身長が低めの人はまずここ）' },
@@ -570,12 +574,12 @@ var Body = {
     return Body.ZONES[k].name.replace('FFMI達成', 'FFMI' + f + '達成').replace('FFMIへ', 'FFMI' + f + 'へ');
   },
   f0: function (v) { v = Number(v); return v % 1 ? v.toFixed(1) : String(v); },
-  /** FFMIの目安（21未満・21〜22・22以上） */
+  /** FFMIの目安（v91：21以下＝必達ライン未達・21超〜22・22以上） */
   ffmiBand: function (ffmi) {
-    var top = Body.chart.ffmi, avg = Body.FFMI_AVG;
-    if (ffmi >= top) return 'トップ層（' + Body.f0(top) + '以上）';
-    if (ffmi >= avg) return '大学野球の平均以上（' + Body.f0(avg) + '〜' + Body.f0(top) + '。' + Body.f0(top) + '以上がトップ層）';
-    return 'まずは' + Body.f0(avg) + 'を超えよう（' + Body.f0(avg) + '＝大学野球の平均）';
+    var top = Body.chart.ffmi, m = Body.f0(Body.FFMI_MUST);
+    if (ffmi >= top) return 'トップ層（' + Body.f0(top) + '以上）。必達ライン' + m + 'もクリア';
+    if (Body.ffmiOk(ffmi)) return '必達ライン' + m + 'はクリア（大学野球の平均以上）。次は' + Body.f0(top) + '以上のトップ層へ';
+    return '必達ライン' + m + 'にまだ届いていません（' + m + '＝大学野球の平均。全員で' + m + 'を超えよう）';
   },
   /** グラフの背景：基準線で4つに分けて色を付け、すみに言葉を置く。返り値 { svg（色の四角）, text（言葉）, boxes（言葉の場所。名前を重ねないため） } */
   zoneSvg: function (sx, sy, xMin, xMax, yMin, yMax, x0, y0, x1, y1, withText) {
@@ -594,17 +598,36 @@ var Body = {
       text += '<text x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" class="zone-t" text-anchor="' + (left ? 'start' : 'end') + '">' + esc(t) + '</text>';
       boxes.push({ x1: left ? tx : tx - tw, y1: ty - 12, x2: left ? tx + tw : tx, y2: ty + 3 });
     });
+    // v91：FFMI21（必達ライン）の赤い点線。基準線（22）と同じ高さのときは引かない
+    var m = Body.FFMI_MUST, my = sy(m);
+    if (m !== Number(c.ffmi) && m > yMin && m < yMax) {
+      svg += '<line x1="' + x0 + '" x2="' + x1 + '" y1="' + my.toFixed(1) + '" y2="' + my.toFixed(1) + '" class="must-line"/>';
+      if (withText) {
+        var mt = 'FFMI' + Body.f0(m) + ' 必達', mx = (x0 + x1) / 2;
+        text += '<text x="' + mx.toFixed(1) + '" y="' + (my - 4).toFixed(1) + '" class="must-t" text-anchor="middle">' + esc(mt) + '</text>';
+        boxes.push({ x1: mx - 40, y1: my - 16, x2: mx + 40, y2: my });
+      }
+    }
     return { svg: svg, text: text, boxes: boxes };   // text は目盛りの線のあとに足す（線が文字に重ならないように）
   },
   /** レポートの「今の区分」（区分・FFMIの目安・次の目標まであと何kg／いくつ） */
   zoneNote: function (lbm, ffmi, date) {
     var c = Body.chart, k = Body.zoneOf(lbm, ffmi), dl = c.lean - lbm, df = c.ffmi - ffmi;
     var lean = Body.f0(c.lean) + 'kg', f = 'FFMI' + Body.f0(c.ffmi), next;
-    if (k === 'best') next = '除脂肪体重' + lean + '以上・' + f + '以上の、どちらの目標も達成しています。';
+    var ok = Body.ffmiOk(ffmi), m = 'FFMI' + Body.f0(Body.FFMI_MUST), dm = Math.max(0.1, Math.round((Body.FFMI_MUST + 0.1 - ffmi) * 10) / 10);
+    // v91：FFMI21を超えていない人は、区分に関係なく「まずFFMI21を超える」を先に出す
+    if (!ok) {
+      next = 'まずは全員の必達ライン ' + m + ' を超えよう（あと ' + dm.toFixed(1) + '）。';
+      if (k === 'next') next += '除脂肪体重' + lean + 'は達成しているので、体脂肪を増やさずに筋肉を増やして' + m + '超えを目指そう。';
+      else next += '除脂肪体重' + lean + 'まで、あと ' + dl.toFixed(1) + 'kg。';
+    }
+    else if (k === 'best') next = '除脂肪体重' + lean + '以上・' + f + '以上の、どちらの目標も達成しています。';
     else if (k === 'next') next = f + 'まで、あと ' + df.toFixed(1) + '。';
     else if (k === 'short') next = '除脂肪体重' + lean + 'まで、あと ' + dl.toFixed(1) + 'kg（' + f + 'は達成）。';
-    else next = 'まずは除脂肪体重' + lean + 'まで、あと ' + dl.toFixed(1) + 'kg。身長が低くて' + lean + 'が難しい人は、' + f + 'まで、あと ' + df.toFixed(1) + '。';
-    return '<div class="zone-note ' + Body.ZONES[k].cls + '"><div class="zone-note-h">今の区分：<b>' + esc(Body.zoneName(k)) + '</b>' +
+    else next = m + '（必達ライン）はクリア。次は除脂肪体重' + lean + 'まで、あと ' + dl.toFixed(1) + 'kg。身長が低くて' + lean + 'が難しい人は、' + f + 'まで、あと ' + df.toFixed(1) + '。';
+    if (ok && k === 'next') next = m + '（必達ライン）はクリア。' + next;
+    return '<div class="zone-note ' + Body.ZONES[k].cls + (ok ? '' : ' must-ng') + '">' +
+      (ok ? '' : '<div class="must-badge">' + esc(m) + '未達（全員の必達ライン）</div>') + '<div class="zone-note-h">今の区分：<b>' + esc(Body.zoneName(k)) + '</b>' +
       '<span class="muted small">（' + esc(Body.dShort(date)) + '：除脂肪体重' + lbm.toFixed(1) + 'kg・FFMI ' + ffmi.toFixed(1) + '）</span></div>' +
       '<div class="small">' + esc(next) + '</div><div class="small">FFMI ' + ffmi.toFixed(1) + '：' + esc(Body.ffmiBand(ffmi)) + '</div></div>';
   },

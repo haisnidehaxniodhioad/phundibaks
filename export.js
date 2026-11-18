@@ -290,8 +290,8 @@ var Export = {
     var explain = !dining ? '' : '<div class="pst-explain">' +
       '<div class="pst-ex-h">FFMIとは？</div><div class="pst-formula">FFMI ＝ 除脂肪体重(kg) ÷ 身長(m)²</div>' +
       '<p>身長の違いをならした「筋肉の量」の数字。体の大きさがちがっても比べられます。</p>' +
-      '<div class="pst-ex-h">目安</div><table class="pst-band"><tr><td class="b1">' + f0(avg) + '未満</td><td>まずは' + f0(avg) + 'を超えよう</td></tr>' +
-      '<tr><td class="b2">' + f0(avg) + '〜' + f0(top) + '</td><td>大学野球の平均以上</td></tr><tr><td class="b3">' + f0(top) + '以上</td><td>トップ層 ★</td></tr></table>' +
+      '<div class="pst-ex-h">目安</div><table class="pst-band"><tr><td class="b1">' + f0(avg) + '以下</td><td>全員の必達ライン。' + f0(avg) + 'を必ず超えよう</td></tr>' +
+      '<tr><td class="b2">' + f0(avg) + '超〜' + f0(top) + '</td><td>必達ラインクリア（大学野球の平均以上）</td></tr><tr><td class="b3">' + f0(top) + '以上</td><td>トップ層 ★</td></tr></table>' +
       '<div class="pst-ex-h">目標</div><p class="pst-goal">まずは<b>除脂肪体重' + f0(Body.chart.lean) + 'kg</b>、そして<b>FFMI ' + f0(top) + '</b></p>' +
       '<p class="pst-small">身長が低くて' + f0(Body.chart.lean) + 'kgが難しい人は、まずFFMI ' + f0(top) + 'を目指そう。</p></div>';
     var html = '<div class="pst ' + (dining ? 'pst-dining' : 'pst-weight') + '" style="--pst-row:' + rowH + 'px;--pst-fs:' + fs + 'px;">' + head +
