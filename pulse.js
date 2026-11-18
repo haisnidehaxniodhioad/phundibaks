@@ -18,6 +18,8 @@ var Pulse = {
   openId: '',        // 投球の一覧を開いている測定
   imp: null,         // 取込の画面の状態
   IND: { up: '▲', 'in': '◆', down: '▼' },
+  // v89：その選手のその日の最適領域（Pulse の詳細画面に出る数字）。所見の判断の中心（keke さんの答え）
+  RANGE: [['トルク', 'エルボートルク（Nm）'], ['スピード', 'アームスピード（rpm）'], ['スロット', 'アームスロット（°）']],
   TAG_DIST: 0.25,    // v88c：タグの形の近さ（PulseCore.sigDist）。これ以下なら同じタグとみなす（同じ動画の同じタグは 0.1 未満だった）
   INDNAME: { up: '高い', 'in': '適正', down: '低い' },
 
@@ -96,7 +98,8 @@ var Pulse = {
       '<th class="r">トルク平均</th><th class="r">スロット平均</th><th class="r">スピード平均</th><th class="r">スピード最大</th><th class="r">球速最大</th></tr>' +
       done.map(function (x) {
         var l = x.last;
-        return '<tr' + (x.a.id === me ? ' class="pulse-me"' : '') + '><td class="name"><button class="link" data-pulse="sel" data-v="' + esc(x.a.id) + '">' + esc(x.a.name) + '</button></td>' +
+        return '<tr' + (x.a.id === me ? ' class="pulse-me"' : '') + '><td class="name"><button class="link" data-pulse="sel" data-v="' + esc(x.a.id) + '">' + esc(x.a.name) + '</button>' +
+          (l.alert ? ' <span class="pulse-alert" title="' + esc(l.alert.join(' ')) + '">要確認</span>' : '') + '</td>' +   // v89：スタッフに知らせる所見
           '<td>' + esc(x.a.grade || (Pulse.isTest(x.a) ? 'テスト' : '')) + '</td><td>' + esc(x.a.position) + '</td><td>' + esc(Pulse.md(l.date)) + '</td><td class="r">' + x.s.length + '</td>' +
           '<td class="r">' + Pulse.n1(l.avg.torque) + '</td><td class="r">' + Pulse.n1(l.avg.slot) + '</td><td class="r">' + Pulse.n1(l.avg.speed) + '</td>' +
           '<td class="r">' + Pulse.n1(l.max.speed) + '</td><td class="r">' + Pulse.n1(l.max.velo) + '</td></tr>';
@@ -147,7 +150,12 @@ var Pulse = {
   },
 
   findHtml: function (d) {
-    return '<ul class="pulse-find-list">' + (d.findings || []).map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' +
+    var rg = (d.session && d.session.range) || {}, has = function (k) { return rg[k + '下限'] !== '' && rg[k + '下限'] !== undefined && rg[k + '上限'] !== '' && rg[k + '上限'] !== undefined; };
+    var rtxt = Pulse.RANGE.filter(function (x) { return has(x[0]); }).map(function (x) { return x[0] + ' ' + rg[x[0] + '下限'] + '～' + rg[x[0] + '上限']; }).join('・');
+    return ((d.alerts || []).length ? msgHtml('warn', 'スタッフ向けの知らせ：' + d.alerts.join(' ')) : '') +   // v89：「スタッフに知らせる」のルール（スタッフにだけ届く）
+      '<ul class="pulse-find-list">' + (d.findings || []).map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' +
+      (d.footer ? '<p class="pulse-footer small">' + esc(d.footer) + '</p>' : '') +
+      '<p class="muted small">最適領域：' + (rtxt ? esc(rtxt) : '入っていません') + '</p>' +
       '<p class="muted small">' + d.summary.n + '球・トルク平均 ' + Pulse.n1(d.summary.avg.torque) + 'Nm・スピード平均 ' + Pulse.n1(d.summary.avg.speed) + 'rpm' +
       (d.prev ? '（前回 ' + esc(Pulse.md(d.prev.date)) + '：トルク平均 ' + Pulse.n1(d.prev.summary.avg.torque) + 'Nm・スピード平均 ' + Pulse.n1(d.prev.summary.avg.speed) + 'rpm）' : '（前回の測定はありません）') + '</p>' +
       ((d.ruleErrors || []).length ? msgHtml('warn', '使えなかった所見のルール（パルス所見ルールのシートを直してください）：' + d.ruleErrors.join('／')) : '');
@@ -215,9 +223,9 @@ var Pulse = {
     Staff.page = 'pulseImport';
     if (Pulse.imp && Pulse.imp.res) PulseReader.release(Pulse.imp.res);
     var today = new Date(), ymd = today.getFullYear() + '-' + ('0' + (today.getMonth() + 1)).slice(-2) + '-' + ('0' + today.getDate()).slice(-2);
-    Pulse.imp = d ? { editId: d.session.id, athleteId: d.session.athleteId, date: d.session.date, memo: d.session.memo,
+    Pulse.imp = d ? { editId: d.session.id, athleteId: d.session.athleteId, date: d.session.date, memo: d.session.memo, range: Object.assign({}, d.session.range || {}),
                       rows: d.throws.map(function (t) { return { time: t.time, torque: t.torque, torqueInd: t.torqueInd, slot: t.slot, slotInd: t.slotInd, speed: t.speed, speedInd: t.speedInd, velo: t.velo, tag: t.tag }; }) }
-                  : { editId: '', athleteId: '', date: ymd, memo: '', rows: null };
+                  : { editId: '', athleteId: '', date: ymd, memo: '', rows: null, range: {} };
     Pulse.imp.today = ymd;
     app.innerHTML = Pulse.impFrame('<div class="card"><div class="loading">読み込み中…</div></div>');
     window.scrollTo(0, 0);
@@ -257,7 +265,8 @@ var Pulse = {
     var html = '<div class="card pulse-imp"><h2>1. 選手・日付</h2>' +
       '<label>選手<select class="sel" data-pi-top="athleteId">' + opts + '</select></label>' +
       '<label>測定日<input class="sel" type="date" data-pi-top="date" max="' + esc(I.today) + '" value="' + esc(I.date) + '"></label>' +
-      '<label>メモ（球種・何球目からの測定 など。空でもよい）<input class="sel" data-pi-top="memo" maxlength="200" value="' + esc(I.memo) + '"></label></div>';
+      '<label>メモ（球種・何球目からの測定 など。空でもよい）<input class="sel" data-pi-top="memo" maxlength="200" value="' + esc(I.memo) + '"></label></div>' +
+      Pulse.rangeHtml();
     if (!I.editId) {
       html += '<div class="card pulse-imp"><h2>2. 動画を選ぶ</h2>' +
         '<input type="file" id="pulseFile" accept="video/*,.mp4,.mov" class="sel"' + (I.reading ? ' disabled' : '') + '>' +
@@ -295,6 +304,30 @@ var Pulse = {
       '<p class="muted small">球速（km/h）は手で入れます（空でもよい）。いらない球（試し投げなど）は「消す」で外してください。</p>' +
       '<button class="btn block" data-pulse="impSave"' + (I.busy ? ' disabled' : '') + '>' + (I.busy ? '保存しています…' : I.editId ? '直して保存する' : '保存する') + '</button></div>';
     return html;
+  },
+
+  /** v89：最適領域の入力欄（Pulse アプリで各項目を押すと出る「最適領域」の左右の数字）。前の測定の値を最初から入れておく */
+  rangeHtml: function () {
+    var I = Pulse.imp, r = I.range || {};
+    return '<div class="card pulse-imp pulse-range"><h2>最適領域（この選手のこの日の値）</h2>' +
+      '<p class="muted small">Pulse アプリで各項目を押すと出る「最適領域」の左と右の数字を入れます（身長・体重などで選手ごとに変わります）。所見は「平均がこの範囲に入っているか」を中心に出します。空のままだと、最適領域を使う所見は出ません。' +
+      (I.rangeFrom ? '<br>前回（' + esc(I.rangeFrom) + '）の値を入れてあります。変わっていたら直してください。' : '') + '</p>' +
+      '<div class="pulse-range-grid">' + Pulse.RANGE.map(function (x) {
+        var lo = x[0] + '下限', hi = x[0] + '上限';
+        return '<div class="pulse-range-row"><span>' + esc(x[1]) + '</span>' +
+          '<input class="sel pi-n" inputmode="decimal" data-pi-range="' + lo + '" value="' + esc(r[lo] === undefined ? '' : r[lo]) + '" aria-label="' + esc(x[1]) + 'の下限">' +
+          '<span>～</span><input class="sel pi-n" inputmode="decimal" data-pi-range="' + hi + '" value="' + esc(r[hi] === undefined ? '' : r[hi]) + '" aria-label="' + esc(x[1]) + 'の上限"></div>';
+      }).join('') + '</div></div>';
+  },
+  /** 選手を選んだとき、最適領域が空なら、その選手のいちばん新しい測定の値を入れる */
+  fillRange: function () {
+    var I = Pulse.imp;
+    if (!I || !I.athleteId || Object.keys(I.range || {}).some(function (k) { return String(I.range[k]).trim() !== ''; })) return false;
+    var list = Pulse.sessionsOf(I.athleteId).filter(function (s) { return s.range && Object.keys(s.range).some(function (k) { return s.range[k] !== ''; }); });
+    var last = list[list.length - 1];
+    if (!last) return false;
+    I.range = Object.assign({}, last.range); I.rangeFrom = last.date;
+    return true;
   },
 
   /** 動画を読み取る */
@@ -374,7 +407,11 @@ var Pulse = {
     I.busy = true; I.saveMsg = ''; Pulse.renderImport();
     var tagSigs = [], seen = {};   // v88c：タグ名と形の組を覚えてもらう（同じタグ名は最初の1つ）
     I.rows.forEach(function (r) { var nm = String(r.tag || '').trim(); if (r.sig && nm && !seen[nm]) { seen[nm] = true; tagSigs.push({ name: nm, sig: r.sig }); } });
-    var body = { token: S.token, athleteId: I.athleteId, date: I.date, memo: I.memo, throws: throws, tagSigs: tagSigs };
+    var range = {};   // v89：最適領域（全角の数字も受け付ける）
+    Object.keys(I.range || {}).forEach(function (k) { range[k] = num(I.range[k]); });
+    var badR = Object.keys(range).filter(function (k) { return range[k] !== '' && isNaN(range[k]); });
+    if (badR.length) { I.busy = false; I.saveMsg = msgHtml('error', '最適領域の「' + badR.join('・') + '」が数字ではありません。'); Pulse.renderImport(); return; }
+    var body = { token: S.token, athleteId: I.athleteId, date: I.date, memo: I.memo, throws: throws, tagSigs: tagSigs, range: range };
     if (I.editId) body.id = I.editId;
     Api.call(I.editId ? 'pulseUpdate' : 'pulseSave', body).then(function (res) {
       I.busy = false;
@@ -450,6 +487,7 @@ app.addEventListener('input', function (e) {
   if (S.view !== 'staff' || !I || Staff.page !== 'pulseImport') return;
   if (t.dataset.pi && I.rows && I.rows[Number(t.dataset.i)]) I.rows[Number(t.dataset.i)][t.dataset.pi] = t.value;
   if (t.dataset.piTop) I[t.dataset.piTop] = t.value;
+  if (t.dataset.piRange) (I.range = I.range || {})[t.dataset.piRange] = t.value;   // v89
 });
 app.addEventListener('change', function (e) {
   var t = e.target, I = Pulse.imp;
@@ -461,4 +499,6 @@ app.addEventListener('change', function (e) {
     if (Pulse.spreadTag(Number(t.dataset.i))) { var y = window.scrollY; Pulse.renderImport(); window.scrollTo(0, y); }
   }
   if (t.dataset.piTop) I[t.dataset.piTop] = t.value;
+  if (t.dataset.piRange) (I.range = I.range || {})[t.dataset.piRange] = t.value;   // v89
+  if (t.dataset.piTop === 'athleteId' && Pulse.fillRange()) { var y2 = window.scrollY; Pulse.renderImport(); window.scrollTo(0, y2); }   // v89：前回の最適領域を入れる
 });
