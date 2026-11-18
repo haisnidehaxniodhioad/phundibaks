@@ -155,9 +155,9 @@ var Pulse = {
     return ((d.alerts || []).length ? msgHtml('warn', 'スタッフ向けの知らせ：' + d.alerts.join(' ')) : '') +   // v89：「スタッフに知らせる」のルール（スタッフにだけ届く）
       '<ul class="pulse-find-list">' + (d.findings || []).map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' +
       (d.footer ? '<p class="pulse-footer small">' + esc(d.footer) + '</p>' : '') +
-      '<p class="muted small">最適領域：' + (rtxt ? esc(rtxt) : '入っていません') + '</p>' +
-      '<p class="muted small">' + d.summary.n + '球・トルク平均 ' + Pulse.n1(d.summary.avg.torque) + 'Nm・スピード平均 ' + Pulse.n1(d.summary.avg.speed) + 'rpm' +
-      (d.prev ? '（前回 ' + esc(Pulse.md(d.prev.date)) + '：トルク平均 ' + Pulse.n1(d.prev.summary.avg.torque) + 'Nm・スピード平均 ' + Pulse.n1(d.prev.summary.avg.speed) + 'rpm）' : '（前回の測定はありません）') + '</p>' +
+      (d.noMeta ? '' : '<p class="muted small">最適領域：' + (rtxt ? esc(rtxt) : '入っていません') + '</p>') +   // v89c：レポートでは上の表と重なるので出さない
+      (d.noMeta ? '' : '<p class="muted small">' + d.summary.n + '球・トルク平均 ' + Pulse.n1(d.summary.avg.torque) + 'Nm・スピード平均 ' + Pulse.n1(d.summary.avg.speed) + 'rpm' +
+      (d.prev ? '（前回 ' + esc(Pulse.md(d.prev.date)) + '：トルク平均 ' + Pulse.n1(d.prev.summary.avg.torque) + 'Nm・スピード平均 ' + Pulse.n1(d.prev.summary.avg.speed) + 'rpm）' : '（前回の測定はありません）') + '</p>') +
       ((d.ruleErrors || []).length ? msgHtml('warn', '使えなかった所見のルール（パルス所見ルールのシートを直してください）：' + d.ruleErrors.join('／')) : '');
   },
 
@@ -203,14 +203,29 @@ var Pulse = {
   },
 
   /** 印刷用のレポート（いちばん新しい測定。画面と印刷で月次レポートの代わりにする） */
+  /**
+   * v89c：レポートの「今回の数値」（keke さんの指定）
+   *   エルボートルク＝平均と最大、アームスロット＝平均と振れ幅（いちばん低い球〜いちばん高い球と、その差）、アームスピード＝平均と最大。右に最適領域
+   */
+  reportTable: function (d) {
+    var sm = d.summary, rg = (d.session && d.session.range) || {};
+    var sl = d.throws.map(function (t) { return t.slot; }).filter(function (v) { return v !== '' && v !== null && v !== undefined; });
+    var lo = sl.length ? Math.min.apply(null, sl) : '', hi = sl.length ? Math.max.apply(null, sl) : '';
+    var band = function (k) { return rg[k + '下限'] !== '' && rg[k + '下限'] !== undefined && rg[k + '上限'] !== '' && rg[k + '上限'] !== undefined ? rg[k + '下限'] + '～' + rg[k + '上限'] : '-'; };
+    return '<table class="line-table pulse-report-table"><tr><th>項目</th><th class="r">平均</th><th class="r">最大・振れ幅</th><th class="r">最適領域</th></tr>' +
+      '<tr><td>エルボートルク（Nm）</td><td class="r">' + Pulse.n1(sm.avg.torque) + '</td><td class="r">最大 ' + Pulse.n1(sm.max.torque) + '</td><td class="r">' + band('トルク') + '</td></tr>' +
+      '<tr><td>アームスロット（°）</td><td class="r">' + Pulse.n1(sm.avg.slot) + '</td><td class="r">' + (sl.length ? '振れ幅 ' + Pulse.n1(hi - lo) + '（' + Pulse.n1(lo) + '～' + Pulse.n1(hi) + '）' : '-') + '</td><td class="r">' + band('スロット') + '</td></tr>' +
+      '<tr><td>アームスピード（rpm）</td><td class="r">' + Pulse.n1(sm.avg.speed) + '</td><td class="r">最大 ' + Pulse.n1(sm.max.speed) + '</td><td class="r">' + band('スピード') + '</td></tr></table>';
+  },
+
   print: function (id) {
     Pulse.detail(id).then(function (d) {
       var list = Pulse.sessionsOf(d.session.athleteId), a = Pulse.athleteOf(d.session.athleteId) || {};
       var page = Export.head('パルスレポート　' + (d.session.name || a.name || ''), d.session.date + ' の測定（' + d.summary.n + '球）' + (a.grade ? '・' + a.grade : '') + (a.position ? '・' + a.position : '')) +
-        '<h3>所見</h3>' + Pulse.findHtml(Object.assign({}, d, { ruleErrors: [] })) +
+        '<h3>今回の数値</h3>' + Pulse.reportTable(d) +
+        '<h3>所見</h3>' + Pulse.findHtml(Object.assign({}, d, { ruleErrors: [], alerts: [], noMeta: true })) +   // 配る資料なので、スタッフ向けの知らせは入れない
         '<h3>推移</h3>' + Pulse.chart(list, [['avg', 'torque', '平均'], ['max', 'torque', '最大']], 'エルボートルク（Nm）') +
-        Pulse.chart(list, [['avg', 'speed', '平均'], ['max', 'speed', '最大']], 'アームスピード（rpm）') +
-        '<h3>1球ずつ</h3>' + Pulse.throwsHtml(d);
+        Pulse.chart(list, [['avg', 'speed', '平均'], ['max', 'speed', '最大']], 'アームスピード（rpm）');   // v89c：1球ずつの表は載せない（keke さんの指定）
       Export.print('パルスレポート_' + (d.session.name || '') + '_' + d.session.date, [page]);
     }).catch(function (err) { alert('レポートを作れませんでした：' + err.message); });
   },
