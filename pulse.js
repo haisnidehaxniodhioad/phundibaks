@@ -145,7 +145,7 @@ var Pulse = {
     var box = document.getElementById('pulseDetail');
     if (box && Pulse.openId) Pulse.detail(Pulse.openId).then(function (d) {
       var el = document.getElementById('pulseDetail');
-      if (el) el.innerHTML = Pulse.throwsHtml(d);
+      if (el) el.innerHTML = Pulse.throwsHtml(d, true);
     }).catch(function (err) { var el = document.getElementById('pulseDetail'); if (el) el.innerHTML = msgHtml('error', err.message); });
   },
 
@@ -161,13 +161,16 @@ var Pulse = {
       ((d.ruleErrors || []).length ? msgHtml('warn', '使えなかった所見のルール（パルス所見ルールのシートを直してください）：' + d.ruleErrors.join('／')) : '');
   },
 
-  throwsHtml: function (d) {
+  /** 1球ずつの表。withDel＝true なら担当者（管理者・トレーナー）に1球ずつの「消す」を出す（v89b。印刷には出さない） */
+  throwsHtml: function (d, withDel) {
     var ind = function (k) { return k ? '<span class="pulse-ind ind-' + k + '" title="' + Pulse.INDNAME[k] + '">' + Pulse.IND[k] + '</span>' : ''; };
-    return '<table class="line-table pulse-throws"><tr><th>#</th><th>時刻</th><th class="r">トルク</th><th class="r">スロット</th><th class="r">スピード</th><th class="r">球速</th><th>タグ</th></tr>' +
+    var del = withDel && Pulse.editor();
+    return '<table class="line-table pulse-throws"><tr><th>#</th><th>時刻</th><th class="r">トルク</th><th class="r">スロット</th><th class="r">スピード</th><th class="r">球速</th><th>タグ</th>' + (del ? '<th></th>' : '') + '</tr>' +
       d.throws.map(function (t) {
         return '<tr><td>' + t.no + '</td><td>' + esc(t.time) + '</td><td class="r">' + Pulse.n1(t.torque) + ind(t.torqueInd) + '</td><td class="r">' + Pulse.n1(t.slot) + ind(t.slotInd) + '</td>' +
-          '<td class="r">' + Pulse.n1(t.speed) + ind(t.speedInd) + '</td><td class="r">' + Pulse.n1(t.velo) + '</td><td>' + esc(t.tag) + '</td></tr>';
-      }).join('') + '</table><p class="muted small">▲高い・◆適正・▼低い（Pulseアプリの判定）</p>';
+          '<td class="r">' + Pulse.n1(t.speed) + ind(t.speedInd) + '</td><td class="r">' + Pulse.n1(t.velo) + '</td><td>' + esc(t.tag) + '</td>' +
+          (del ? '<td class="pulse-ops"><button class="btn ghost small pulse-del" data-pulse="delThrow" data-v="' + esc(d.session.id) + '|' + t.no + '">消す</button></td>' : '') + '</tr>';
+      }).join('') + '</table><p class="muted small">▲高い・◆適正・▼低い（Pulseアプリの判定）' + (del ? '。「消す」でその1球だけを消します（平均・所見は残りの球で計算し直します）' : '') + '</p>';
   },
 
   /** 推移のグラフ（SVG）。series＝[['avg'|'max', 'torque'…, '平均']] */
@@ -441,6 +444,21 @@ var Pulse = {
   },
 
   /** 削除（管理者・トレーナー） */
+  /** v89b：保存した測定から1球だけ消す（担当者だけ）。残りの球で測定を保存し直す（今ある pulseUpdate。Apps Script は変えていない） */
+  removeThrow: function (key) {
+    var id = String(key).split('|')[0], no = Number(String(key).split('|')[1]);
+    Pulse.detail(id).then(function (d) {
+      var rest = d.throws.filter(function (t) { return t.no !== no; });
+      if (rest.length === d.throws.length) return;
+      if (!rest.length) { alert('最後の1球は消せません。測定ごと消すときは、測定の行の「消す」を使ってください。'); return; }
+      var t = d.throws.filter(function (x) { return x.no === no; })[0];
+      if (!confirm((d.session.name || '') + 'さん・' + d.session.date + 'の' + no + '球目（トルク ' + Pulse.n1(t.torque) + '・スピード ' + Pulse.n1(t.speed) + '）を消します。\n平均と所見は残りの' + rest.length + '球で計算し直します。元に戻せません。よろしいですか？')) return;
+      return Api.call('pulseUpdate', { token: S.token, id: id, athleteId: d.session.athleteId, date: d.session.date, memo: d.session.memo, range: d.session.range || {},
+        throws: rest.map(function (x) { return { time: x.time, torque: x.torque, torqueInd: x.torqueInd, slot: x.slot, slotInd: x.slotInd, speed: x.speed, speedInd: x.speedInd, velo: x.velo, tag: x.tag }; }) })
+        .then(function () { Pulse.reset(); Pulse.openId = id; Pulse.fill(true); });
+    }).catch(function (err) { if (err.needLogin) return Staff.fail(err); alert('消せませんでした：' + err.message); });
+  },
+
   remove: function (id) {
     var s = ((Pulse.data && Pulse.data.sessions) || []).filter(function (x) { return x.id === id; })[0];
     if (!s) return;
@@ -467,6 +485,7 @@ app.addEventListener('click', function (e) {
     case 'print': Pulse.print(v); break;
     case 'edit': if (S.view === 'staff') Pulse.detail(v).then(function (d) { Pulse.openImport(d); }).catch(function (err) { alert(err.message); }); break;
     case 'del': if (S.view === 'staff') Pulse.remove(v); break;
+    case 'delThrow': if (S.view === 'staff') Pulse.removeThrow(v); break;   // v89b：1球だけ消す
     case 'impDel': if (Pulse.imp && Pulse.imp.rows) { Pulse.imp.rows.splice(Number(v), 1); Pulse.imp.snapRow = null; Pulse.renderImport(); } break;
     case 'impAdd': if (Pulse.imp) { (Pulse.imp.rows = Pulse.imp.rows || []).push({ time: '', torque: '', torqueInd: '', slot: '', slotInd: '', speed: '', speedInd: '', velo: '', tag: '' }); Pulse.renderImport(); } break;
     case 'impSnap': Pulse.showSnap(Number(v)); break;
