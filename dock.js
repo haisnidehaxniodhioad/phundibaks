@@ -28,6 +28,7 @@ var Dock = {
     afterSave: '「記録する」か「あとで」って話しかけてもいいよ。',
     condition: '「全身3、上半身2、下半身4、動き7」みたいに話しても入れられるよ。',
     history: '「先月」って話しかけると、前の月が見られるよ。',
+    phys: '半年に1回くらいの測定の結果だよ。緑の数字は目標に届いている項目だよ。',   // v93
     body: '「体重にして」と話しかけると、体重のレポートになるよ。',
     mymenu: '数字をタップすると変えられるよ。',
     guide: '上のもくじから、見たい所を押してね。',
@@ -57,7 +58,7 @@ var Dock = {
   /** 今の画面に合わせて、バーの中身・アバターの場所を変える */
   update: function () {
     var v = S.view;
-    var athlete = !!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition', 'mypage', 'guide', 'column', 'pulse'].indexOf(v) >= 0;   // v90：pulse
+    var athlete = !!S.home && ['home', 'session', 'finish', 'body', 'mymenu', 'history', 'afterSave', 'condition', 'mypage', 'guide', 'column', 'pulse', 'phys'].indexOf(v) >= 0;   // v90：pulse　v93：phys（フィジカル測定）
     var staff = v === 'staff' && !!S.token;   // v35：スタッフ画面にも上の帯（コーチ）とマイクを出す
     // v36：スタッフ画面では「コーチ」ではなく「AIアシスタント」と表示する（style.css の body.is-staff、avatar.js の Avatar.title）
     if (document.body.classList.contains('is-staff') !== staff) {
@@ -66,7 +67,7 @@ var Dock = {
       var pk = document.getElementById('avatarAppearancePicker');
       if (pk) pk.remove();   // 設定パネルの見出しを作り直すため
     }
-    var mode = staff ? 'staff' : !athlete ? 'none' : (v === 'home' || v === 'history' || v === 'body' || v === 'mypage' || v === 'guide' || v === 'column' || v === 'pulse') ? 'tabs' : v;
+    var mode = staff ? 'staff' : !athlete ? 'none' : (v === 'home' || v === 'history' || v === 'body' || v === 'mypage' || v === 'guide' || v === 'column' || v === 'pulse' || v === 'phys') ? 'tabs' : v;
     this.el.hidden = mode === 'none';
     document.body.classList.toggle('has-dock', mode !== 'none');
     document.body.classList.toggle('has-fab', mode === 'tabs');   // v60：右下に浮かべたマイクの分、内容の下に余白を足す
@@ -101,12 +102,11 @@ var Dock = {
       var tab = function (act, icon, label, on) {
         return '<button class="dock-tab' + (on ? ' on' : '') + '" data-act="' + act + '"' + (on ? ' aria-current="page"' : '') + '>' + Icon(icon, 28) + '<span>' + label + '</span></button>';
       };
-      var tr = v === 'home' && S.tab === 'training';
+      var tr = (v === 'home' && S.tab === 'training') || v === 'history' || v === 'phys';   // v93：記録・フィジカル測定はトレーニングのタブの中
       html = '<div class="dock-ai"><span data-slot="mic"></span><span class="dock-mic-label">話す</span></div>' +   // v60：AI（話す）はタブから外し、小さな丸で右上に
-        '<nav class="dock-tabs' + (S.home && S.home.pulseCount > 0 ? ' six' : '') + '" aria-label="画面の切り替え">' +
+        '<nav class="dock-tabs" aria-label="画面の切り替え">' +
         tab('home', 'house', 'ホーム', v === 'home' && !tr) +
         tab('trainingTab', 'barbell', 'トレーニング', tr) +
-        tab('records', 'calendar', '記録', v === 'history') +
         tab('body', 'heart', 'からだ', v === 'body') +
         (S.home && S.home.pulseCount > 0 ? tab('pulse', 'pulse', 'パルス', v === 'pulse') : '') +   // v90：パルスを測った選手だけ
         tab('mypage', 'person', 'マイページ', v === 'mypage' || v === 'guide' || v === 'column') + '</nav>';

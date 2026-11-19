@@ -214,13 +214,19 @@ MyMenu.onClick = function (t) {
  *   種目の情報は、今あるデータ（ホームのデータ・前回の記録・myStats の自己ベストと順位）だけを出す。
  */
 var Training = {
+  /** v93：トレーニングのタブの中の切り替え（記録のタブをまとめた。keke さんの決定） */
+  segHtml: function (on) {
+    return '<div class="tabs tr-seg" role="tablist">' + [['menu', 'trainingTab', 'メニュー'], ['records', 'records', '記録'], ['phys', 'phys', 'フィジカル測定']].map(function (t) {
+      return '<button class="tab' + (on === t[0] ? ' on' : '') + '" data-act="' + t[1] + '" role="tab" aria-selected="' + (on === t[0]) + '">' + t[2] + '</button>';
+    }).join('') + '</div>';
+  },
   ex: null,   // 詳しい情報を開いている種目の名前（null＝種目一覧）
   statsErr: false,
 
   /** トレーニングタブを描く（v61：左＝メニュー（Day・自分のメニュー・白紙から）、右＝種目一覧か種目の詳しい情報。スマホは1列） */
   render: function () {
     S.view = 'home'; S.tab = 'training';
-    var h = S.home, html = homeTopHtml();
+    var h = S.home, html = homeTopHtml() + Training.segHtml('menu');   // v93：メニュー｜記録｜フィジカル測定
     if (S.draft) {
       html += '<div class="hcard home-draft"><h2>途中のトレーニングがあります</h2><p class="muted">' + esc(S.draft.title) + '</p>' +
         '<div class="row"><button class="btn btn-pill" data-act="resume">' + Icon('play', 20) + '続きから</button>' +

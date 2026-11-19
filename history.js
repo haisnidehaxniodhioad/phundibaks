@@ -67,7 +67,7 @@ var History = {
     var monthCount = d.sessions.length, dayCount = Object.keys(days).length;
     // いちばん上：その月に何日やったか（v20：レイアウト案 2a）
     // v30：見出し・回数のまとめ・今年度の月ごとの回数 は1枚にまとめる（似た内容なので）
-    var html = '<div class="group hist-top"><div class="topbar"><span class="kicker">トレーニング記録</span><button class="btn ghost" data-act="home">ホームへ</button></div>' +
+    var html = Training.segHtml('records') + '<div class="group hist-top"><div class="topbar"><span class="kicker">トレーニング記録</span><button class="btn ghost" data-act="home">ホームへ</button></div>' +
       '<div class="hist-summary"><span class="big-num">' + (d.month === d.current ? '今月' : m + '月') + 'は<em> ' + dayCount + '日 </em>' +
       (dayCount ? 'がんばったね' : 'まだ記録がないよ') + '</span>' +
       '<span class="muted small">' + (monthCount !== dayCount ? 'この月 ' + monthCount + '回・' : '') + '今週 ' + d.weekCount + '回・今年度 ' + d.yearCount + '回</span></div>' +

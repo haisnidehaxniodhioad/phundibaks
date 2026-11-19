@@ -1167,14 +1167,14 @@ body[data-view="session"] .sess-head h1 { font-size: 1.15rem; margin: 2px 0 6px;
  * v62（RIKKIO 段階3-B）：コンディション・記録・身体データ・マイページ
  *   この4つの画面も、地の色に白いカード（3-A と同じ形）。768px以上は幅を広く・2列
  * ===================================================================== */
-body:is([data-view="history"], [data-view="body"], [data-view="mypage"]) .wrap { background: transparent; box-shadow: none; }
-body:is([data-view="history"], [data-view="body"], [data-view="mypage"]) .wrap > .group,
+body:is([data-view="history"], [data-view="body"], [data-view="mypage"], [data-view="phys"]) .wrap { background: transparent; box-shadow: none; }
+body:is([data-view="history"], [data-view="body"], [data-view="mypage"], [data-view="phys"]) .wrap > .group,
 body[data-view="history"] .hist-col > :is(.group, .card),
 body[data-view="body"] .wrap > .report-card, body[data-view="mypage"] .mp-grid > .group {
   background: var(--color-paper); border: 1px solid var(--line-strong); border-radius: 16px; padding: 16px; margin: 0 0 14px; }
 body[data-view="history"] .hist-col > .hist-detail { border-left: 4px solid var(--color-accent); }
 body[data-view="body"] .wrap > .report-card { border-top: 4px solid var(--color-accent); }
-body:is([data-view="history"], [data-view="body"], [data-view="mypage"]) .wrap .group > .topbar { margin-bottom: 8px; }
+body:is([data-view="history"], [data-view="body"], [data-view="mypage"], [data-view="phys"]) .wrap .group > .topbar { margin-bottom: 8px; }
 
 /* コンディション：入力済み・未入力。スマホは5つずつ2段（押しやすい大きさ） */
 .cond-progress { margin: 0 0 12px; padding: 8px 12px; border-radius: 12px; background: var(--color-surface); font-size: 0.9rem; }
@@ -1211,7 +1211,7 @@ body[data-view="body"] svg { max-width: 100%; height: auto; }
 .mp-contact p { margin: 4px 0 0; }
 
 @media (min-width: 768px) {
-  body:not(.is-staff):is([data-view="history"], [data-view="body"], [data-view="mypage"]) :is(.wrap, .coach-band) {
+  body:not(.is-staff):is([data-view="history"], [data-view="body"], [data-view="mypage"], [data-view="phys"]) :is(.wrap, .coach-band) {
     margin-left: max(24px, calc(50% - 480px)); margin-right: max(24px, calc(50% - 480px)); }
   .hist-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 14px; align-items: start; }
   .mp-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; align-items: start; }
@@ -1220,7 +1220,7 @@ body[data-view="body"] svg { max-width: 100%; height: auto; }
 }
 /* PC（1200px以上）：もう少し広く */
 @media (min-width: 1200px) {
-  body:not(.is-staff):is([data-view="history"], [data-view="body"], [data-view="mypage"]) :is(.wrap, .coach-band) {
+  body:not(.is-staff):is([data-view="history"], [data-view="body"], [data-view="mypage"], [data-view="phys"]) :is(.wrap, .coach-band) {
     margin-left: calc(50% - 560px); margin-right: calc(50% - 560px); }
 }
 /* v63：コンディションの画面の上の段（戻る・日付・あとで） */
@@ -1500,3 +1500,30 @@ body[data-view="body"] svg { max-width: 100%; height: auto; }
 .must-badge { display: inline-block; font-size: 0.78rem; font-weight: 700; color: #fff; background: #D64545; border-radius: 999px; padding: 2px 10px; margin-bottom: 4px; }
 .zone-count.must-ng { border-left-color: #D64545; background: rgba(214, 69, 69, 0.10); }
 .must-mini { color: #D64545; font-weight: 700; }
+
+/* v93：フィジカル測定（physical.js）・トレーニングのタブの切り替え */
+.tr-seg { margin-top: 4px; }
+.tr-seg .tab { font-size: 0.86rem; }
+.phys-team td, .phys-team th { white-space: nowrap; }
+/* v93：記録をトレーニングのタブにまとめたので、下のバーのタブの数は4つか5つ（パルス）。数に合わせて均等に */
+.dock-tabs { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+body[data-view="phys"] .wrap > .tr-seg { background: var(--color-paper); }
+body[data-view="phys"] #physMine > .group, #physBoxS > .group { background: var(--color-paper); border: 1px solid var(--line-strong); border-radius: 16px; padding: 16px; margin: 0 0 14px; }
+/* v94：フィジカル測定は直した画像で見せる */
+.phys-dates { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.phys-dates .btn.on { background: var(--color-accent); color: #fff; }
+.phys-img { margin: 6px 0; }
+.phys-img img { width: 100%; max-width: 900px; height: auto; display: block; margin: 0 auto; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; }
+.phys-imp summary { cursor: pointer; padding: 4px 0; }
+.phys-imp input[type="file"] { margin: 8px 0; }
+.phys-imp-list { display: grid; gap: 10px; margin: 8px 0; }
+.phys-imp-row { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 12px; align-items: start; padding: 10px; border: 1px solid var(--line-strong); border-radius: 12px; }
+.phys-imp-row.phys-bad { display: block; color: #C0392B; }
+.phys-thumb img { width: 110px; height: auto; display: block; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+.phys-imp-info { display: grid; gap: 4px; min-width: 0; }
+.phys-imp-info select, .phys-imp-info input[type="date"] { font-size: 0.85rem; max-width: 100%; }
+.phys-warn { background: rgba(240, 180, 40, 0.14); }
+.phys-warn-t { color: #A86B00; }
+.phys-thumb { padding: 0; border: none; background: none; cursor: zoom-in; }
+.phys-zoom { grid-column: 1 / -1; }
+.phys-zoom img { width: 100%; height: auto; display: block; border: 1px solid var(--line); border-radius: 6px; }

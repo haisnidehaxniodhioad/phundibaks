@@ -27,7 +27,7 @@ var Staff = {
   //   ダッシュボード＝tab 'overview'、選手管理＝'list'、データ分析＝'inbody'・'weight'、管理・設定＝'manage'（Staff.page も 'manage'。新しいページは作らない）
   NAV: [['overview', 'ダッシュボード', 'house'], ['list', '選手管理', 'person'], ['data', 'データ分析', 'sheet'], ['manage', '管理・設定', 'book']],
   /** 今のカテゴリー（個人ページなどでは、開く前のタブ） */
-  navKey: function () { return Staff.tab === 'inbody' || Staff.tab === 'weight' || Staff.tab === 'pulse' ? 'data' : Staff.tab; },   // v88：パルスもデータ分析
+  navKey: function () { return Staff.tab === 'inbody' || Staff.tab === 'weight' || Staff.tab === 'pulse' || Staff.tab === 'phys' ? 'data' : Staff.tab; },   // v93：フィジカル測定も   // v88：パルスもデータ分析
   navHtml: function (cls) {
     var on = Staff.navKey();
     return '<nav class="staff-nav ' + cls + '" aria-label="スタッフ画面の切り替え">' + Staff.NAV.map(function (n) {
@@ -44,7 +44,7 @@ var Staff = {
   go: function (key) {
     if (S.view !== 'staff') return;
     Body.closeHistory();
-    Staff.tab = key === 'data' ? (['weight', 'pulse'].indexOf(Staff.lastData) >= 0 ? Staff.lastData : 'inbody') : key;   // v88：パルスも覚える
+    Staff.tab = key === 'data' ? (['weight', 'pulse', 'phys'].indexOf(Staff.lastData) >= 0 ? Staff.lastData : 'inbody') : key;   // v88：パルスも覚える
     Staff.render();
     window.scrollTo(0, 0);
   },
@@ -52,7 +52,7 @@ var Staff = {
   frame: function (inner) {
     var key = Staff.navKey(), title = { overview: 'ダッシュボード', list: '選手管理', data: 'データ分析', manage: '管理・設定' }[key] || 'スタッフ画面';
     // データ分析の中だけ、InBody／体重の切り替え（今までのタブと同じ data-staff="tab"）
-    var sub = key === 'data' ? '<div class="tabs">' + [['inbody', 'InBody'], ['weight', '体重'], ['pulse', 'パルス']].map(function (t) {
+    var sub = key === 'data' ? '<div class="tabs">' + [['inbody', 'InBody'], ['weight', '体重'], ['pulse', 'パルス'], ['phys', 'フィジカル']].map(function (t) {
       return '<button class="tab' + (Staff.tab === t[0] ? ' on' : '') + '" data-staff="tab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' : '';
     return Staff.sideHtml() + '<div class="group"><div class="topbar"><h1>' + title + '</h1><button class="btn ghost staff-logout" data-act="logout">ログアウト</button></div>' +
       '<p class="muted small">' + esc(Staff.name) + 'さん　<span class="ver">' + esc(APP_VERSION) + '</span></p>' + sub + '</div>' + inner;
@@ -77,6 +77,7 @@ var Staff = {
       item('bodyImport', 'inbody', 'download', '体組成（InBody）の取り込み', '体組成Excel（InBody結果）を取り込みます（データ分析のInBodyが開きます）') +
       item('bodyImport', 'weight', 'download', '体重の取り込み', '体重管理表を取り込みます（データ分析の体重が開きます）') +
       (o.columnEditor ? item('pulseImport', '', 'download', 'パルスの取り込み', 'Pulseアプリの Liveモードの画面録画から、1球ずつの数値を読み取って保存します（動画は送りません。管理者・トレーナー）') : '') +   // v88
+      (o.columnEditor ? item('physImport', '', 'download', 'フィジカル測定の取り込み', '測定会社の「Physical Test Feedback」のPDFから数値を読み取って保存します（PDFは送りません。管理者・トレーナー）') : '') +   // v93
       (o.columnEditor ? item('columns', '', 'book', 'お知らせ・コラムの管理', 'お知らせ・用語の説明などのコラムを追加・修正します（管理者・トレーナー）') : '') +
       (o.admin ? item('admin', '', 'phone', 'ログインの管理', 'ログインしている端末とログインの記録（管理者）') : '') +
       item('guide', 'staff', 'book', '使い方（スタッフ向け）', 'スタッフ画面の使い方') +
@@ -368,6 +369,11 @@ var Staff = {
       Staff.lastData = 'pulse';
       if (typeof Pulse === 'undefined') { app.innerHTML = Staff.frame(msgHtml('error', 'パルスの画面のファイル（pulse.js）が読み込めていません。GitHub に入れたか確かめてください。')); return; }
       return Pulse.renderStaff();
+    }
+    if (Staff.tab === 'phys') {   // v93：データ分析の「フィジカル」（physical.js）
+      Staff.lastData = 'phys';
+      if (typeof Phys === 'undefined') { app.innerHTML = Staff.frame(msgHtml('error', 'フィジカル測定の画面のファイル（physical.js）が読み込めていません。GitHub に入れたか確かめてください。')); return; }
+      return Phys.renderStaff();
     }
     Staff.lastData = Staff.tab;   // v60：データ分析で最後に見たほう
     return StaffBody.render(Staff.tab === 'weight' ? 'weight' : 'inbody');
@@ -823,7 +829,7 @@ app.addEventListener('click', function (e) {
   if (!t || S.view !== 'staff' || t.tagName === 'SELECT' || t.tagName === 'INPUT') return;
   var v = t.dataset.v;
   // v53b：別のファイルの画面が読み込めていないときは、何も起きないのではなく理由を出す（GitHub に入れ忘れたときなど）
-  var need = { roster: ['Roster', 'roster.js'], menuImport: ['MenuImport', 'menu_import.js'], guide: ['Guidebook', 'guidebook.js'], columns: ['ColumnEditor', 'menu_import.js'], pulseImport: ['Pulse', 'pulse.js'] }[t.dataset.staff];
+  var need = { roster: ['Roster', 'roster.js'], menuImport: ['MenuImport', 'menu_import.js'], guide: ['Guidebook', 'guidebook.js'], columns: ['ColumnEditor', 'menu_import.js'], pulseImport: ['Pulse', 'pulse.js'], physImport: ['Phys', 'physical.js'] }[t.dataset.staff];
   if (need && typeof window[need[0]] === 'undefined') {
     var box = t.parentNode.querySelector('.msg') || null;
     if (!box) t.insertAdjacentHTML('afterend', msgHtml('error', 'この画面のファイル（' + need[1] + '）が読み込めていません。GitHub のリポジトリに「' + need[1] + '」があるか確かめてください。入れたばかりなら、1〜2分待ってから開き直してください。'));
@@ -854,7 +860,8 @@ app.addEventListener('click', function (e) {
     case 'columns': ColumnEditor.open(); break;   // コラムの管理（v56）   // ログインの管理（v53）
     case 'quitApply': Staff.quitApply(); break;   // v72：退部にする・在籍に戻す（管理・設定）
     case 'quitMode': Staff.quit.mode = v === 'back' ? 'back' : 'quit'; Staff.quitPicked = {}; Staff.quit.open = true; Staff.renderManage(); break;
-    case 'pulseImport': Pulse.openImport(); break;   // v88：パルスの取り込み
+    case 'pulseImport': Pulse.openImport(); break;
+    case 'physImport': Phys.importOpen = true; Phys.person = null; Staff.tab = 'phys'; Staff.render(); window.scrollTo(0, 0); break;   // v93：フィジカル測定の取り込み   // v88：パルスの取り込み
     case 'sqApply': Staff.sqApply(); break;   // v88：スタッフの在籍を外す・戻す
     case 'sqMode': Staff.sq.mode = v === 'back' ? 'back' : 'out'; Staff.sq.picked = {}; Staff.sq.open = true; Staff.renderManage(); break;
     case 'gradApply': Staff.gradApply(); break;   // v70：4年生の在籍を外す（管理・設定）
