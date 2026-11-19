@@ -21,6 +21,7 @@ var Phys = {
   importOpen: false,
   SCALE: 2,          // PDF を画像にするときの倍率（A4 → 約1190×1684）
   JPEG_Q: 0.88,
+  BATCH: 4,          // v95：保存のとき、何人分ずつまとめて送るか（画像1枚 約170KB。多すぎると1回の通信が重くなる）
   HIT_BG: '#d3efdb', HIT_FG: '#17703a',   // 目標クリアの色（背景・文字）
 
   /** 項目：キー・表の名前・単位・PDFのラベル（正規表現。空白は消してから比べる） */
@@ -358,11 +359,15 @@ var Phys = {
     if (ids.some(function (id, i) { return ids.indexOf(id) !== i; }) && !confirm('同じ選手・同じ測定日が2つ以上あります。あとの分で上書きされますが、続けますか？')) return;
     var btn = document.querySelector('[data-physv="save"]'), done = 0, added = 0, updated = 0, chain = Promise.resolve();
     if (btn) btn.disabled = true;
-    send.forEach(function (r) {
+    // v95：BATCH 人分ずつまとめて送る（1人ずつより通信の回数が減って速い）。取り込み履歴は最後の1回だけ書く
+    var groups = [];
+    for (var g = 0; g < send.length; g += Phys.BATCH) groups.push(send.slice(g, g + Phys.BATCH));
+    groups.forEach(function (grp, gi) {
       chain = chain.then(function () {
-        if (btn) btn.textContent = '保存中…（' + (done + 1) + ' / ' + send.length + '）';
-        return Api.call('physSave', { token: S.token, records: [{ athleteId: r.athleteId, date: r.date, v: r.v, image: { mime: 'image/jpeg', data: r.img.split(',')[1] } }] });
-      }).then(function (res) { done++; added += res.added; updated += res.updated; r.saved = true; });
+        if (btn) btn.textContent = '保存中…（' + Math.min(done + grp.length, send.length) + ' / ' + send.length + '）';
+        return Api.call('physSave', { token: S.token, log: gi === groups.length - 1, logCount: send.length,
+          records: grp.map(function (r) { return { athleteId: r.athleteId, date: r.date, v: r.v, image: { mime: 'image/jpeg', data: r.img.split(',')[1] } }; }) });
+      }).then(function (res) { done += grp.length; added += res.added; updated += res.updated; grp.forEach(function (r) { r.saved = true; }); });
     });
     chain.then(function () {
       Phys.imp = null; Phys.importOpen = false; Phys.imgCache = {};
